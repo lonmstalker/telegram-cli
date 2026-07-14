@@ -31,3 +31,13 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Decisions: [D-20260715-002](../decisions/decisions.md).
 - Problems: none.
 - Next: выполнить rotation checks, commit memory checkpoint, push `main` и проверить upstream/remote HEAD.
+
+## [2026-07-15] work | W-20260715-004 | Публикация GitHub remote проверена
+
+- Цель: подтвердить завершение настройки remote и публикации локального состояния.
+- Sources: live Git state и GitHub repository metadata.
+- Actions: checkpoint commit опубликован в `origin/main`; локальная `main` настроена на tracking `origin/main`.
+- Verification: local HEAD и `refs/heads/main` на remote совпали; GitHub default branch — `main`, visibility — `PUBLIC`; journal rotation contracts passed.
+- Decisions: [D-20260715-002](../decisions/decisions.md).
+- Problems: none.
+- Next: использовать `origin/main` как canonical integration branch.

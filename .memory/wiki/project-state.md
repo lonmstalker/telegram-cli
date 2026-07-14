@@ -10,6 +10,7 @@
 - SSH-доступ и серверный database-key path проверены без вывода значения.
 - `.env.local` создан как ignored mode-`0600` source; env contract опубликован без значений, loader проверен.
 - Karpathy Wiki использует отдельные work/decision/problem journals и checksum-backed rotation.
+- Canonical GitHub remote: `https://github.com/lonmstalker/telegram-cli.git`; public visibility явно принята пользователем.
 
 ## Not implemented
 
@@ -26,3 +27,4 @@
 
 - [Bootstrap digest](../raw/2026-07-15-project-bootstrap.md)
 - [D-20260715-001](../decisions/decisions.md)
+- [D-20260715-002](../decisions/decisions.md)

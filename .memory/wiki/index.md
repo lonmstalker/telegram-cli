@@ -23,6 +23,7 @@
 ## Current records
 
 - Decision: [D-20260715-001](../decisions/decisions.md) — раздельная memory model, rotation и secret boundary.
+- Decision: [D-20260715-002](../decisions/decisions.md) — публичный GitHub remote принят как canonical `origin`.
 - Open problem: [P-20260715-001](../problems/problems.md) — database key ещё не подключён к штатному gateway.
 
 ## Operating rules

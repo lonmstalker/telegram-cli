@@ -1,0 +1,4 @@
+interface:
+  display_name: "Karpathy Wiki"
+  short_description: "Ведёт source-backed память проекта"
+  default_prompt: "Используй $karpathy-wiki, чтобы обновить source-backed память проекта, отдельно записав лог, решения и проблемы без секретов."

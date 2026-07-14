@@ -1,0 +1,6 @@
+/.env.local
+/.env.*.local
+/.tdlib-sessions/
+__pycache__/
+*.py[cod]
+.DS_Store

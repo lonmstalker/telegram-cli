@@ -1,0 +1,39 @@
+[workspace]
+resolver = "2"
+members = [
+    "apps/telegram-cli",
+    "apps/telegram-mcp",
+    "apps/telegram-webapp-runner",
+    "apps/telegramd",
+    "crates/telegram-core",
+    "crates/telegram-protocol",
+]
+default-members = [
+    "apps/telegram-cli",
+    "apps/telegram-webapp-runner",
+    "apps/telegramd",
+    "crates/telegram-core",
+    "crates/telegram-protocol",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.test]
+debug = 0
+incremental = false

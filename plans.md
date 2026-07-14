@@ -76,7 +76,7 @@ flowchart LR
 
 | Phase | Результат | Status |
 |---|---|---|
-| P0 | Контракт, repository skeleton и pinned schema | pending |
+| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-005 |
 | P1 | Core transport, authorization и ordered updates | pending |
 | P2 | Singleton daemon и shared session lifecycle | pending |
 | P3 | Полный generated raw API | pending |
@@ -102,7 +102,7 @@ flowchart LR
 
 ### Tasks
 
-- [ ] Создать Cargo workspace и crate boundaries из раздела Architecture.
+- [x] Создать Cargo workspace и crate boundaries из раздела Architecture.
 - [ ] Зафиксировать exact TDLib commit/native build и сохранить `td_api.tl` + SHA-256.
 - [ ] Реализовать schema parser, method/type/update/auth-state inventory и feature-owner manifest.
 - [ ] Зафиксировать capability matrix: regular user, bot, Business/Premium, admin-gated, official-only.
@@ -116,6 +116,10 @@ flowchart LR
 - [ ] Все constructors, updates и authorization states имеют registry/codec/router/handler parity с pinned schema.
 - [ ] Для каждого method заполнены risk/retry/prerequisite/capability поля.
 - [ ] Account/session model принят до начала runtime implementation.
+
+### Checkpoints
+
+- `W-20260715-005`: создан workspace из шести целевых packages; optional `telegram-mcp` исключён из `default-members`; skeleton binaries fail closed. Доказательства: `scripts/check-workspace-boundaries.py` с двумя negative controls, `scripts/test-skeleton-process-guard.py`, `scripts/check-skeleton-fails-closed.py`, `cargo test --workspace --all-targets --jobs 2`, `cargo clippy --workspace --all-targets --jobs 2 -- -D warnings`; независимое ревью — approved. Build footprint после gate: 9.1 MiB.
 
 ## P1 — Core transport, authorization и ordered state
 

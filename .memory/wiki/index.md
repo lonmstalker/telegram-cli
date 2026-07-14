@@ -22,6 +22,7 @@
 
 ## Current records
 
+- Implementation: [P0 in progress](project-state.md) — Cargo workspace boundary закрыт checkpoint `W-20260715-005`, runtime ещё не реализован.
 - Decision: [D-20260715-001](../decisions/decisions.md) — раздельная memory model, rotation и secret boundary.
 - Decision: [D-20260715-002](../decisions/decisions.md) — публичный GitHub remote принят как canonical `origin`.
 - Open problem: [P-20260715-001](../problems/problems.md) — database key ещё не подключён к штатному gateway.

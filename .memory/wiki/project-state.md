@@ -13,10 +13,11 @@
 - Canonical GitHub remote: `https://github.com/lonmstalker/telegram-cli.git`; public visibility явно принята пользователем.
 - P0 начат: Cargo workspace содержит шесть целевых packages, а dependency/target/default-member boundaries защищены executable contract с negative controls.
 - До появления runtime все четыре binary entrypoint fail closed; process guard ограничен timeout и очищает всю отдельную process group.
+- Initial production schema pin: TDLib `1.8.66`, exact commit `07d3a097...`; vendored schema hash/counts проверяются offline с negative controls.
 
 ## Not implemented
 
-- Generated schema registry, singleton daemon, рабочий CLI и MCP ещё не созданы; текущие binaries являются только fail-closed skeleton.
+- Native TDLib artifact, generated schema registry, singleton daemon, рабочий CLI и MCP ещё не созданы; текущие binaries являются только fail-closed skeleton.
 - Stateful request-chain engine, retry/reconciliation, policy, metrics и agent skill остаются планом.
 
 ## Active boundary
@@ -31,3 +32,5 @@
 - [D-20260715-001](../decisions/decisions.md)
 - [D-20260715-002](../decisions/decisions.md)
 - [W-20260715-005](../logs/work.md)
+- [D-20260715-003](../decisions/decisions.md)
+- [W-20260715-006](../logs/work.md)

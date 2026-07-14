@@ -1,6 +1,6 @@
 # Полнота TDLib API
 
-Статус: bootstrap contract; generator и implementation ещё не созданы.
+Статус: exact schema snapshot закреплён; native artifact, generator и implementation ещё не созданы.
 
 ## Проверенный upstream baseline
 
@@ -11,8 +11,9 @@
 - Type/object definitions до `---functions---`: `2168`, включая schema `vector` definition.
 - Updates: `184`; authorization states: `13`.
 - Source: <https://github.com/tdlib/td/tree/07d3a0973f5113b0827a04d54a93aaaa9e288348>.
+- Local manifest: [`vendor/tdlib/manifest.json`](../vendor/tdlib/manifest.json); offline gate: `python3 scripts/check-tdlib-pin.py`.
 
-Baseline служит точкой планирования, а не бессрочно выбранной production-версией. В P0 из [plans.md](../plans.md) нужно повторно закрепить commit, сохранить schema hash и сгенерировать inventory.
+Этот exact commit принят как initial production schema pin в `D-20260715-003`; переход на другой commit требует явного manifest/schema diff и повторной классификации. Native artifact и generated registry остаются отдельными P0 gates.
 
 ## Что входит в coverage
 

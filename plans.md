@@ -120,6 +120,7 @@ flowchart LR
 ### Checkpoints
 
 - `W-20260715-005`: создан workspace из шести целевых packages; optional `telegram-mcp` исключён из `default-members`; skeleton binaries fail closed. Доказательства: `scripts/check-workspace-boundaries.py` с двумя negative controls, `scripts/test-skeleton-process-guard.py`, `scripts/check-skeleton-fails-closed.py`, `cargo test --workspace --all-targets --jobs 2`, `cargo clippy --workspace --all-targets --jobs 2 -- -D warnings`; независимое ревью — approved. Build footprint после gate: 9.1 MiB.
+- `W-20260715-006`: exact TDLib schema pin сохранён в `vendor/tdlib` для commit `07d3a097...`; offline gate подтверждает SHA-256, 2168 definitions, 1010 functions, 184 updates и 13 authorization states; independent review — approved. Решение: `D-20260715-003`. Native artifact/build provenance ещё не закреплены, поэтому объединённый task checkbox остаётся open.
 
 ## P1 — Core transport, authorization и ordered state
 

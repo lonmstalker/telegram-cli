@@ -12,7 +12,7 @@
 - product_context_source: product.md
 - Feature purpose: сделать всю закреплённую TDLib-схему discoverable, валидируемой и вызываемой без ручного wrapper на каждый method.
 - Product workflow/job served: version -> search/describe -> policy -> call -> typed/raw result.
-- Primary ambiguity to keep explicit: production pin подтверждается в P0, текущий master snapshot является baseline.
+- Primary ambiguity to keep explicit: schema pin принят, но target-specific native artifact и generated registry ещё отсутствуют.
 
 ## Product Context
 
@@ -28,7 +28,7 @@
 - SRC001: product.md; type: file; supports: full-scope rule; limits: none.
 - SRC002: HARNESS.md; type: file; supports: owner/classification gates; limits: none.
 - SRC003: docs/tdlib-api-coverage.md; type: file; supports: baseline/counts/formula; limits: generator absent.
-- SRC004: official schema commit `07d3a097...`; type: supplied; supports: 1010 functions/2168 definitions/184 updates/13 auth states; limits: baseline may be repinned.
+- SRC004: `vendor/tdlib/manifest.json`, exact official commit `07d3a097...` и raw digest `.memory/raw/2026-07-15-tdlib-1.8.66-schema-pin.md`; type: verified repo source; supports: 1010 functions/2168 definitions/184 updates/13 auth states; limits: native artifact absent.
 
 ## TDLib API Coverage
 
@@ -62,7 +62,7 @@ Registry records user/bot/business/premium/admin/official-only constraints separ
 
 ## Live Verification Boundary
 
-Current counts/hash are verified against upstream; no generated registry or live per-method matrix exists yet.
+Current counts/hash проверены against upstream и vendored offline; target-specific native artifact, generated registry и live per-method matrix отсутствуют.
 
 ## Scope
 
@@ -76,7 +76,7 @@ Current counts/hash are verified against upstream; no generated registry or live
 
 ### Ambiguous
 
-- The first production pin between a release commit and the verified master snapshot remains undecided; see Q001.
+- Native artifact identity и target-specific build provenance остаются незакрытой частью P0.
 
 ## Context Map
 
@@ -150,12 +150,12 @@ Current counts/hash are verified against upstream; no generated registry or live
 
 ## Open Questions
 
-- Q001: какой exact commit станет первым production pin; owner: maintainer; blocking for P0 implementation.
+- Q001: resolved by `D-20260715-003`; initial production schema pin — exact commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`, никогда moving `master`.
 
 ## Coverage Notes
 
 - Kernel coverage: complete contract, no implementation.
 - Modeled: pin/diff/classify/discover/call claims.
-- Partial: generated artifacts absent.
-- Unknown: production pin decision.
+- Partial: native artifact и generated registry отсутствуют.
+- Unknown: none for schema source identity.
 - Not applicable: domain-specific request chains.

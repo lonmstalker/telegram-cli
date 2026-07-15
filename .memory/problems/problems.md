@@ -2,15 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] open | P-20260715-001 | Штатный gateway не принимает database key file
-
-- Evidence: `docs/feature-logic-harness/authorization.md` и baseline в `plans.md` фиксируют successful direct TDJSON access и отсутствие database-key wiring в штатном gateway.
-- Impact: стандартный development path не может открыть существующую encrypted TDLib DB через согласованный file reference.
-- Reproduction boundary: не повторять login и не выводить key; проверять только через existing encrypted session и protected file provider.
-- Status: open; implementation отсутствует.
-- Next check: в P1/F002 добавить file/keychain secret provider, negative wrong-key test и returning Ready/getMe/Closed acceptance.
-- Related decisions: [D-20260715-001](../decisions/decisions.md).
-
 ## [2026-07-15] open | P-20260715-002 | Exact TDLib native artifact не закреплён
 
 - Evidence: `plans.md` требует exact native build; `vendor/tdlib/manifest.json` и `python3 scripts/check-tdlib-pin.py` пока доказывают только source/schema/license identity и не содержат target-specific artifact hash/provenance.
@@ -144,3 +135,11 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Status: open; zero-open gate не достигнут, 133 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
 - Next check: отдельными reviewed tasks закрывать следующие exact semantic families; runtime evaluator обязан fail closed на stale/unknown owner evidence.
 - Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-018](../decisions/decisions.md).
+
+## [2026-07-15] open update | P-20260715-005 | Invite-link creation уменьшила open set до 131 methods
+
+- Evidence: [chat invite-link creation digest](../raw/2026-07-15-tdlib-chat-invite-link-creation-capabilities.md); exact triple-signal family разделена на 2 complete create/replace methods и 9 mixed own/other-link methods.
+- Transition: два methods получают three-kind `ChatAdministratorRight(CanInviteUsers)` DNF. Supported typed set теперь 59, terminal complete set 62, open-set SHA-256 `49480a48f3c072d8b3621c5d8e64ada2f1eacb13c697feed31279490e8886fbf`.
+- Status: open; zero-open gate не достигнут, 131 method по-прежнему дают `SchemaDrift` и не считаются capability coverage.
+- Next check: отдельными reviewed tasks закрывать следующие exact semantic families; runtime evaluator обязан fail closed на stale/unknown administrator-right evidence.
+- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-019](../decisions/decisions.md).

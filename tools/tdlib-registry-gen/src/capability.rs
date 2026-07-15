@@ -3,6 +3,7 @@
 //! This module classifies static requirements. It never claims that a runtime
 //! account currently satisfies them and it does not grant policy permission.
 
+mod chat_invite_links;
 mod supergroup_usernames;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -1304,6 +1305,7 @@ fn documented_runtime_requirements(
     let group_call_contract = reviewed_group_call_contract(method)?;
     let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
     let boolean_option_contract = reviewed_runtime_boolean_option_contract(method)?;
+    let chat_invite_link_contract = reviewed_chat_invite_link_contract(method)?;
     let supergroup_username_contract = reviewed_supergroup_username_contract(method)?;
     let reviewed_family_count = [
         runtime_contract.is_some(),
@@ -1311,6 +1313,7 @@ fn documented_runtime_requirements(
         group_call_contract.is_some(),
         supergroup_full_info_contract.is_some(),
         boolean_option_contract.is_some(),
+        chat_invite_link_contract.is_some(),
         supergroup_username_contract.is_some(),
     ]
     .into_iter()
@@ -1366,6 +1369,9 @@ fn documented_runtime_requirements(
     if let Some(contract) = boolean_option_contract {
         expected_consumed.extend(contract.consumed_signal_keys());
     }
+    if chat_invite_link_contract.is_some() {
+        expected_consumed.extend(chat_invite_link_consumed_signal_keys());
+    }
     if supergroup_username_contract.is_some() {
         expected_consumed.extend(supergroup_username_consumed_signal_keys());
     }
@@ -1390,6 +1396,14 @@ fn documented_runtime_requirements(
         chat_kind_clauses(&target, contract.supported_chat_kinds(), |target| {
             RuntimeRequirement::ChatOwner {
                 target: target.clone(),
+            }
+        })?
+    } else if let Some(contract) = chat_invite_link_contract {
+        let target = documented_chat_target(method)?;
+        chat_kind_clauses(&target, contract.supported_chat_kinds(), |target| {
+            RuntimeRequirement::ChatAdministratorRight {
+                target: target.clone(),
+                right: contract.required_right(),
             }
         })?
     } else {
@@ -1521,6 +1535,45 @@ fn reviewed_supergroup_username_contract(
         ));
     }
     Ok(Some(contract))
+}
+
+fn reviewed_chat_invite_link_contract(
+    method: &Definition,
+) -> Result<Option<&'static chat_invite_links::ChatInviteLinkContract>, CapabilityGenerationError> {
+    let Some(contract) = chat_invite_links::reviewed_contract(method.name()) else {
+        return Ok(None);
+    };
+    if method.canonical_signature() != contract.canonical_signature() {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed chat-invite-link signature drifted",
+        ));
+    }
+    if !signal_source_has_exact_text(
+        method,
+        &RuntimeSignalSource::Description,
+        contract.source_text(),
+    ) {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed chat-invite-link source text drifted or disappeared",
+        ));
+    }
+    Ok(Some(contract))
+}
+
+fn chat_invite_link_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
+    [
+        RuntimeSignalFamily::RequiresAdministrator,
+        RuntimeSignalFamily::RequiresRightPhrase,
+        RuntimeSignalFamily::NamedRight(ChatAdministratorRight::CanInviteUsers),
+    ]
+    .into_iter()
+    .map(|family| RuntimeSignalKey {
+        source: RuntimeSignalSource::Description,
+        family,
+    })
+    .collect()
 }
 
 fn supergroup_username_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
@@ -2783,6 +2836,9 @@ fn documented_runtime_signal_dispositions(
     if reviewed_supergroup_username_contract(method)?.is_some() {
         consumed.extend(supergroup_username_consumed_signal_keys());
     }
+    if reviewed_chat_invite_link_contract(method)?.is_some() {
+        consumed.extend(chat_invite_link_consumed_signal_keys());
+    }
     runtime_signal_dispositions_with_consumed(method, &consumed)
 }
 
@@ -3286,6 +3342,10 @@ fn engine_source_sha256() -> String {
     let mut hasher = Sha256::new();
     for (path, bytes) in [
         ("capability.rs", include_bytes!("capability.rs").as_slice()),
+        (
+            "capability/chat_invite_links.rs",
+            include_bytes!("capability/chat_invite_links.rs").as_slice(),
+        ),
         (
             "capability/supergroup_usernames.rs",
             include_bytes!("capability/supergroup_usernames.rs").as_slice(),

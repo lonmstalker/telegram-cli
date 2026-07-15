@@ -30,11 +30,12 @@
 - P0.5b6 закрепляет ordered 42-field `supergroupFullInfo`, closed eight-property vocabulary и 5 exact typed DNF. Семь mixed methods остаются deferred; два cross-token `OnlyIfAdministrator` matches классифицированы как exact lexical non-gates. Open set уменьшен до 138, capability format — `5`; Rust/evidence reviews и independent oracle audit — Approved.
 - P0.5b7 закрепляет exact four-constructor `OptionValue`, `getOption`/`updateOption`, closed three-name runtime option vocabulary и method-level gate для `setNewChatPrivacySettings`. Два mixed methods остаются deferred; open set уменьшен до 137. После удаления owner fields capability format повышен до `7`; semantic capability contents не изменились.
 - P0.5b8 закрепляет в semantic module четыре exact username-management contracts. Explicit DNF требует `supergroup/channel AND owner`; 13 mixed owner methods остаются deferred. Open set уменьшен до 133, capability format остаётся `7`.
+- P0.5b9 закрепляет в semantic module два exact invite-link create/replace contracts. Explicit DNF требует basic-group/supergroup/channel kind и administrator `can_invite_users` right; 9 own/other-link methods остаются deferred. Open set уменьшен до 131, capability format остаётся `7`.
 - Planning boundary gate с семью negative controls запрещает `FeatureId`, numeric planning IDs и owner-manifest taxonomy в runtime/tooling/machine contracts; real discovery проверяет scripts/all root machine files, file/root symlink fail closed.
 
 ## Not implemented
 
-- Linux x86_64 TDLib artifact, typed dispositions для 133 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
+- Linux x86_64 TDLib artifact, typed dispositions для 131 runtime-signal method, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
 - Stateful request-chain engine, retry/reconciliation, policy, metrics и agent skill остаются планом.
 
 ## Active boundary
@@ -74,6 +75,7 @@
 - [TDLib SupergroupFullInfo capability digest](../raw/2026-07-15-tdlib-supergroup-full-info-capabilities.md)
 - [TDLib runtime boolean option capability digest](../raw/2026-07-15-tdlib-runtime-boolean-options.md)
 - [TDLib supergroup username owner capability digest](../raw/2026-07-15-tdlib-supergroup-username-owner-capabilities.md)
+- [TDLib chat invite-link creation capability digest](../raw/2026-07-15-tdlib-chat-invite-link-creation-capabilities.md)
 - [TDLib getChatBoostLinkInfo lexical non-gate digest](../raw/2026-07-15-tdlib-chat-boost-link-non-gate.md)
 - [D-20260715-009](../decisions/archive/2026-07-15--2026-07-15-008.md)
 - [W-20260715-012](../logs/archive/2026-07-15--2026-07-15-011.md)
@@ -95,3 +97,5 @@
 - [W-20260715-021](../logs/work.md)
 - [D-20260715-018](../decisions/decisions.md)
 - [W-20260715-022](../logs/work.md)
+- [D-20260715-019](../decisions/decisions.md)
+- [W-20260715-023](../logs/work.md)

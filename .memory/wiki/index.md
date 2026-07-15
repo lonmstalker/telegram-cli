@@ -36,10 +36,11 @@
 - [TDLib SupergroupFullInfo capability semantics](../raw/2026-07-15-tdlib-supergroup-full-info-capabilities.md) — exact property/target DNF, cross-token lexical non-gates и 138-method open set.
 - [TDLib runtime boolean option capability semantics](../raw/2026-07-15-tdlib-runtime-boolean-options.md) — exact option vocabulary, one method-level gate, two deferred mixed methods и 137-method open set.
 - [TDLib supergroup username owner capability semantics](../raw/2026-07-15-tdlib-supergroup-username-owner-capabilities.md) — four exact `ChatKind AND ChatOwner` contracts, exhaustive owner-signal partition и 133-method open set.
+- [TDLib chat invite-link creation capability semantics](../raw/2026-07-15-tdlib-chat-invite-link-creation-capabilities.md) — two exact three-kind administrator-right contracts, nine mixed methods deferred и 131-method open set.
 
 ## Current records
 
-- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option/username-owner semantics, planning-taxonomy correction и macOS native pin закрыты через `W-20260715-022`; 133 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
+- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option/username-owner/invite-link semantics, planning-taxonomy correction и macOS native pin закрыты через `W-20260715-023`; 131 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
 - Native pin: [reviewed rebuild correction](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — exact source/schema и crash-safe macOS arm64 artifact закреплены; Linux/reproducibility остаются open.
 - Decision: [D-20260715-001](../decisions/archive/2026-07-15--2026-07-15-001.md) — раздельная memory model, rotation и secret boundary.
 - Decision: [D-20260715-002](../decisions/archive/2026-07-15--2026-07-15-002.md) — публичный GitHub remote принят как canonical `origin`.
@@ -59,9 +60,10 @@
 - Decision: [D-20260715-016](../decisions/decisions.md) — runtime boolean option является generation-bound typed evidence, а не Premium entitlement.
 - Decision: [D-20260715-017](../decisions/decisions.md) — numeric feature inventory остаётся только документацией; executable architecture keyed by semantic modules и exact TDLib schema identity.
 - Decision: [D-20260715-018](../decisions/decisions.md) — username-management prerequisite требует explicit supergroup/channel kind и current owner evidence.
+- Decision: [D-20260715-019](../decisions/decisions.md) — invite-link creation требует explicit chat kind и current administrator `can_invite_users` evidence.
 - Open problem: [P-20260715-001](../problems/problems.md) — database key ещё не подключён к штатному gateway.
 - Open problem: [P-20260715-003](../problems/problems.md) — Linux x86_64 native artifact ещё не закреплён.
-- Open problem: [P-20260715-005](../problems/problems.md) — 133 pinned runtime-signal methods ещё не имеют typed disposition.
+- Open problem: [P-20260715-005](../problems/problems.md) — 131 pinned runtime-signal method ещё не имеет typed disposition.
 
 ## Operating rules
 

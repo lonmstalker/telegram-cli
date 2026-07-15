@@ -567,6 +567,99 @@ fn public_generation_enforces_supergroup_username_owner_contract() {
 }
 
 #[test]
+fn public_generation_enforces_chat_invite_link_creation_contract() {
+    let marker = "//@description Uses a feature; for Telegram Premium users only";
+    let schema = SCHEMA.replacen(
+        marker,
+        concat!(
+            "//@description Creates a new invite link for a chat. Available for basic groups, supergroups, and channels. Requires administrator privileges and can_invite_users right in the chat\n",
+            "//@chat_id Chat identifier\n",
+            "//@name Invite link name; 0-32 characters\n",
+            "//@expiration_date Point in time when the link will expire\n",
+            "//@member_limit Maximum simultaneous members\n",
+            "//@creates_join_request Whether join requests are required\n",
+            "createChatInviteLink chat_id:int53 name:string expiration_date:int32 member_limit:int32 creates_join_request:Bool = ChatInviteLink;\n\n",
+            "//@description Uses a feature; for Telegram Premium users only"
+        ),
+        1,
+    );
+    assert_ne!(schema, SCHEMA, "invite-link fixture insertion");
+    let fixture = Fixture::new(&schema);
+    let exact_requirement = json!({
+        "kind": "any_of",
+        "clauses": [
+            {"all_of": [
+                chat_kind("chat_id", "basic_group"),
+                chat_administrator_right("chat_id", "can_invite_users")
+            ]},
+            {"all_of": [
+                chat_kind("chat_id", "supergroup"),
+                chat_administrator_right("chat_id", "can_invite_users")
+            ]},
+            {"all_of": [
+                chat_kind("chat_id", "channel"),
+                chat_administrator_right("chat_id", "can_invite_users")
+            ]}
+        ]
+    });
+    let mut policy = fixture.capability_value();
+    method_row_mut(&mut policy, "createChatInviteLink")["runtime_requirements"] = exact_requirement;
+
+    let mut missing_basic_group = policy.clone();
+    method_row_mut(&mut missing_basic_group, "createChatInviteLink")["runtime_requirements"]
+        ["clauses"]
+        .as_array_mut()
+        .expect("invite-link clauses")
+        .remove(0);
+    assert_policy_error(
+        &fixture,
+        missing_basic_group,
+        CapabilityGenerationErrorKind::InvalidPolicy,
+    );
+
+    let mut member_permission = policy.clone();
+    method_row_mut(&mut member_permission, "createChatInviteLink")["runtime_requirements"]["clauses"]
+        [0]["all_of"][1] = chat_member_right("chat_id", "can_invite_users");
+    assert_policy_error(
+        &fixture,
+        member_permission,
+        CapabilityGenerationErrorKind::InvalidPolicy,
+    );
+
+    let artifact: Value = serde_json::from_slice(
+        &fixture
+            .generate_value(&policy)
+            .expect("invite-link capability generation"),
+    )
+    .expect("canonical artifact");
+    let target = || json!({"kind": "chat_id", "argument": "chat_id"});
+    assert_eq!(
+        method_row(&artifact, "createChatInviteLink")["ready_accounts"],
+        json!(["regular_user", "bot"])
+    );
+    assert_eq!(
+        method_row(&artifact, "createChatInviteLink")["runtime_requirements"],
+        json!({
+            "kind": "any_of",
+            "clauses": [
+                {"all_of": [
+                    {"kind": "chat_kind", "target": target(), "value": "basic_group"},
+                    {"kind": "chat_administrator_right", "target": target(), "right": "can_invite_users"}
+                ]},
+                {"all_of": [
+                    {"kind": "chat_kind", "target": target(), "value": "supergroup"},
+                    {"kind": "chat_administrator_right", "target": target(), "right": "can_invite_users"}
+                ]},
+                {"all_of": [
+                    {"kind": "chat_kind", "target": target(), "value": "channel"},
+                    {"kind": "chat_administrator_right", "target": target(), "right": "can_invite_users"}
+                ]}
+            ]
+        })
+    );
+}
+
+#[test]
 fn public_generation_keeps_group_call_message_universal_cardinality() {
     let marker = "//@description Uses a feature; for Telegram Premium users only";
     let schema = SCHEMA.replacen(
@@ -900,8 +993,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            57,
-            "4454d9ff7d0b979f60cd10639507cd73fab248f9bcdcaf77226ed473e868b7e8".to_owned()
+            59,
+            "564475074ddd25c973a007b3c719a1a66cf36a3b9e39b4bca26fb629f450252f".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -917,8 +1010,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            60,
-            "d8f9eaddb7ed7ba9441036790e556f65fa7a0790fafd95d2f4b19f59f66ac28b".to_owned()
+            62,
+            "c5731e4eb84c10c2e9fc1dde244fbede40cc2968644804a705ec0745e880f340".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -927,12 +1020,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        133,
+        131,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "cd2b13cc68f18956f113592b505ec4469c564e3f7ce4298e7e4093b172e5a914",
+        "49480a48f3c072d8b3621c5d8e64ada2f1eacb13c697feed31279490e8886fbf",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -1009,7 +1102,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "0569da65720ced780c8643389ab908b2cfd4798ea69319eb6a05085ee59f94e5"
+        "9fd51ff00a49906281fbf4e67261a97154e488e8e35be73a32a105a45c6d5e46"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -3114,6 +3207,183 @@ fn pinned_supergroup_username_owner_contracts_are_exact() {
     assert_eq!(
         documented_runtime_requirements(find_method(&additional_signal, "setSupergroupUsername"))
             .expect_err("unconsumed owner argument signal must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
+fn pinned_chat_invite_link_creation_contracts_are_exact() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let contracts = [
+        (
+            "createChatInviteLink",
+            "createChatInviteLink chat_id:int53 name:string expiration_date:int32 member_limit:int32 creates_join_request:Bool = ChatInviteLink;",
+            "creates a new invite link for a chat. available for basic groups, supergroups, and channels. requires administrator privileges and can_invite_users right in the chat",
+        ),
+        (
+            "replacePrimaryChatInviteLink",
+            "replacePrimaryChatInviteLink chat_id:int53 = ChatInviteLink;",
+            "replaces current primary invite link for a chat with a new primary invite link. available for basic groups, supergroups, and channels. requires administrator privileges and can_invite_users right",
+        ),
+    ];
+    let safe = contracts
+        .iter()
+        .map(|(method, _, _)| *method)
+        .collect::<std::collections::BTreeSet<_>>();
+    let mixed = [
+        "deleteAllRevokedChatInviteLinks",
+        "deleteRevokedChatInviteLink",
+        "editChatInviteLink",
+        "getChatInviteLink",
+        "getChatInviteLinkMembers",
+        "getChatInviteLinks",
+        "getChatJoinRequests",
+        "processChatJoinRequests",
+        "revokeChatInviteLink",
+    ]
+    .into_iter()
+    .collect::<std::collections::BTreeSet<_>>();
+    let hash_rows = |mut rows: Vec<String>| {
+        rows.sort_unstable();
+        let mut payload = rows.join("\n");
+        payload.push('\n');
+        sha256_hex(payload.as_bytes())
+    };
+    assert!(safe.is_disjoint(&mixed));
+    assert_eq!(
+        hash_rows(safe.iter().map(ToString::to_string).collect()),
+        "91ddac463f4dcc4d43579e97bd8fdb2e831e0e8413cf288890b91ba73e049f27"
+    );
+    assert_eq!(
+        hash_rows(mixed.iter().map(ToString::to_string).collect()),
+        "8309b84a00eb0d95f99593c2c5cfd01dfe21ccdf7b2ca89f956bc6094b49545f"
+    );
+
+    let family = schema
+        .methods()
+        .iter()
+        .filter_map(|method| {
+            let keys = documented_runtime_signal_dispositions(method)
+                .unwrap_or_else(|error| panic!("{}: {error}", method.name()))
+                .into_iter()
+                .map(|(key, _)| key.family())
+                .collect::<std::collections::BTreeSet<_>>();
+            [
+                RuntimeSignalFamily::RequiresAdministrator,
+                RuntimeSignalFamily::RequiresRightPhrase,
+                RuntimeSignalFamily::NamedRight(ChatAdministratorRight::CanInviteUsers),
+            ]
+            .into_iter()
+            .all(|family| keys.contains(&family))
+            .then_some(method.name())
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        safe.union(&mixed)
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>(),
+        family,
+        "invite-link administrator/right family must be exhaustive"
+    );
+
+    let target = ChatTargetRef::try_from("chat_id").expect("chat target");
+    let expected = RequirementAlternatives::try_new(
+        [
+            ResolvedChatKind::BasicGroup,
+            ResolvedChatKind::Supergroup,
+            ResolvedChatKind::Channel,
+        ]
+        .into_iter()
+        .map(|value| {
+            vec![
+                RuntimeRequirement::ChatKind(
+                    ChatKindCondition::try_new(target.clone(), value).expect("chat kind"),
+                ),
+                RuntimeRequirement::ChatAdministratorRight {
+                    target: target.clone(),
+                    right: ChatAdministratorRight::CanInviteUsers,
+                },
+            ]
+        })
+        .collect(),
+    )
+    .expect("invite-link alternatives");
+    for (method_name, signature, source) in contracts {
+        let method = find_method(&schema, method_name);
+        assert_eq!(method.canonical_signature(), signature, "{method_name}");
+        assert_eq!(
+            normalized_text(&super::method_description(method)),
+            source,
+            "{method_name} source"
+        );
+        assert_eq!(
+            documented_runtime_requirements(method)
+                .expect("reviewed invite-link documentation")
+                .expect("invite-link contract"),
+            expected,
+            "{method_name}"
+        );
+        let dispositions =
+            documented_runtime_signal_dispositions(method).expect("invite-link dispositions");
+        assert_eq!(dispositions.len(), 3, "{method_name} consumed signal count");
+        assert!(dispositions.iter().all(|(_, disposition)| {
+            *disposition == RuntimeSignalDisposition::ConsumedByRuntimeRequirements
+        }));
+    }
+
+    for method_name in mixed {
+        let method = find_method(&schema, method_name);
+        assert_eq!(
+            documented_runtime_requirements(method)
+                .expect_err("own/other invite-link method must remain open")
+                .kind(),
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "{method_name}"
+        );
+    }
+
+    let source = "Creates a new invite link for a chat. Available for basic groups, supergroups, and channels. Requires administrator privileges and can_invite_users right in the chat";
+    let source_drift = pinned.replacen(
+        source,
+        "Creates a new invite link for a chat. Available for basic groups, supergroups, and channels. Requires exact administrator privileges and can_invite_users right in the chat",
+        1,
+    );
+    let source_drift = Schema::parse(&source_drift).expect("valid source drift schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&source_drift, "createChatInviteLink"))
+            .expect_err("invite-link source drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let signature_drift = pinned.replacen(
+        "replacePrimaryChatInviteLink chat_id:int53 = ChatInviteLink;",
+        "replacePrimaryChatInviteLink chat_id:int32 = ChatInviteLink;",
+        1,
+    );
+    let signature_drift = Schema::parse(&signature_drift).expect("valid signature drift schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(
+            &signature_drift,
+            "replacePrimaryChatInviteLink"
+        ))
+        .expect_err("invite-link signature drift must fail closed")
+        .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let additional_signal = pinned.replacen(
+        "@name Invite link name; 0-32 characters",
+        "@name Invite link name; 0-32 characters; requires can_invite_users right",
+        1,
+    );
+    let additional_signal =
+        Schema::parse(&additional_signal).expect("valid additional invite-link signal schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&additional_signal, "createChatInviteLink"))
+            .expect_err("unconsumed invite-link argument signal must fail closed")
             .kind(),
         CapabilityGenerationErrorKind::SchemaDrift
     );

@@ -1,0 +1,719 @@
+{
+  "reviewed": [
+    {
+      "method": "addChecklistTasks",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+"runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanAddTasks }",
+      "retry": "reconcile"
+    },
+    {
+      "method": "addOffer",
+      "risk": "financial",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "(MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanAddOffer }) OR (MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanEditSuggestedPostInfo })",
+      "retry": "reconcile"
+    },
+    {
+      "method": "approveSuggestedPost",
+      "risk": "financial",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeApproved }",
+      "retry": "reconcile"
+    },
+    {
+      "method": "banGroupCallParticipants",
+      "risk": "admin",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "GroupCallKind { group_call: group_call_id, kind: Unbound } AND GroupCallProperty { group_call: group_call_id, property: IsOwned }",
+      "retry": "convergent"
+    },
+    {
+      "method": "createChatInviteLink",
+      "risk": "admin",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers })",
+      "retry": "reconcile"
+    },
+    {
+      "method": "createVideoChat",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats })",
+      "retry": "reconcile"
+    },
+    {
+      "method": "declineSuggestedPost",
+      "risk": "destructive",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeDeclined }",
+      "retry": "never"
+    },
+    {
+      "method": "deleteAllRecentMessageReactionsFromSender",
+      "risk": "destructive",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanDeleteMessages }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanDeleteMessages })",
+      "retry": "convergent"
+    },
+    {
+      "method": "deleteChatMessagesBySender",
+      "risk": "destructive",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKind { target: chat_id, kind: Supergroup } AND SupergroupFlag { target: chat_id, flag: IsDirectMessagesGroup, value: false } AND ChatAdministratorRight { target: chat_id, right: CanDeleteMessages }",
+      "retry": "convergent"
+    },
+    {
+      "method": "deleteGroupCallMessages",
+      "risk": "destructive",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "GroupCallKind { group_call: group_call_id, kind: LiveStory } AND GroupCallMessageCapability { subject: Each { group_call: group_call_id, messages: message_ids }, capability: CanBeDeleted }",
+      "retry": "convergent"
+    },
+    {
+      "method": "deleteGroupCallMessagesBySender",
+      "risk": "destructive",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "GroupCallKind { group_call: group_call_id, kind: LiveStory } AND GroupCallProperty { group_call: group_call_id, property: CanDeleteMessages }",
+      "retry": "convergent"
+    },
+    {
+      "method": "deleteMessageReactionsFromSender",
+      "risk": "destructive",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanDeleteReactions }",
+      "retry": "convergent"
+    },
+    {
+      "method": "disableAllSupergroupUsernames",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "(ChatKind { target: supergroup_id, kind: Supergroup } AND ChatOwner { target: supergroup_id }) OR (ChatKind { target: supergroup_id, kind: Channel } AND ChatOwner { target: supergroup_id })",
+      "retry": "convergent"
+    },
+    {
+      "method": "editMessageCaption",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeEdited }",
+      "retry": "convergent"
+    },
+    {
+      "method": "editMessageChecklist",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeEdited }",
+      "retry": "convergent"
+    },
+    {
+      "method": "editMessageLiveLocation",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeEdited }",
+      "retry": "convergent"
+    },
+    {
+      "method": "editMessageMedia",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanEditMedia }",
+      "retry": "convergent"
+    },
+    {
+      "method": "editMessageReplyMarkup",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeEdited }",
+      "retry": "convergent"
+    },
+    {
+      "method": "editMessageSchedulingState",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanEditSchedulingState }",
+      "retry": "convergent"
+    },
+    {
+      "method": "editMessageText",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeEdited }",
+      "retry": "convergent"
+    },
+    {
+      "method": "endGroupCall",
+      "risk": "destructive",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "(GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }) OR (GroupCallKind { group_call: group_call_id, kind: LiveStory } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }) OR (GroupCallKind { group_call: group_call_id, kind: Unbound } AND GroupCallProperty { group_call: group_call_id, property: IsOwned })",
+      "retry": "never"
+    },
+    {
+      "method": "endGroupCallRecording",
+      "risk": "admin",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }",
+      "retry": "convergent"
+    },
+    {
+      "method": "getChatBoosts",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatAdministrator { target: chat_id }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getChatEventLog",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "(ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministrator { target: chat_id }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatAdministrator { target: chat_id })",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getChatInviteLinkCounts",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "(ChatKind { target: chat_id, kind: BasicGroup } AND ChatOwner { target: chat_id }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatOwner { target: chat_id }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatOwner { target: chat_id })",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getChatStatistics",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "SupergroupFullInfoProperty { target: chat_id, property: CanGetStatistics }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getMessageAuthor",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetAuthor }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getMessageEmbeddingCode",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetEmbeddingCode }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getMessagePublicForwards",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetStatistics }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getMessageReadDate",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetReadDate }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getMessageStatistics",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetStatistics }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getMessageThread",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetMessageThread }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getMessageThreadHistory",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetMessageThread }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getMessageViewers",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetViewers }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getPollVoteStatistics",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetPollVoteStatistics }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getUserChatBoosts",
+      "risk": "read",
+      "accounts": [
+        "bot"
+      ],
+      "runtime_requirements": "ChatAdministrator { target: chat_id }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getVideoChatRtmpUrl",
+      "risk": "auth_security",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats })",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getVideoMessageAdvertisements",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetVideoAdvertisements }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "markChecklistTasksAsDone",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanMarkTasksAsDone }",
+      "retry": "convergent"
+    },
+    {
+      "method": "pinChatMessage",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBePinned }",
+      "retry": "convergent"
+    },
+    {
+      "method": "recognizeSpeech",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanRecognizeSpeech }",
+      "retry": "reconcile"
+    },
+    {
+      "method": "reorderSupergroupActiveUsernames",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "(ChatKind { target: supergroup_id, kind: Supergroup } AND ChatOwner { target: supergroup_id }) OR (ChatKind { target: supergroup_id, kind: Channel } AND ChatOwner { target: supergroup_id })",
+      "retry": "convergent"
+    },
+    {
+      "method": "replacePrimaryChatInviteLink",
+      "risk": "admin",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers })",
+      "retry": "reconcile"
+    },
+    {
+      "method": "replaceVideoChatRtmpUrl",
+      "risk": "auth_security",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "(ChatKind { target: chat_id, kind: BasicGroup } AND ChatOwner { target: chat_id }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatOwner { target: chat_id }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatOwner { target: chat_id })",
+      "retry": "reconcile"
+    },
+    {
+      "method": "reportMessageReactions",
+      "risk": "send",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanReportReactions }",
+      "retry": "reconcile"
+    },
+    {
+      "method": "reportSupergroupSpam",
+      "risk": "send",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "ChatKind { target: supergroup_id, kind: Supergroup } AND ChatAdministrator { target: supergroup_id } AND MessageCapability { subject: Each { chat: supergroup_id, messages: message_ids }, capability: CanReportSupergroupSpam }",
+      "retry": "reconcile"
+    },
+    {
+      "method": "revokeGroupCallInviteLink",
+      "risk": "admin",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "(GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }) OR (GroupCallKind { group_call: group_call_id, kind: Unbound } AND GroupCallProperty { group_call: group_call_id, property: IsOwned })",
+      "retry": "reconcile"
+    },
+    {
+      "method": "sendGroupCallMessage",
+      "risk": "send",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "GroupCallProperty { group_call: group_call_id, property: CanSendMessages }",
+      "retry": "reconcile"
+    },
+    {
+      "method": "setChatDescription",
+      "risk": "admin",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "(ChatKind { target: chat_id, kind: BasicGroup } AND ChatMemberRight { target: chat_id, right: CanChangeInfo }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatMemberRight { target: chat_id, right: CanChangeInfo }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatMemberRight { target: chat_id, right: CanChangeInfo })",
+      "retry": "convergent"
+    },
+    {
+      "method": "setChatLocation",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "SupergroupFullInfoProperty { target: chat_id, property: CanSetLocation }",
+      "retry": "convergent"
+    },
+    {
+      "method": "setChatPaidMessageStarCount",
+      "risk": "financial",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatAdministratorRight { target: chat_id, right: CanRestrictMembers } AND SupergroupFullInfoProperty { target: chat_id, property: CanEnablePaidMessages }",
+      "retry": "convergent"
+    },
+    {
+      "method": "setChatPermissions",
+      "risk": "admin",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanRestrictMembers }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanRestrictMembers })",
+      "retry": "convergent"
+    },
+    {
+      "method": "setChatSlowModeDelay",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanRestrictMembers }",
+      "retry": "convergent"
+    },
+    {
+      "method": "setGroupCallPaidMessageStarCount",
+      "risk": "financial",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "GroupCallKind { group_call: group_call_id, kind: LiveStory } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }",
+      "retry": "convergent"
+    },
+    {
+      "method": "setMessageFactCheck",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanSetFactCheck }",
+      "retry": "convergent"
+    },
+    {
+      "method": "setNewChatPrivacySettings",
+      "risk": "auth_security",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "BooleanOptionEnabled { option: CanSetNewChatPrivacySettings }",
+      "retry": "convergent"
+    },
+    {
+      "method": "setSupergroupMainProfileTab",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKind { target: supergroup_id, kind: Channel } AND ChatAdministratorRight { target: supergroup_id, right: CanChangeInfo }",
+      "retry": "convergent"
+    },
+    {
+      "method": "setSupergroupStickerSet",
+      "risk": "admin",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "ChatKind { target: supergroup_id, kind: Supergroup } AND ChatAdministratorRight { target: supergroup_id, right: CanChangeInfo }",
+      "retry": "convergent"
+    },
+    {
+      "method": "setSupergroupUnrestrictBoostCount",
+      "risk": "admin",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "ChatKind { target: supergroup_id, kind: Supergroup } AND ChatAdministratorRight { target: supergroup_id, right: CanRestrictMembers }",
+      "retry": "convergent"
+    },
+    {
+      "method": "setSupergroupUsername",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "(ChatKind { target: supergroup_id, kind: Supergroup } AND ChatOwner { target: supergroup_id }) OR (ChatKind { target: supergroup_id, kind: Channel } AND ChatOwner { target: supergroup_id })",
+      "retry": "convergent"
+    },
+    {
+      "method": "setVideoChatTitle",
+      "risk": "admin",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }",
+      "retry": "convergent"
+    },
+    {
+      "method": "startGroupCallRecording",
+      "risk": "admin",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }",
+      "retry": "reconcile"
+    },
+    {
+      "method": "stopPoll",
+      "risk": "destructive",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeEdited }",
+      "retry": "never"
+    },
+    {
+      "method": "toggleChatGiftNotifications",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKind { target: chat_id, kind: Channel } AND ChatAdministratorRight { target: chat_id, right: CanPostMessages }",
+      "retry": "convergent"
+    },
+    {
+      "method": "toggleForumTopicIsClosed",
+      "risk": "admin",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "(ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanManageTopics }) OR (ChatKind { target: chat_id, kind: Supergroup } AND TopicCreator { target: chat_id, topic: forum_topic_id })",
+      "retry": "convergent"
+    },
+    {
+      "method": "toggleGroupCallAreMessagesAllowed",
+      "risk": "admin",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "GroupCallProperty { group_call: group_call_id, property: CanToggleAreMessagesAllowed }",
+      "retry": "convergent"
+    },
+    {
+      "method": "toggleSupergroupHasAggressiveAntiSpamEnabled",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "SupergroupFullInfoProperty { target: supergroup_id, property: CanToggleAggressiveAntiSpam }",
+      "retry": "convergent"
+    },
+    {
+      "method": "toggleSupergroupHasHiddenMembers",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "SupergroupFullInfoProperty { target: supergroup_id, property: CanHideMembers }",
+      "retry": "convergent"
+    },
+    {
+      "method": "toggleSupergroupIsAllHistoryAvailable",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKind { target: supergroup_id, kind: Supergroup } AND ChatMemberRight { target: supergroup_id, right: CanChangeInfo }",
+      "retry": "convergent"
+    },
+    {
+      "method": "toggleSupergroupJoinToSendMessages",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKind { target: supergroup_id, kind: Supergroup } AND SupergroupFlag { target: supergroup_id, flag: IsBroadcastGroup, value: false } AND SupergroupFlag { target: supergroup_id, flag: IsDirectMessagesGroup, value: false } AND ChatAdministratorRight { target: supergroup_id, right: CanRestrictMembers }",
+      "retry": "convergent"
+    },
+    {
+      "method": "toggleSupergroupSignMessages",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKind { target: supergroup_id, kind: Channel } AND ChatMemberRight { target: supergroup_id, right: CanChangeInfo }",
+      "retry": "convergent"
+    },
+    {
+      "method": "toggleSupergroupUsernameIsActive",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "(ChatKind { target: supergroup_id, kind: Supergroup } AND ChatOwner { target: supergroup_id }) OR (ChatKind { target: supergroup_id, kind: Channel } AND ChatOwner { target: supergroup_id })",
+      "retry": "convergent"
+    },
+    {
+      "method": "toggleVideoChatMuteNewParticipants",
+      "risk": "admin",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanToggleMuteNewParticipants }",
+      "retry": "convergent"
+    },
+    {
+      "method": "upgradeBasicGroupChatToSupergroupChat",
+      "risk": "destructive",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKind { target: chat_id, kind: BasicGroup } AND ChatOwner { target: chat_id }",
+      "retry": "never"
+    }
+  ]
+}

@@ -4,7 +4,9 @@
 `vendor/tdlib/td_api.tl` существующим strict parser из `telegram-core::schema` и создаёт
 `crates/telegram-core/src/registry/generated.rs`. Committed artifact содержит Rust
 descriptors всех builtins, constructors, methods, result types, updates и authorization
-states вместе с fields, signatures и documentation.
+states вместе с fields, signatures и documentation. Та же generation принимает одну
+таблицу [`capabilities.json`](../tools/tdlib-registry-gen/capabilities.json) и добавляет
+reviewed risk/account/runtime/retry data либо `DefaultDeny` для каждого method.
 
 ## Runtime contract
 
@@ -20,6 +22,8 @@ states вместе с fields, signatures и documentation.
 - Caller не владеет transport `@extra`. `@type` остаётся TDJSON wire-discriminator внутри
   generated registry/общего codec; application workflows не получают per-method JSON
   wrappers.
+- Capability generator отклоняет duplicate/unknown rows и closed-vocabulary ошибки.
+  Отсутствующая row валидна и не наследует свойства похожего method.
 
 Registry пересоздаётся `cargo run -p tdlib-registry-gen`. Gate
 `python3 scripts/check-tdlib-registry.py` проверяет deterministic equality committed

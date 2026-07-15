@@ -12,7 +12,7 @@
 - product_context_source: product.md
 - Feature purpose: сделать всю закреплённую TDLib-схему discoverable, валидируемой и вызываемой без ручного wrapper на каждый method.
 - Product workflow/job served: version -> search/describe -> policy -> call -> typed/raw result.
-- Primary ambiguity to keep explicit: generated registry принят, но capability classification и universal dispatch ещё отсутствуют.
+- Primary ambiguity to keep explicit: generated registry и capability table приняты, но universal dispatch ещё отсутствует.
 
 ## Product Context
 
@@ -31,6 +31,7 @@
 - SRC004: `vendor/tdlib/manifest.json`, exact official commit `07d3a097...` и raw digest `.memory/raw/2026-07-15-tdlib-1.8.66-schema-pin.md`; type: verified repo source; supports: 1010 functions/2168 definitions/184 updates/13 auth states; limits: source identity сама по себе не доказывает generated artifact.
 - SRC005: native policies/provenance в `vendor/tdlib/`, macOS/Linux raw digests и `.memory/raw/2026-07-15-tdjson-transport-native-smoke.md`; type: verified repo source/runtime; supports: exact artifacts обоих targets и прямой TDJSON request/response; limits: bit-for-bit reproducibility не доказана, источник сам по себе не доказывает registry.
 - SRC006: `crates/telegram-core/src/registry.rs`, generated artifact и `docs/tdlib-generated-registry.md`; type: verified repo source/tests; supports: exact descriptors, recursive request validation и lossless unknown fields/constructors; limits: policy/core dispatch ещё отсутствуют.
+- SRC007: `tools/tdlib-registry-gen/capabilities.json`; type: reviewed repo data; supports: risk/account/runtime/retry rows и generated default-deny для unreviewed methods; limits: runtime requirements ещё не вычисляются по live state.
 
 ## TDLib API Coverage
 
@@ -64,7 +65,7 @@ Registry records user/bot/business/premium/admin/official-only constraints separ
 
 ## Live Verification Boundary
 
-Current counts/hash проверены against upstream и vendored offline; artifacts обоих targets закреплены provenance. macOS native no-client smoke доказал `getOption version` через один receive loop и transport-owned `@extra`. Generated registry покрывает pinned symbols и lossless raw objects; capability table, universal dispatch и live per-method matrix отсутствуют.
+Current counts/hash проверены against upstream и vendored offline; artifacts обоих targets закреплены provenance. macOS native no-client smoke доказал `getOption version` через один receive loop и transport-owned `@extra`. Generated registry покрывает pinned symbols, lossless raw objects и capability disposition каждого method; universal dispatch и live per-method matrix отсутствуют.
 
 ## Scope
 
@@ -156,8 +157,8 @@ Current counts/hash проверены against upstream и vendored offline; art
 
 ## Coverage Notes
 
-- Kernel coverage: generated registry/validation implemented; classification/dispatch pending.
+- Kernel coverage: generated registry/validation/classification implemented; dispatch pending.
 - Modeled: pin/diff/classify/discover/call claims.
-- Partial: native artifacts, low-level transport и generated registry доказаны; classification/dispatch отсутствуют.
+- Partial: native artifacts, low-level transport, generated registry и default-deny classification доказаны; dispatch отсутствует.
 - Unknown: none for schema source identity.
 - Not applicable: domain-specific request chains.

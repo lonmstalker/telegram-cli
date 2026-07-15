@@ -28,10 +28,11 @@
 - P2 lifecycle [D-20260715-047](../decisions/decisions.md): daemon проверяет pinned native artifact, загружает protected key, требует returning `Ready/getMe` с stable owner-only identity binding и закрывается по zero lease/workflow activity только через `close -> authorizationStateClosed`.
 - P2 accepted: concurrent process/client gate, client-crash TTL, daemon-crash returning restart и normal idle restart закрывают все Acceptance-критерии фазы. Live evidence: [P2 daemon lifecycle acceptance](../raw/2026-07-15-p2-daemon-lifecycle-acceptance.md).
 - Первый пункт P3 закрыт: exact generated Rust registry содержит descriptors pinned methods/constructors/types/updates/auth states; общий validator проверяет nested requests, а `TdObject` сохраняет неизвестные fields/constructors losslessly ([D-20260715-048](../decisions/decisions.md)).
+- Второй пункт P3 закрыт: одна JSON capability-таблица хранит reviewed risk/account/runtime/retry rows; generated `CAPABILITIES` покрывает каждый method и оставляет отсутствующие rows `DefaultDeny` ([D-20260715-049](../decisions/decisions.md)).
 
 ## Not implemented
 
-- Остаток P3 и P4–P10: capability-таблица, universal core dispatch, workflows, policy, CLI, MCP и packaging.
+- Остаток P3 и P4–P10: universal core dispatch, policy gate/coverage, workflows, CLI, MCP и packaging.
 
 ## Active boundary
 
@@ -40,4 +41,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: второй Tasks-пункт P3 — единая capability-таблица из reviewed data с default-deny для остальных methods.
+- Следующий implementation boundary: третий Tasks-пункт P3 — `version`, `capabilities`, schema discovery и universal `td call` в core.

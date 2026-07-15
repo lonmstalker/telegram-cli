@@ -1,6 +1,6 @@
 # Полнота TDLib API
 
-Статус: exact schema snapshot, strict Rust parser/inventory, generated Rust registry и native artifacts для macOS arm64 и Linux x86_64 закреплены; low-level TDJSON transport реализован с одним receive loop и `@extra` correlation. Registry даёт descriptors, recursive request validation и lossless unknown-object codec. Результаты ручного capability-ревью сохранены в [`capability-notes.md`](capability-notes.md). Capability/risk/retry таблица, universal core call/router и CLI surface ещё не созданы.
+Статус: exact schema snapshot, strict Rust parser/inventory, generated Rust registry и native artifacts для macOS arm64 и Linux x86_64 закреплены; low-level TDJSON transport реализован с одним receive loop и `@extra` correlation. Registry даёт descriptors, recursive request validation, lossless unknown-object codec и generated capability disposition для каждого method. Reviewed risk/account/runtime/retry rows хранятся в [`capability-notes.md`](capability-notes.md), всё остальное — `DefaultDeny`. Universal core call/router и CLI surface ещё не созданы.
 
 ## Проверенный upstream baseline
 
@@ -13,7 +13,7 @@
 - Local manifest: [`vendor/tdlib/manifest.json`](../vendor/tdlib/manifest.json); gate: `python3 scripts/check-tdlib-pin.py`.
 - Strict parser/inventory: [`crates/telegram-core/src/schema.rs`](../crates/telegram-core/src/schema.rs); gate: `cargo test --locked --offline -p telegram-core --lib --jobs 2`.
 - Generated registry/codec: [`crates/telegram-core/src/registry.rs`](../crates/telegram-core/src/registry.rs), contract: [`tdlib-generated-registry.md`](tdlib-generated-registry.md); gate: `python3 scripts/check-tdlib-registry.py`.
-- Reviewed capability contracts: [`capability-notes.md`](capability-notes.md) — вход для будущей capability-таблицы P3.
+- Reviewed capability contracts: [`capability-notes.md`](capability-notes.md); canonical data table: [`tools/tdlib-registry-gen/capabilities.json`](../tools/tdlib-registry-gen/capabilities.json).
 - Planning boundary: `python3 scripts/check-planning-boundary.py` запрещает переносить номера из `HARNESS.md` в runtime code и machine-readable contracts.
 - macOS arm64 native provenance: [`vendor/tdlib/native-builds/aarch64-apple-darwin.json`](../vendor/tdlib/native-builds/aarch64-apple-darwin.json).
 - Linux x86_64 native provenance: [`vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.json`](../vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.json); exact builder recipe: [`vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.Dockerfile`](../vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.Dockerfile).

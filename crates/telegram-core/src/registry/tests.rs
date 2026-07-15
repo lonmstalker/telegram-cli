@@ -16,6 +16,28 @@ fn generated_registry_matches_parser_and_supports_lookup() {
         .all(|pair| pair[0].name < pair[1].name));
     assert_eq!(method("getMe").unwrap().result.name, "User");
     assert_eq!(constructor("user").unwrap().result.name, "User");
+    assert_eq!(CAPABILITIES.len(), METHODS.len());
+    assert!(CAPABILITIES
+        .iter()
+        .zip(METHODS)
+        .all(|(capability, method)| capability.method == method.name));
+}
+
+#[test]
+fn reviewed_capabilities_are_data_and_everything_else_is_default_deny() {
+    assert!(matches!(
+        capability("getChatStatistics").unwrap().disposition,
+        CapabilityDisposition::Reviewed {
+            risk: RiskClass::Read,
+            accounts: &[AccountKind::RegularUser],
+            retry: RetryClass::SafeRead,
+            ..
+        }
+    ));
+    assert_eq!(
+        capability("getMe").unwrap().disposition,
+        CapabilityDisposition::DefaultDeny
+    );
 }
 
 #[test]

@@ -8,6 +8,11 @@ TDLib 1.8.66 (commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`, `vendor/tdlib/t
 из него машинно перед удалением. Ревью опиралось на pinned schema documentation и pinned
 TDLib C++ sources (`Requests.cpp` и доменные менеджеры).
 
+Canonical machine-readable source после P3 —
+[`tools/tdlib-registry-gen/capabilities.json`](../tools/tdlib-registry-gen/capabilities.json).
+Таблица ниже сохраняет human-readable evidence account/runtime review; generator не
+парсит Markdown и не выводит contracts из текста схемы.
+
 Как читать:
 
 - **Accounts** — статический account scope метода: `regular_user`, `bot` или оба.
@@ -18,7 +23,13 @@ TDLib C++ sources (`Requests.cpp` и доменные менеджеры).
   `MessageCapability` — поле `messageProperties` конкретного сообщения; `GroupCall*` — аналоги
   для групповых звонков; `BooleanOptionEnabled` — runtime option.
 - Всё, чего нет в таблице, — **default-deny** до ревью (правило `plans.md`).
-- Списки ниже — вход для задачи P3 «capability-таблица»; они не являются runtime-артефактом.
+- `risk`: `read`, `presence`, `send`, `reversible_mutation`, `admin`, `destructive`,
+  `financial`, `auth_security`.
+- `retry`: `safe_read` разрешает обычный read retry; `convergent` — повтор exact
+  desired state; `reconcile` требует проверки server state вместо blind retry;
+  `never` запрещает automatic retry.
+- Generator создаёт descriptor для каждого pinned method. Reviewed rows получают эти
+  поля, остальные — только `DefaultDeny` без угаданной классификации.
 
 ## Reviewed contracts (74)
 

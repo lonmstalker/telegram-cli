@@ -8,7 +8,7 @@ use std::fmt;
 mod generated;
 
 pub use generated::{
-    AUTHORIZATION_STATES, BUILTINS, CONSTRUCTORS, METHODS, SCHEMA, TYPES, UPDATES,
+    AUTHORIZATION_STATES, BUILTINS, CAPABILITIES, CONSTRUCTORS, METHODS, SCHEMA, TYPES, UPDATES,
 };
 
 const TYPE_FIELD: &str = "@type";
@@ -50,12 +50,62 @@ pub struct SymbolDescriptor {
     pub fields: &'static [FieldDescriptor],
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AccountKind {
+    RegularUser,
+    Bot,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RiskClass {
+    Read,
+    Presence,
+    Send,
+    ReversibleMutation,
+    Admin,
+    Destructive,
+    Financial,
+    AuthSecurity,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RetryClass {
+    SafeRead,
+    Convergent,
+    Reconcile,
+    Never,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CapabilityDisposition {
+    DefaultDeny,
+    Reviewed {
+        risk: RiskClass,
+        accounts: &'static [AccountKind],
+        runtime_requirements: &'static str,
+        retry: RetryClass,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CapabilityDescriptor {
+    pub method: &'static str,
+    pub disposition: CapabilityDisposition,
+}
+
 pub fn method(name: &str) -> Option<&'static SymbolDescriptor> {
     find(METHODS, name)
 }
 
 pub fn constructor(name: &str) -> Option<&'static SymbolDescriptor> {
     find(CONSTRUCTORS, name)
+}
+
+pub fn capability(name: &str) -> Option<&'static CapabilityDescriptor> {
+    CAPABILITIES
+        .binary_search_by_key(&name, |descriptor| descriptor.method)
+        .ok()
+        .map(|index| &CAPABILITIES[index])
 }
 
 fn find(symbols: &'static [SymbolDescriptor], name: &str) -> Option<&'static SymbolDescriptor> {

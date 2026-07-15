@@ -1,6 +1,6 @@
 # Полнота TDLib API
 
-Статус: exact schema snapshot, strict Rust parser/inventory и native artifacts для macOS arm64 и Linux x86_64 закреплены; результаты ручного capability-ревью сохранены в [`capability-notes.md`](capability-notes.md). Полная capability/risk/retry таблица, generated raw registry/codec/router и runtime implementation ещё не созданы.
+Статус: exact schema snapshot, strict Rust parser/inventory и native artifacts для macOS arm64 и Linux x86_64 закреплены; low-level TDJSON transport реализован с одним receive loop и `@extra` correlation. Результаты ручного capability-ревью сохранены в [`capability-notes.md`](capability-notes.md). Полная capability/risk/retry таблица, generated raw registry/codec/router и остальной runtime ещё не созданы.
 
 ## Проверенный upstream baseline
 
@@ -17,6 +17,7 @@
 - macOS arm64 native provenance: [`vendor/tdlib/native-builds/aarch64-apple-darwin.json`](../vendor/tdlib/native-builds/aarch64-apple-darwin.json).
 - Linux x86_64 native provenance: [`vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.json`](../vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.json); exact builder recipe: [`vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.Dockerfile`](../vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.Dockerfile).
 - Общий provenance gate: `python3 scripts/check-tdlib-native-pin.py`; проверка обоих локальных artifacts: `python3 scripts/check-tdlib-native-pin.py --require-local-artifact`.
+- TDJSON transport contract: [`tdjson-transport.md`](tdjson-transport.md); native no-client proof: `.memory/raw/2026-07-15-tdjson-transport-native-smoke.md`.
 
 Exact schema pin принят в `D-20260715-003`, strict parser — в `D-20260715-006`. Текущий macOS arm64 artifact и crash ownership доказаны correction checkpoint `W-20260715-008`; Linux x86_64 artifact закреплён в `W-20260715-040`. Для обоих artifacts bit-for-bit reproducibility не заявлена. Удаление numeric feature taxonomy из исполняемой архитектуры принято в `D-20260715-017`.
 

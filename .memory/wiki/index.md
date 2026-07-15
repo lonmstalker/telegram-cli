@@ -10,6 +10,7 @@
 - [TDLib coverage contract](../../docs/tdlib-api-coverage.md)
 - [Reviewed capability contracts](../../docs/capability-notes.md)
 - [`tg-analytics` reuse boundary](../../docs/tg-analytics-reuse.md)
+- [TDJSON transport contract](../../docs/tdjson-transport.md)
 - [Current project state](project-state.md)
 
 ## Memory streams
@@ -26,14 +27,16 @@
 - [TDLib Linux x86_64 native build](../raw/2026-07-15-tdlib-1.8.66-native-linux-x86_64.md) — current artifact truth
 - [Schema parser/inventory digest](../raw/2026-07-15-tdlib-schema-parser-inventory.md)
 - [`tg-analytics` reuse audit](../raw/2026-07-15-tg-analytics-reuse-audit.md) — exact source snapshot и test evidence
+- [TDJSON transport native smoke](../raw/2026-07-15-tdjson-transport-native-smoke.md) — real correlated request
 
 ## Current records
 
-- Implementation: P0 accepted; следующий пункт — первый Tasks-пункт P1; см. [project-state.md](project-state.md).
+- Implementation: P1 in_progress — transport закрыт, следующий пункт authorization state machine; см. [project-state.md](project-state.md).
 - Открытые проблемы: [P-20260715-001](../problems/problems.md) (gateway key wiring). Linux artifact закрыт в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
 - Reuse/account model: [D-20260715-036](../decisions/decisions.md), [W-20260715-041](../logs/work.md), [`docs/tg-analytics-reuse.md`](../../docs/tg-analytics-reuse.md).
+- TDJSON transport: [D-20260715-037](../decisions/decisions.md), [W-20260715-042](../logs/work.md), [`docs/tdjson-transport.md`](../../docs/tdjson-transport.md).
 
 ## Operating rules
 

@@ -12,7 +12,7 @@
 - product_context_source: product.md
 - Feature purpose: сделать всю закреплённую TDLib-схему discoverable, валидируемой и вызываемой без ручного wrapper на каждый method.
 - Product workflow/job served: version -> search/describe -> policy -> call -> typed/raw result.
-- Primary ambiguity to keep explicit: schema pin и macOS arm64 artifact приняты, но Linux x86_64 artifact и generated registry ещё отсутствуют.
+- Primary ambiguity to keep explicit: schema/native pins и low-level transport приняты, но generated registry ещё отсутствует.
 
 ## Product Context
 
@@ -29,7 +29,7 @@
 - SRC002: HARNESS.md; type: file; supports: classification gates; limits: planning IDs are documentation-only.
 - SRC003: docs/tdlib-api-coverage.md; type: file; supports: baseline/counts/formula; limits: full registry generator absent.
 - SRC004: `vendor/tdlib/manifest.json`, exact official commit `07d3a097...` и raw digest `.memory/raw/2026-07-15-tdlib-1.8.66-schema-pin.md`; type: verified repo source; supports: 1010 functions/2168 definitions/184 updates/13 auth states; limits: generated registry absent.
-- SRC005: `vendor/tdlib/native-build-policy.json`, `vendor/tdlib/native-builds/aarch64-apple-darwin.json` и `.memory/raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md`; type: verified repo source; supports: exact crash-safe macOS arm64 artifact identity, runtime version/commit and bounded recovery contract; limits: resource thresholds sampled, Linux artifact и bit-for-bit reproducibility не доказаны.
+- SRC005: native policies/provenance в `vendor/tdlib/`, macOS/Linux raw digests и `.memory/raw/2026-07-15-tdjson-transport-native-smoke.md`; type: verified repo source/runtime; supports: exact artifacts обоих targets и прямой TDJSON request/response; limits: bit-for-bit reproducibility не доказана, generated registry отсутствует.
 
 ## TDLib API Coverage
 
@@ -63,7 +63,7 @@ Registry records user/bot/business/premium/admin/official-only constraints separ
 
 ## Live Verification Boundary
 
-Current counts/hash проверены against upstream и vendored offline; macOS arm64 artifact проверен по hash/Mach-O/dependencies/exports/runtime version+commit. Linux artifact, generated registry и live per-method matrix отсутствуют.
+Current counts/hash проверены against upstream и vendored offline; artifacts обоих targets закреплены provenance. macOS native no-client smoke доказал `getOption version` через один receive loop и transport-owned `@extra`. Generated registry и live per-method matrix отсутствуют.
 
 ## Scope
 
@@ -77,7 +77,7 @@ Current counts/hash проверены against upstream и vendored offline; mac
 
 ### Ambiguous
 
-- Linux x86_64 artifact identity и target-specific build provenance остаются незакрытой частью P0.
+- Конкретный generated registry format определяется в P3 вместе с его потребителем.
 
 ## Context Map
 
@@ -157,6 +157,6 @@ Current counts/hash проверены against upstream и vendored offline; mac
 
 - Kernel coverage: complete contract, no implementation.
 - Modeled: pin/diff/classify/discover/call claims.
-- Partial: macOS arm64 native proof complete; Linux artifact и generated registry отсутствуют.
+- Partial: native artifacts и low-level transport доказаны; generated registry отсутствует.
 - Unknown: none for schema source identity.
 - Not applicable: domain-specific request chains.

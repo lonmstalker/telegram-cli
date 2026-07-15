@@ -23,11 +23,12 @@ source_of_truth: true
 - Pinned schema: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`, 1010 functions; gate `scripts/check-tdlib-pin.py`.
 - Strict schema parser и deterministic inventory в `crates/telegram-core/src/schema.rs`.
 - macOS arm64 и Linux x86_64 `tdjson` artifacts с provenance; gate `scripts/check-tdlib-native-pin.py`.
+- Прямой TDJSON transport: один receive loop, transport-owned `@extra`, deterministic fake и no-client native smoke.
 - Ручное capability-ревью 74 методов сохранено в `docs/capability-notes.md`; documentation-recognizer engine удалён как переусложнение (см. git history).
 - Существующая зашифрованная TDLib-сессия ранее достигала Ready; database key получен, `.env.local` contract настроен.
 - Источник reusable решений: `tg-analytics/crates/telegram-tdlib` и `telegram-agent-gateway`; evidence-backed disposition закреплён в `docs/tg-analytics-reuse.md`, без копирования analytics-оркестрации.
 
-Не сделано: весь runtime (P1–P10). Product binaries — fail-closed заглушки.
+Не сделано: остальной runtime P1–P10. Product binaries — fail-closed заглушки.
 
 ## Правила работы
 
@@ -100,7 +101,7 @@ flowchart LR
 | Phase | Результат | Status |
 |---|---|---|
 | P0 | Контракт, repository skeleton и pinned schema | accepted |
-| P1 | Core transport, authorization и ordered updates | pending |
+| P1 | Core transport, authorization и ordered updates | in_progress — transport готов, далее authorization state machine |
 | P2 | Singleton daemon и shared session lifecycle | pending |
 | P3 | Полный generated raw API и capability-таблица | pending |
 | P4 | Stateful request-chain engine | pending |
@@ -133,7 +134,7 @@ flowchart LR
 
 ### Tasks
 
-- [ ] Прямой TDJSON transport, один receive loop и `@extra` correlation.
+- [x] Прямой TDJSON transport, один receive loop и `@extra` correlation.
 - [ ] Полная authorization state machine: QR/phone/code/2FA/email/device/registration branches.
 - [ ] Database encryption key из file descriptor/file secret/OS keychain; wrong key fail-closed.
 - [ ] Ordered reducer и caches для auth, user, chat, basic/supergroup, file, connection и message send state.
@@ -142,7 +143,7 @@ flowchart LR
 
 ### Acceptance
 
-- [ ] Параллельные requests не путают responses — зачем: это фундамент корректности всего API; ошибка здесь ломает каждый вызов выше.
+- [x] Параллельные requests не путают responses — зачем: это фундамент корректности всего API; ошибка здесь ломает каждый вызов выше.
 - [ ] Updates воспроизводятся строго в receive order — зачем: state-machine TDLib предполагает ordering; нарушение даёт тихо неверный cache.
 - [ ] Restart возвращает Ready без нового login — зачем: повторные login-flows ведут к rate-limits и риску блокировки аккаунта.
 - [ ] Wrong/missing key не запускает phone authorization и не повреждает DB — зачем: авто-fallback на новый login уничтожил бы существующую сессию.

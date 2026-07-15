@@ -38,11 +38,12 @@
 - P0.5b14 закрепляет exact `getChatEventLog` semantic module: regular user и две DNF-ветки `supergroup|channel AND administrator`. Source/signature/account/additional-signal drift fail closed; open set — 123, capability format остаётся `8`; independent review — Approved.
 - P0.5b15 correction удаляет incomplete `unpinChatMessage` DNF: deeper handler запрещает secret chat, conditional по account для basic group, отделяет monoforum и проверяет concrete message/write access. Real method deferred; open set — 124, format — `8`; independent review — Approved.
 - P0.5b16 добавляет exact `getChatInviteLinkCounts` в existing invite-link module: regular user и `basic_group|supergroup|channel AND owner`. Closed `RequiredAccess` определяет account/DNF/consumed keys; open set — 123, format — `8`; review — Approved.
+- P0.5b17 добавляет exact `getVideoChatRtmpUrl` в semantic video-chat-streaming module: regular user и `basic_group|supergroup|channel AND can_manage_video_chats`. Pinned handler добавляет dialog read-access boundary, но не owner/active-call/RTMP-state gate; open set — 122, format остаётся `8`; review — Approved.
 - Planning boundary gate с семью negative controls запрещает `FeatureId`, numeric planning IDs и owner-manifest taxonomy в runtime/tooling/machine contracts; real discovery проверяет scripts/all root machine files, file/root symlink fail closed.
 
 ## Not implemented
 
-- Linux x86_64 TDLib artifact, typed dispositions для 123 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
+- Linux x86_64 TDLib artifact, typed dispositions для 122 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
 - Stateful request-chain engine, retry/reconciliation, policy, metrics и agent skill остаются планом.
 
 ## Active boundary
@@ -91,6 +92,7 @@
 - [TDLib chat event log capability digest](../raw/2026-07-15-tdlib-chat-event-log-capability.md)
 - [TDLib unpinChatMessage overclaim correction](../raw/2026-07-15-tdlib-unpin-chat-message-overclaim-correction.md)
 - [TDLib chat invite-link counts capability digest](../raw/2026-07-15-tdlib-chat-invite-link-counts-capability.md)
+- [TDLib video chat RTMP access capability digest](../raw/2026-07-15-tdlib-video-chat-rtmp-access-capability.md)
 - [TDLib getChatBoostLinkInfo lexical non-gate digest](../raw/2026-07-15-tdlib-chat-boost-link-non-gate.md)
 - [D-20260715-009](../decisions/archive/2026-07-15--2026-07-15-008.md)
 - [W-20260715-012](../logs/archive/2026-07-15--2026-07-15-011.md)
@@ -112,9 +114,9 @@
 - [W-20260715-021](../logs/archive/2026-07-15--2026-07-15-019.md)
 - [D-20260715-018](../decisions/archive/2026-07-15--2026-07-15-020.md)
 - [W-20260715-022](../logs/archive/2026-07-15--2026-07-15-020.md)
-- [D-20260715-019](../decisions/decisions.md)
+- [D-20260715-019](../decisions/archive/2026-07-15--2026-07-15-021.md)
 - [W-20260715-023](../logs/archive/2026-07-15--2026-07-15-022.md)
-- [D-20260715-020](../decisions/decisions.md)
+- [D-20260715-020 accepted correction](../decisions/decisions.md)
 - [W-20260715-024](../logs/work.md)
 - [D-20260715-021](../decisions/decisions.md)
 - [W-20260715-025](../logs/work.md)
@@ -127,3 +129,5 @@
 - [W-20260715-029](../logs/work.md)
 - [D-20260715-026](../decisions/decisions.md)
 - [W-20260715-030](../logs/work.md)
+- [D-20260715-027](../decisions/decisions.md)
+- [W-20260715-031](../logs/work.md)

@@ -1163,8 +1163,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            67,
-            "dde02998c0f1cd47b9dc30383c11b8d7e815e128a39e9ab53f0c0f772574a417".to_owned()
+            68,
+            "21eec49724a797737a89712bad46e53e0a9ef6e9e1462b3cbaaec4d3e0199834".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -1180,8 +1180,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            70,
-            "d859cc0a687bca878d715900e5750cc208a335e7ada8621c44e77c423b23dedf".to_owned()
+            71,
+            "20b00f041a5809d51dc539a8141dcfdabceb7d59fef5038c835f1482e8433704".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -1190,12 +1190,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        123,
+        122,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "38dd369d689f9924166f54934b1e4207ddfd9fec692e3f4219b76dac4ee19fbb",
+        "df35fcbf3d7ed48c81bba37beaeea8d407d8066ba4b90f1ff8c8bc9ce59e35da",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -1272,7 +1272,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "841d9b9e16822b6e264b814401f4583e8559a06f786181bb28636c783c11f14f"
+        "1c607a624b2e3a610996afcf6aa7bf0b4278badc683e3e1b436297f32b6b5268"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -4250,6 +4250,141 @@ fn pinned_chat_event_log_contract_is_exact() {
     assert_eq!(
         documented_runtime_requirements(find_method(&additional_signal, "getChatEventLog"))
             .expect_err("unconsumed event-log argument signal must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
+fn pinned_video_chat_rtmp_access_contract_is_exact() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let method = find_method(&schema, "getVideoChatRtmpUrl");
+    assert_eq!(
+        method.canonical_signature(),
+        "getVideoChatRtmpUrl chat_id:int53 = RtmpUrl;"
+    );
+    assert_eq!(
+        normalized_text(&super::method_description(method)),
+        "returns rtmp url for streaming to the video chat of a chat; requires can_manage_video_chats administrator right"
+    );
+
+    let target = ChatTargetRef::try_from("chat_id").expect("chat target");
+    let expected = RequirementAlternatives::try_new(
+        [
+            ResolvedChatKind::BasicGroup,
+            ResolvedChatKind::Supergroup,
+            ResolvedChatKind::Channel,
+        ]
+        .into_iter()
+        .map(|kind| {
+            vec![
+                RuntimeRequirement::ChatKind(
+                    ChatKindCondition::try_new(target.clone(), kind).expect("RTMP chat kind"),
+                ),
+                RuntimeRequirement::ChatAdministratorRight {
+                    target: target.clone(),
+                    right: ChatAdministratorRight::CanManageVideoChats,
+                },
+            ]
+        })
+        .collect(),
+    )
+    .expect("RTMP access alternatives");
+    assert_eq!(
+        documented_runtime_requirements(method)
+            .expect("reviewed RTMP documentation")
+            .expect("RTMP access contract"),
+        expected
+    );
+
+    let descriptor = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        expected.clone(),
+        Vec::new(),
+    )
+    .expect("RTMP access descriptor");
+    validate_documented_method_constraints(method, &descriptor).expect("regular-user contract");
+    validate_documented_runtime_requirements(method, &descriptor).expect("runtime contract");
+    assert_eq!(
+        documented_runtime_signal_dispositions(method).expect("RTMP access signals"),
+        [
+            RuntimeSignalFamily::AdministratorRightPhrase,
+            RuntimeSignalFamily::RequiresRightPhrase,
+        ]
+        .into_iter()
+        .map(|family| {
+            (
+                RuntimeSignalKey {
+                    source: RuntimeSignalSource::Description,
+                    family,
+                },
+                RuntimeSignalDisposition::ConsumedByRuntimeRequirements,
+            )
+        })
+        .collect::<Vec<_>>()
+    );
+
+    let bot_enabled = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser, AccountKind::Bot],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        expected,
+        Vec::new(),
+    )
+    .expect("structurally valid bot-enabled RTMP descriptor");
+    assert_eq!(
+        validate_documented_method_constraints(method, &bot_enabled)
+            .expect_err("RTMP access must remain regular-user-only")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let source_drift = pinned.replacen(
+        "Returns RTMP URL for streaming to the video chat of a chat; requires can_manage_video_chats administrator right",
+        "Returns an RTMP URL for streaming to the video chat of a chat; requires can_manage_video_chats administrator right",
+        1,
+    );
+    let source_drift = Schema::parse(&source_drift).expect("valid RTMP source drift schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&source_drift, "getVideoChatRtmpUrl"))
+            .expect_err("RTMP source drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let signature_drift = pinned.replacen(
+        "getVideoChatRtmpUrl chat_id:int53 = RtmpUrl;",
+        "getVideoChatRtmpUrl chat_id:int32 = RtmpUrl;",
+        1,
+    );
+    let signature_drift =
+        Schema::parse(&signature_drift).expect("valid RTMP signature drift schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&signature_drift, "getVideoChatRtmpUrl"))
+            .expect_err("RTMP signature drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let additional_signal = pinned.replacen(
+        "@chat_id Chat identifier\ngetVideoChatRtmpUrl",
+        "@chat_id Chat identifier; requires can_manage_video_chats administrator right\ngetVideoChatRtmpUrl",
+        1,
+    );
+    let additional_signal =
+        Schema::parse(&additional_signal).expect("valid additional RTMP signal schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&additional_signal, "getVideoChatRtmpUrl"))
+            .expect_err("unconsumed RTMP argument signal must fail closed")
             .kind(),
         CapabilityGenerationErrorKind::SchemaDrift
     );

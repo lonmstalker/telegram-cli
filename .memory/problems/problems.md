@@ -2,22 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] open update | P-20260715-005 | Supergroup setting rights уменьшили open set до 126 methods
-
-- Evidence: [supergroup setting-right digest](../raw/2026-07-15-tdlib-supergroup-setting-right-capabilities.md); exact family разделена на 5 new complete, 1 prior complete и 3 boost/guard-input deferred methods.
-- Transition: пять methods получают exact chat-kind and role-right requirements с account boundary. Supported typed set теперь 64, terminal complete set 67, open-set SHA-256 `71a75f389b248af4aeeb0e387e7be299d56d964f4969652f32bb3cfdcb47be9d`.
-- Status: open; zero-open gate не достигнут, 126 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
-- Next check: отдельными reviewed tasks закрывать следующие exact semantic families; runtime evaluator обязан fail closed на stale/unknown right evidence.
-- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-020](../decisions/decisions.md).
-
-## [2026-07-15] open | P-20260715-007 | Broad supergroup kind ошибочно закрывал ordinary-only setting
-
-- Evidence: independent P2 review и [ordinary-supergroup correction digest](../raw/2026-07-15-tdlib-supergroup-setting-ordinary-kind-correction.md); pinned C++ отклоняет gigagroup/monoforum, которые broad kind не различает.
-- Impact: `toggleSupergroupJoinToSendMessages` мог получить ложный supported verdict на неподдерживаемом target.
-- Status: open at review discovery; exact refinement отсутствует.
-- Next check: remove broad contract or add closed ordinary-supergroup evidence before commit.
-- Related decisions: [D-20260715-020](../decisions/decisions.md).
-
 ## [2026-07-15] resolved | P-20260715-007 | Ordinary-only method возвращён в deferred
 
 - Evidence: contract row удалён, exhaustive test включает method в deferred, full generator oracle даёт supported 63/terminal 66/open 127.
@@ -156,3 +140,24 @@ Active append-only problem lifecycle. Status changes добавляются но
 
 - [Shard 011](archive/2026-07-15--2026-07-15-011.md) содержит historical invite-link creation update; canonical targets: [D-20260715-010](../decisions/archive/2026-07-15--2026-07-15-009.md), [D-20260715-012](../decisions/archive/2026-07-15--2026-07-15-011.md), [D-20260715-019](../decisions/decisions.md).
 - Status не изменён; latest open boundary — 123 methods.
+
+## [2026-07-15] open update | P-20260715-005 | Video chat RTMP access уменьшил open set до 122 methods
+
+- Evidence: [video chat RTMP access digest](../raw/2026-07-15-tdlib-video-chat-rtmp-access-capability.md); supported 68, terminal 71, open-set SHA-256 `df35fcbf3d7ed48c81bba37beaeea8d407d8066ba4b90f1ff8c8bc9ce59e35da`.
+- Transition: `getVideoChatRtmpUrl` получил exact regular-user, three-kind и `can_manage_video_chats` contract; format остался `8`.
+- Status: open; 122 methods дают `SchemaDrift` и не считаются capability coverage.
+- Next check: продолжать exact dispatcher/deeper-handler tasks; runtime dialog/right evidence fail closed на stale/gap.
+- Related decisions: [D-20260715-010](../decisions/archive/2026-07-15--2026-07-15-009.md), [D-20260715-012](../decisions/archive/2026-07-15--2026-07-15-011.md), [D-20260715-027](../decisions/decisions.md).
+
+## [2026-07-15] archive link map | P-20260715-005 | Rotated setting decisions
+
+- Shard 011 и active invite-link map: canonical [D-20260715-019](../decisions/archive/2026-07-15--2026-07-15-021.md).
+- Shard 012: canonical D010 shard 009, D012 shard 011; D020 остаётся active. Historical links immutable; status остаётся open at 122.
+
+## [2026-07-15] link correction | P-20260715-005 | Shard 012
+
+- Shard 012: [D010](../decisions/archive/2026-07-15--2026-07-15-009.md), [D012](../decisions/archive/2026-07-15--2026-07-15-011.md), [D020](../decisions/archive/2026-07-15--2026-07-15-022.md); open 122.
+
+## [2026-07-15] link correction | P-20260715-005 | D020 split
+
+- Shard-012 D020 resolves [base](../decisions/archive/2026-07-15--2026-07-15-022.md) + [accepted correction](../decisions/decisions.md); open 122.

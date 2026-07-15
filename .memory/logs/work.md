@@ -2,23 +2,6 @@
 
 Active append-only checkpoints. Решения и проблемы хранятся отдельно и здесь только упоминаются по ID.
 
-## [2026-07-15] work | W-20260715-024 | Exact supergroup setting-right semantics
-
-- Цель: закрыть безусловные supergroup/channel setting rights, сохранив kind, member/admin и account distinctions и не поглощая boost/input branches.
-- Sources: [supergroup setting-right digest](../raw/2026-07-15-tdlib-supergroup-setting-right-capabilities.md), pinned schema/source archive, `plans.md`, `D-20260715-012` и exhaustive family partition.
-- Red: public и pinned tests дали `SchemaDrift`, пока role/right signals оставались untyped.
-- Actions: принят `D-20260715-020`; semantic module pin-ит пять contracts и использует existing kind/administrator/member atoms. Четыре handlers regular-only, один допускает bot. Wrong kind/role, source/signature drift и extra argument signal fail closed; три mixed methods остаются deferred. Engine hash включает module.
-- Verification: 52 generator + 23 core = 75 workspace tests, Clippy `-D warnings`, planning/diff gates green с `jobs=2`; exact open set обновлён 131 → 126.
-- Decisions/problems: [D-20260715-020](../decisions/decisions.md); [P-20260715-005](../problems/problems.md) остаётся open.
-- Boundary: static prerequisite не доказывает current right; runtime evaluator/freshness, boost/guard input predicates, full 1010-method policy/artifact, P1–P10 и live acceptance не реализованы.
-
-## [2026-07-15] correction | W-20260715-024 | Ordinary-supergroup overclaim removed
-
-- Finding: reviewer P2 показал, что `toggleSupergroupJoinToSendMessages` требует ordinary discussion supergroup; broad kind не исключает gigagroup/monoforum. Открыт и закрыт [P-20260715-007](../problems/problems.md), принята correction к [D-20260715-020](../decisions/decisions.md).
-- Action: method удалён из complete table и добавлен в deferred partition; новый kind atom не вводился без runtime evidence.
-- Verification: 52 generator tests green; current oracles supported 63, terminal 66, open 127.
-- Boundary: future completion method требует closed ordinary-supergroup predicate; исходный raw digest сохранён immutable и superseded correction digest.
-
 ## [2026-07-15] review | W-20260715-024 | Post-fix independent Rust review accepted
 
 - Initial finding: P2 broad kind для ordinary-only `toggleSupergroupJoinToSendMessages`; исправлен через deferred state и [P-20260715-007](../problems/problems.md).
@@ -132,3 +115,26 @@ Active append-only checkpoints. Решения и проблемы хранят�
 
 - Final reviewer verdict — `APPROVED`: decision/work/problem maps для shards 009–011 и 019–023, checksums/counts и canonical targets exact.
 - Rotation/diff green; W030 semantics и 123-method boundary не изменены.
+
+## [2026-07-15] work | W-20260715-031 | Exact video chat RTMP access capability
+
+- Цель: закрыть `getVideoChatRtmpUrl` как chat-bound streaming access, не смешивая его с `group_call_id` property contracts и не вводя planning IDs в executable code.
+- Sources: [RTMP access digest](../raw/2026-07-15-tdlib-video-chat-rtmp-access-capability.md), pinned schema/Requests/GroupCallManager и [D-20260715-027](../decisions/decisions.md).
+- Red/green/refactor: pinned test сначала получил `SchemaDrift`; exact semantic contract добавил regular-user scope, three-kind `can_manage_video_chats` DNF и exact two-key signal consumption. Ложный `NamedRight` scanner expectation удалён: конкретное право закреплено exact source text и typed contract.
+- Result: supported 68, terminal 71, open 122; format `8`; no owner/active-call/RTMP-state gate invented.
+- Verification: 62 generator + 24 core = 86 workspace tests, Clippy `-D warnings`, fmt/project gates green с `jobs=2`; target 151 MiB, project processes 0.
+- Review: independent source/Rust reviewer — `APPROVED`, findings отсутствуют; dispatcher, deeper handler, oracles и fail-closed drift подтверждены.
+- Problems: [P-20260715-005](../problems/problems.md) open at 122.
+- Boundary: runtime dialog/right freshness, full corpus, P1–P10 и live acceptance не закрыты.
+
+## [2026-07-15] archive link map | W-20260715-031 | Rotated invite-link decision
+
+- Immutable W023 shard 022: canonical [D-20260715-019](../decisions/archive/2026-07-15--2026-07-15-021.md); historical link не переписывается.
+
+## [2026-07-15] link | W-20260715-031 | D020
+
+- Canonical [D020](../decisions/archive/2026-07-15--2026-07-15-022.md) for legacy active/shard-024 links.
+
+## [2026-07-15] link correction | W-20260715-031 | D020 split
+
+- Legacy links resolve [base](../decisions/archive/2026-07-15--2026-07-15-022.md) + [accepted correction](../decisions/decisions.md); correction current.

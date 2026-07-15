@@ -45,10 +45,11 @@
 - [TDLib chat event log capability semantics](../raw/2026-07-15-tdlib-chat-event-log-capability.md) — exact regular-user, supergroup/channel и administrator contract; open set 123.
 - [TDLib unpinChatMessage overclaim correction](../raw/2026-07-15-tdlib-unpin-chat-message-overclaim-correction.md) — hidden account/subtype/message branches возвращают incomplete real-method DNF в deferred; open set 124.
 - [TDLib chat invite-link counts capability](../raw/2026-07-15-tdlib-chat-invite-link-counts-capability.md) — exact regular-user, three-kind owner contract в existing invite-link module; open set 123.
+- [TDLib video chat RTMP access capability](../raw/2026-07-15-tdlib-video-chat-rtmp-access-capability.md) — exact regular-user, three-kind `can_manage_video_chats` contract; dialog read access остаётся runtime boundary, open set 122.
 
 ## Current records
 
-- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option/username-owner/invite-link/chat-setting/supergroup-subtype/chat-event-log semantics, planning-taxonomy/unpin corrections и macOS native pin закрыты через `W-20260715-030`; 123 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
+- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option/username-owner/invite-link/chat-setting/supergroup-subtype/chat-event-log/video-chat-streaming semantics, planning-taxonomy/unpin corrections и macOS native pin закрыты через `W-20260715-031`; 122 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
 - Native pin: [reviewed rebuild correction](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — exact source/schema и crash-safe macOS arm64 artifact закреплены; Linux/reproducibility остаются open.
 - Decision: [D-20260715-001](../decisions/archive/2026-07-15--2026-07-15-001.md) — раздельная memory model, rotation и secret boundary.
 - Decision: [D-20260715-002](../decisions/archive/2026-07-15--2026-07-15-002.md) — публичный GitHub remote принят как canonical `origin`.
@@ -68,17 +69,18 @@
 - Decision: [D-20260715-016](../decisions/archive/2026-07-15--2026-07-15-018.md) — runtime boolean option является generation-bound typed evidence, а не Premium entitlement.
 - Decision: [D-20260715-017](../decisions/archive/2026-07-15--2026-07-15-019.md) — numeric feature inventory остаётся только документацией; executable architecture keyed by semantic modules и exact TDLib schema identity.
 - Decision: [D-20260715-018](../decisions/archive/2026-07-15--2026-07-15-020.md) — username-management prerequisite требует explicit supergroup/channel kind и current owner evidence.
-- Decision: [D-20260715-019](../decisions/decisions.md) — invite-link creation требует explicit chat kind и current administrator `can_invite_users` evidence.
-- Decision: [D-20260715-020](../decisions/decisions.md) — supergroup setting сохраняет exact kind, administrator/member right и account boundary; ordinary-only refinement остаётся deferred.
+- Decision: [D-20260715-019](../decisions/archive/2026-07-15--2026-07-15-021.md) — invite-link creation требует explicit chat kind и current administrator `can_invite_users` evidence.
+- Decision correction: [D-20260715-020](../decisions/decisions.md) — current four-method supergroup-setting boundary; historical base сохранён в shard 022.
 - Decision: [D-20260715-021](../decisions/decisions.md) — chat settings закрываются только complete kind/right/account contracts; account-conditioned title/photo остаются deferred.
 - Decision: [D-20260715-022](../decisions/decisions.md) — membership contract остаётся deferred, если pinned handler добавляет account или supergroup-subtype gate, отсутствующий в static DNF.
 - Decision: [D-20260715-023](../decisions/decisions.md) — supergroup subtype выражается closed schema-bound Boolean fact; static prerequisite требует отдельной generation-bound runtime freshness.
 - Decision: [D-20260715-024](../decisions/decisions.md) — chat event log требует explicit regular-user, supergroup/channel и current administrator evidence.
 - Decision: [D-20260715-025](../decisions/decisions.md) — `unpinChatMessage` остаётся deferred, пока grammar не выражает account/subtype/message branches deeper handler.
 - Decision: [D-20260715-026](../decisions/decisions.md) — invite-link `RequiredAccess` связывает owner/admin semantics с account scope, DNF и exact consumed keys.
+- Decision: [D-20260715-027](../decisions/decisions.md) — RTMP access pin-ит regular-user, chat-kind и `can_manage_video_chats` prerequisites без invented call-state gates.
 - Open problem: [P-20260715-001](../problems/problems.md) — database key ещё не подключён к штатному gateway.
 - Open problem: [P-20260715-003](../problems/problems.md) — Linux x86_64 native artifact ещё не закреплён.
-- Open problem: [P-20260715-005](../problems/problems.md) — 123 pinned runtime-signal methods ещё не имеют typed disposition.
+- Open problem: [P-20260715-005](../problems/problems.md) — 122 pinned runtime-signal methods ещё не имеют typed disposition.
 
 ## Operating rules
 

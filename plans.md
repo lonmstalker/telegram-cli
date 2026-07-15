@@ -76,7 +76,7 @@ flowchart LR
 
 | Phase | Результат | Status |
 |---|---|---|
-| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-010 |
+| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-012 |
 | P1 | Core transport, authorization и ordered updates | pending |
 | P2 | Singleton daemon и shared session lifecycle | pending |
 | P3 | Полный generated raw API | pending |
@@ -109,6 +109,8 @@ flowchart LR
   - [x] Bounded offline generator, fail-closed owner rule engine и atomic/read-only publication boundary.
   - [x] Reviewed feature-owner rules/overrides и manifest для всех 1010 methods.
 - [ ] Зафиксировать capability matrix: regular user, bot, Business/Premium, admin-gated, official-only.
+  - [x] Closed bounded domain model и pure fail-closed generator для schema-bound capability policy.
+  - [ ] Reviewed canonical capability policy/artifact для всех 1010 methods.
 - [ ] Определить supported targets: macOS arm64 и Linux x86_64 минимум.
 - [ ] Перенести только доказанно reusable части `tg-analytics`; не переносить NATS/Postgres/analytics orchestration.
 
@@ -129,6 +131,7 @@ flowchart LR
 - `W-20260715-009`: в `telegram-core` реализован pure strict-subset parser pinned `td_api.tl` без сторонних dependencies и новых Cargo targets. Он сохраняет raw/structured documentation, строит canonical signatures и sorted inventory, отделяет 9 builtins от 2159 object constructors и подтверждает 1010 methods, 745 type families, 184 updates и 13 authorization states. Input ограничен 2 MiB, type nesting — 32; 12 TDD/negative tests, workspace boundary, Clippy и independent re-review green. Решение: `D-20260715-006`. Feature-owner manifest, generated registry/codec/router parity и runtime остаются незавершёнными, поэтому parent task и P0 acceptance не закрыты.
 - `W-20260715-010`: отдельный non-default `tdlib-registry-gen` реализует bounded offline owner classification для parsed methods. Один rule на feature строит только candidate set; reviewed count+SHA-256 фиксирует raw match set, а exact override обязан совпасть с фактическими candidates и signature hash. Нет priorities, regex или fallback; unowned/ambiguous/stale/dead policy блокирует весь output. `check` read-only, `generate` берёт один fixed-temp lease до input snapshot, публикует canonical JSON atomic rename и не удаляет подменённый temp; leaf symlinks inputs/output и symlink output directory отклоняются. 16 generator и 14 core tests, Clippy, workspace contract с 4 negative controls и independent re-review green. Решение: `D-20260715-007`. Corpus policy и 1010-row artifact остаются отдельной незавершённой задачей; registry/codec/runtime parity не заявляется.
 - `W-20260715-011`: exact schema-bound owner policy из 17 rules, 252 atoms и 372 reviewed overlap overrides генерирует canonical owner-only artifact для 1010/1010 methods. Semantic audit исправил broad-name ошибки на границах group-call/messages, auth/platform, giveaway/payment, TON/withdrawal/revenue, rich text, auto-delete и network state/statistics. Corpus gate сверяет exact method set, schema signatures/source lines, 22 per-feature count/hash oracles, независимый method-owner digest и adversarial owners; real temp-root test доказывает byte-identical `check`/`generate`, read-only drift detection, fail-closed policy evidence и cleanup единственного temp. 19 generator и 14 core tests, Clippy, fmt, workspace gates и independent final review green. Решение: `D-20260715-008`. Capability/risk/retry, constructor/update/auth-state registry/codec/router parity и runtime остаются незавершёнными.
+- `W-20260715-012`: P0.5a закрепляет closed static capability model и pure schema/owner-bound generator foundation без runtime claims. Exact auth/account/Premium/Business/application/DC axes, additive synchronous path, typed bounded DNF runtime evidence и parameter-value notices fail closed сверяются с signature/documentation hashes и exact reviewed wording; распознанные capability/runtime gate signals вне exact reviewed corpus дают schema drift, а лишнее сужение policy отклоняется. Public core constructors наследуют caps: 16 clauses, 32 atoms, 32 notices и 16 sync values; business evidence совместимо только с bot alternatives, owner evidence — с regular-user alternatives. С `CARGO_BUILD_JOBS=2 RUST_TEST_THREADS=2` green: 34 generator и 20 core tests, Clippy, fmt, workspace gate и два independent reviews; `target` 144 MiB, temp/background leftovers отсутствуют. Решение: `D-20260715-009`. Полный 1010-method capability policy/artifact, runtime evaluator, risk/prerequisite/retry и live acceptance остаются open.
 
 ## P1 — Core transport, authorization и ordered state
 

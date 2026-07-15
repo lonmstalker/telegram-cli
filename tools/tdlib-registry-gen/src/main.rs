@@ -1,4 +1,5 @@
 mod app;
+pub mod capability;
 mod engine;
 
 use std::path::Path;

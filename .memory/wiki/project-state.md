@@ -20,10 +20,11 @@
 - Strict Rust parser в `telegram-core` разбирает полный pinned corpus без сторонних dependencies: 2168 definitions = 9 builtins + 2159 object constructors, 1010 methods, 745 type families, 184 updates и 13 authorization states. Documentation сохраняется raw и structured, signatures canonical; input cap 2 MiB, type depth cap 32. Independent re-review — Approved.
 - Non-default `tdlib-registry-gen` отделён от product packages и реализует bounded deterministic owner rule engine: one-rule-per-feature candidate sets, reviewed set/signature hashes, exact overlap overrides и fail-closed coverage. `check` read-only; `generate` получает один fixed-temp lease до input snapshot, проверяет path/inode identity и публикует atomic rename. Independent re-review — Approved.
 - Exact owner corpus закреплён для 1010/1010 methods: 17 rules, 252 atoms, 372 reviewed overlap overrides; schema-derived signatures, 22 per-feature hashes, independent exact owner digest и adversarial semantic boundaries проверяются corpus gate. Canonical artifact остаётся owner-only; independent final review — Approved.
+- P0.5a capability foundation закрепляет closed account/auth/entitlement/application/DC vocabularies, additive synchronous path, typed bounded runtime DNF и parameter notices. Pure generator требует exact schema/owner/method/signature/documentation evidence, отклоняет распознанные unsupported capability/runtime gate signals и скрытое policy-сужение; два independent reviews — Approved.
 
 ## Not implemented
 
-- Linux x86_64 TDLib artifact, capability/risk/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
+- Linux x86_64 TDLib artifact, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
 - Stateful request-chain engine, retry/reconciliation, policy, metrics и agent skill остаются планом.
 
 ## Active boundary
@@ -54,3 +55,6 @@
 - [TDLib owner corpus digest](../raw/2026-07-15-tdlib-feature-owner-corpus.md)
 - [D-20260715-008](../decisions/decisions.md)
 - [W-20260715-011](../logs/work.md)
+- [TDLib capability generator foundation digest](../raw/2026-07-15-tdlib-capability-generator-foundation.md)
+- [D-20260715-009](../decisions/decisions.md)
+- [W-20260715-012](../logs/work.md)

@@ -35,9 +35,9 @@ impl DynamicLibrary {
     fn open(path: &Path) -> Result<Self, BackendError> {
         #[cfg(not(unix))]
         compile_error!("NativeTdJson supports the declared macOS/Linux targets only");
-        let path = path
-            .canonicalize()
-            .map_err(|error| BackendError::new(format!("tdjson library is unavailable: {error}")))?;
+        let path = path.canonicalize().map_err(|error| {
+            BackendError::new(format!("tdjson library is unavailable: {error}"))
+        })?;
         let path = CString::new(path.as_os_str().as_bytes())
             .map_err(|_| BackendError::new("tdjson library path contains NUL"))?;
         // SAFETY: path is a valid NUL-terminated string; the handle is checked.

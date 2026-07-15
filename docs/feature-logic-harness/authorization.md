@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: trust boundary; limits: none.
 - SRC002: HARNESS.md; type: file; supports: secret and lifecycle invariants; limits: none.
-- SRC003: plans.md P1; type: file; supports: states/gates; limits: implementation absent.
+- SRC003: plans.md P1 и `telegram-core::authorization`; type: file/code; supports: exhaustive state/challenge machine; limits: database-key provider и runtime driver отсутствуют.
 - SRC004: pinned official `td_api.tl`; type: supplied; supports: 13 auth states and auth methods; limits: human UI not specified.
 - SRC005: live probe 2026-07-15; type: supplied; supports: encrypted returning Ready/getMe/Closed; limits: first-login branches not tested.
 
@@ -63,7 +63,7 @@ Only account owner/operator may submit auth secrets. Agent may wait/poll status 
 
 ## Live Verification Boundary
 
-Server key was copied over SSH to ignored local storage with mode `0600`; digest matched generation 25. Returning regular-user session reached Ready/getMe and clean Closed. Secret value was not emitted.
+Server key was copied over SSH to ignored local storage with mode `0600`; digest matched generation 25. Returning regular-user session reached Ready/getMe and clean Closed. Pure `telegram-core::authorization` machine обрабатывает все pinned states и exact QR/phone/code/2FA/email/device/registration requests; database-key/runtime integration ещё отсутствует. Secret value was not emitted.
 
 ## Scope
 
@@ -158,6 +158,6 @@ Server key was copied over SSH to ignored local storage with mode `0600`; digest
 
 - Kernel coverage: all auth states identified.
 - Modeled: returning/wrong-key/security semantics.
-- Partial: first-login UI and key rotation implementation.
+- Partial: first-login state/challenge core готов; database-key provider, runtime driver, UI и key rotation отсутствуют.
 - Unknown: default local secret backend.
 - Not applicable: chat/message domain behavior.

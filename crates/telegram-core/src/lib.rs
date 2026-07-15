@@ -2,6 +2,7 @@
 
 #![deny(unsafe_code)]
 
+pub mod authorization;
 pub mod schema;
 pub mod transport;
 

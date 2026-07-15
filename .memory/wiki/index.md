@@ -28,14 +28,15 @@
 - [TDLib capability generator foundation digest](../raw/2026-07-15-tdlib-capability-generator-foundation.md) — closed bounded static model и fail-closed generator до полного 1010-method corpus.
 - [TDLib capability evidence baseline](../raw/2026-07-15-tdlib-capability-evidence-baseline.md) — exact 193-method signal set, 188-method open set и all-tag authorization correction.
 - [TDLib ChatKind capability semantics](../raw/2026-07-15-tdlib-chat-kind-capability.md) — exact `ChatType` pin, six reviewed conditional contracts и 187-method open set.
+- [TDLib per-signal runtime disposition oracle](../raw/2026-07-15-tdlib-runtime-signal-dispositions.md) — exact 208 sources/398 keys, partial-consumption invariant и 185-method open set.
 
 ## Current records
 
-- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, bounded owner generator, reviewed 1010-method owner corpus, capability foundation/ChatKind semantics и macOS native pin закрыты через `W-20260715-014`; 187 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
+- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, bounded owner generator, reviewed 1010-method owner corpus, capability foundation/ChatKind/per-signal oracle и macOS native pin закрыты через `W-20260715-015`; 185 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
 - Native pin: [reviewed rebuild correction](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — exact source/schema и crash-safe macOS arm64 artifact закреплены; Linux/reproducibility остаются open.
 - Decision: [D-20260715-001](../decisions/archive/2026-07-15--2026-07-15-001.md) — раздельная memory model, rotation и secret boundary.
-- Decision: [D-20260715-002](../decisions/decisions.md) — публичный GitHub remote принят как canonical `origin`.
-- Decision: [D-20260715-003](../decisions/decisions.md) — initial production schema pin использует exact TDLib commit, не moving branch.
+- Decision: [D-20260715-002](../decisions/archive/2026-07-15--2026-07-15-002.md) — публичный GitHub remote принят как canonical `origin`.
+- Decision: [D-20260715-003](../decisions/archive/2026-07-15--2026-07-15-002.md) — initial production schema pin использует exact TDLib commit, не moving branch.
 - Decision: [D-20260715-004](../decisions/decisions.md) — binary остаётся в content-addressed local cache, Git хранит exact policy/recipe/provenance.
 - Decision: [D-20260715-005](../decisions/decisions.md) — inherited global lease, gated target и proof-backed recovery определяют crash ownership.
 - Decision: [D-20260715-006](../decisions/decisions.md) — schema parser остаётся pure strict TDLib subset в `telegram-core`, а policy classification отделена от AST.
@@ -44,9 +45,10 @@
 - Decision: [D-20260715-009](../decisions/decisions.md) — static capability requirements имеют closed bounded model; распознанные unsupported gate signals и лишнее policy-сужение fail closed, runtime truth остаётся отдельным слоем.
 - Decision: [D-20260715-010](../decisions/decisions.md) — capability grammar закрывается малыми reviewed source-family tasks по exact open set; full artifact требует zero-open gate.
 - Decision: [D-20260715-011](../decisions/decisions.md) — chat kind является closed typed evidence; channel — refinement `chatTypeSupergroup.is_channel`, не отдельный constructor.
+- Decision: [D-20260715-012](../decisions/decisions.md) — method complete только при terminal disposition каждого exact signal key.
 - Open problem: [P-20260715-001](../problems/problems.md) — database key ещё не подключён к штатному gateway.
 - Open problem: [P-20260715-003](../problems/problems.md) — Linux x86_64 native artifact ещё не закреплён.
-- Open problem: [P-20260715-005](../problems/problems.md) — 187 pinned runtime-signal methods ещё не имеют typed disposition.
+- Open problem: [P-20260715-005](../problems/problems.md) — 185 pinned runtime-signal methods ещё не имеют typed disposition.
 
 ## Operating rules
 

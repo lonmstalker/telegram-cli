@@ -12,10 +12,12 @@ use telegram_core::method_capability::{
 use telegram_core::schema::Schema;
 
 use super::{
-    CapabilityGenerationErrorKind, MAX_CAPABILITY_POLICY_BYTES, MAX_MANIFEST_BYTES,
-    MAX_OWNER_POLICY_BYTES, MAX_SCHEMA_BYTES, RuntimeRequirementsDto, documentation_sha256,
-    documented_runtime_requirements, field_type, generate, has_runtime_gate_signal,
-    method_documentation_text, normalized_text, parse_runtime_requirements,
+    CapabilityGenerationErrorKind, DeferredSignalLane, MAX_CAPABILITY_POLICY_BYTES,
+    MAX_MANIFEST_BYTES, MAX_OWNER_POLICY_BYTES, MAX_SCHEMA_BYTES, RuntimeRequirementsDto,
+    RuntimeSignalDisposition, RuntimeSignalFamily, RuntimeSignalKey, RuntimeSignalSource,
+    documentation_sha256, documented_runtime_requirements, documented_runtime_signal_dispositions,
+    field_type, generate, has_runtime_gate_signal, method_documentation_text, normalized_text,
+    parse_runtime_requirements, runtime_signal_dispositions_with_consumed, runtime_signal_families,
     serialize_pretty_with_limit, sha256_hex, validate_documented_authorization_states,
     validate_documented_method_constraints, validate_documented_parameter_notices,
     validate_documented_runtime_requirements,
@@ -85,7 +87,7 @@ toggleForumTopicIsClosed chat_id:int53 forum_topic_id:int32 other_topic_id:int32
 //@description Changes the sticker set of a supergroup; requires can_change_info administrator right @supergroup_id Identifier of the supergroup @other_supergroup_id Unrelated same-type identifier @sticker_set_id Sticker set identifier
 setSupergroupStickerSet supergroup_id:int53 other_supergroup_id:int53 sticker_set_id:int53 = Ok;
 
-//@description Requires synthetic administrator evidence in a supergroup @supergroup_id Identifier of the supergroup
+//@description Requires administrator evidence in a synthetic supergroup fixture @supergroup_id Identifier of the supergroup
 requireSyntheticSupergroupAdministrator supergroup_id:int53 = Ok;
 
 //@description Creates a new supergroup from an existing basic group and sends a corresponding messageChatUpgradeTo and messageChatUpgradeFrom; requires owner privileges. Deactivates the original basic group @chat_id Identifier of the chat to upgrade
@@ -316,7 +318,7 @@ fn pinned_non_ready_authorization_contract_inventory_is_exact() {
 fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     let capability_source = include_str!("../capability.rs");
     let recognizer_start = capability_source
-        .find("fn has_runtime_gate_signal")
+        .find("fn runtime_signal_families")
         .expect("runtime recognizer start");
     let recognizer_end = capability_source[recognizer_start..]
         .find("fn contains_word_sequence")
@@ -324,7 +326,7 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
         .expect("runtime recognizer end");
     assert_eq!(
         sha256_hex(&capability_source.as_bytes()[recognizer_start..recognizer_end]),
-        "5cdf338bec6fa08d0f69d31c999c8ca384581f96cb6105384cebf754e3e65f1a",
+        "1c928f16f6ebc397cea201960984e37688e983c86b7dfced14f6c399283ba997",
         "runtime recognizer body drift"
     );
 
@@ -398,11 +400,16 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     );
 
     let mut supported = Vec::new();
+    let mut terminal_non_gates = Vec::new();
     let mut unsupported = signaled
         .into_iter()
         .filter_map(|method| match documented_runtime_requirements(method) {
-            Ok(_) => {
+            Ok(Some(_)) => {
                 supported.push(method.name());
+                None
+            }
+            Ok(None) => {
+                terminal_non_gates.push(method.name());
                 None
             }
             Err(error) => {
@@ -431,18 +438,142 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
         ),
         "reviewed real runtime-contract set drift"
     );
+    assert_eq!(
+        hash_method_set(terminal_non_gates),
+        (
+            2,
+            "6db93f2a315604af0e4d16bec5202f1528ecad5157625e62782923b84bb3f2b1".to_owned()
+        ),
+        "terminal lexical non-gate set drift"
+    );
     unsupported.sort_unstable();
     let mut unsupported_oracle = unsupported.join("\n");
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        187,
+        185,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "beea6c14d42a85c8ec6bd3fe322b3d05fa7e3b7f916d134877bea54746e13c03",
+        "b4b68de316938e83a661cfb9cde4dd3ca33336c6544f37ab0d39aa4b7f3009c8",
         "reviewed runtime-disposition boundary hash drift"
+    );
+}
+
+#[test]
+fn runtime_signal_scanner_preserves_source_and_overlapping_families() {
+    assert_eq!(
+        runtime_signal_families("requires can_delete_messages right"),
+        [
+            RuntimeSignalFamily::RequiresRightPhrase,
+            RuntimeSignalFamily::NamedRight(ChatAdministratorRight::CanDeleteMessages),
+        ]
+        .into_iter()
+        .collect()
+    );
+    assert_eq!(
+        runtime_signal_families("messageproperties.can_be_edited"),
+        [
+            RuntimeSignalFamily::MessagePropertiesFact,
+            RuntimeSignalFamily::CanFieldReference,
+        ]
+        .into_iter()
+        .collect()
+    );
+}
+
+#[test]
+fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
+    let schema =
+        Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
+    let mut keys = Vec::new();
+    let mut semantic = Vec::new();
+    let mut source_tags = std::collections::BTreeSet::new();
+    let mut family_count_by_source = BTreeMap::new();
+    let mut method_sources = BTreeMap::<&str, std::collections::BTreeSet<String>>::new();
+    for method in schema.methods() {
+        let dispositions = documented_runtime_signal_dispositions(method)
+            .unwrap_or_else(|error| panic!("{}: {error}", method.name()));
+        for (key, disposition) in dispositions {
+            let source = match key.source() {
+                RuntimeSignalSource::Description => "description".to_owned(),
+                RuntimeSignalSource::Argument(argument) => {
+                    format!("argument:{}", argument.as_str())
+                }
+            };
+            method_sources
+                .entry(method.name())
+                .or_default()
+                .insert(source.clone());
+            source_tags.insert((method.name(), source.clone()));
+            *family_count_by_source
+                .entry((method.name(), source.clone()))
+                .or_insert(0_usize) += 1;
+            let family = key.family().canonical_name();
+            keys.push(format!("{}\t{source}\t{family}", method.name()));
+            semantic.push(format!(
+                "{}\t{source}\t{family}\t{}",
+                method.name(),
+                disposition.canonical_name()
+            ));
+        }
+    }
+    keys.sort_unstable();
+    semantic.sort_unstable();
+    let hash_rows = |rows: Vec<String>| {
+        let mut payload = rows.join("\n");
+        payload.push('\n');
+        sha256_hex(payload.as_bytes())
+    };
+    assert_eq!(keys.len(), 398);
+    assert_eq!(
+        hash_rows(keys),
+        "b0b95745adac694757ae7a46dcbb4dce048129379c3aefa62da62f04a2476545"
+    );
+    assert_eq!(
+        hash_rows(semantic),
+        "bd1ccc88e83cea58e7a3ec161032dfe54e53f244ca89a51db568250f059bca65"
+    );
+    assert_eq!(source_tags.len(), 208, "signaled source-tag count");
+    assert_eq!(
+        source_tags
+            .iter()
+            .filter(|(_, source)| source == "description")
+            .count(),
+        162,
+        "description source-tag count"
+    );
+    assert_eq!(
+        source_tags
+            .iter()
+            .filter(|(_, source)| source.starts_with("argument:"))
+            .count(),
+        46,
+        "argument source-tag count"
+    );
+    assert_eq!(family_count_by_source.values().copied().max(), Some(4));
+    assert!(method_sources.values().all(|sources| sources.len() <= 3));
+
+    let retry = schema
+        .methods()
+        .iter()
+        .flat_map(|method| {
+            documented_runtime_signal_dispositions(method)
+                .expect("signal dispositions")
+                .into_iter()
+                .filter_map(move |(_, disposition)| {
+                    (disposition
+                        == RuntimeSignalDisposition::Deferred(DeferredSignalLane::RetryCondition))
+                    .then_some(method.name())
+                })
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        retry,
+        ["readdQuickReplyShortcutMessages", "resendMessages"]
+            .into_iter()
+            .collect()
     );
 }
 
@@ -577,6 +708,133 @@ fn pinned_conditional_chat_kind_contracts_are_exact() {
                 administrator(&chat_target, ChatAdministratorRight::CanEditMessages),
             ],
         ],
+    );
+}
+
+#[test]
+fn reviewed_contract_stays_open_when_an_argument_signal_is_deferred() {
+    let schema = Schema::parse(&SCHEMA.replace(
+        "@message_id Message identifier @reason Diagnostic fixture\nunpinChatMessage",
+        "@message_id Message identifier @reason Requires messageProperties.can_be_edited\nunpinChatMessage",
+    ))
+    .expect("fixture schema with an additional argument signal");
+
+    let error = documented_runtime_requirements(find_method(&schema, "unpinChatMessage"))
+        .expect_err("an exact description must not hide a deferred argument signal");
+    assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
+    assert!(
+        error
+            .to_string()
+            .contains("at least one runtime signal still needs a typed disposition")
+    );
+}
+
+#[test]
+fn reviewed_contract_consumes_only_its_explicit_description_families() {
+    let schema = Schema::parse(&SCHEMA.replace(
+        "Requires administrator evidence in a synthetic supergroup fixture",
+        "Requires administrator evidence and messageProperties.can_be_edited in a synthetic supergroup fixture",
+    ))
+    .expect("mixed description fixture");
+    let consumed = [RuntimeSignalKey {
+        source: RuntimeSignalSource::Description,
+        family: RuntimeSignalFamily::RequiresAdministrator,
+    }]
+    .into_iter()
+    .collect();
+
+    let dispositions = runtime_signal_dispositions_with_consumed(
+        find_method(&schema, "requireSyntheticSupergroupAdministrator"),
+        &consumed,
+    )
+    .expect("schema-bound signal dispositions");
+    assert_eq!(
+        dispositions.into_iter().collect::<BTreeMap<_, _>>(),
+        [
+            (
+                RuntimeSignalKey {
+                    source: RuntimeSignalSource::Description,
+                    family: RuntimeSignalFamily::RequiresAdministrator,
+                },
+                RuntimeSignalDisposition::ConsumedByRuntimeRequirements,
+            ),
+            (
+                RuntimeSignalKey {
+                    source: RuntimeSignalSource::Description,
+                    family: RuntimeSignalFamily::MessagePropertiesFact,
+                },
+                RuntimeSignalDisposition::Deferred(DeferredSignalLane::UnclassifiedDescription,),
+            ),
+            (
+                RuntimeSignalKey {
+                    source: RuntimeSignalSource::Description,
+                    family: RuntimeSignalFamily::CanFieldReference,
+                },
+                RuntimeSignalDisposition::Deferred(DeferredSignalLane::UnclassifiedDescription,),
+            ),
+        ]
+        .into_iter()
+        .collect()
+    );
+}
+
+#[test]
+fn runtime_signal_sources_must_be_unique_schema_arguments() {
+    let assert_schema_drift = |schema: String, expected: &str| {
+        let schema = Schema::parse(&schema).expect("signal-source fixture schema");
+        let error =
+            documented_runtime_signal_dispositions(find_method(&schema, "unpinChatMessage"))
+                .expect_err("invalid signal source must fail closed");
+        assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
+        assert!(error.to_string().contains(expected), "{error}");
+    };
+
+    assert_schema_drift(
+        SCHEMA.replace(
+            "@reason Diagnostic fixture\nunpinChatMessage",
+            "@reason messageProperties.can_be_edited @reason groupCall.can_be_managed\nunpinChatMessage",
+        ),
+        "runtime signal source tag is duplicated",
+    );
+    assert_schema_drift(
+        SCHEMA.replace(
+            "@reason Diagnostic fixture\nunpinChatMessage",
+            "@unknown messageProperties.can_be_edited @reason Diagnostic fixture\nunpinChatMessage",
+        ),
+        "runtime signal belongs to neither @description nor a method argument",
+    );
+}
+
+#[test]
+fn pinned_chat_boost_vocabulary_is_terminal_non_gate_documentation() {
+    let schema =
+        Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
+
+    for method in ["getChatBoostFeatures", "getChatBoostLevelFeatures"] {
+        assert_eq!(
+            documented_runtime_requirements(find_method(&schema, method))
+                .expect("reviewed lexical non-gate"),
+            None,
+            "{method}"
+        );
+    }
+}
+
+#[test]
+fn chat_boost_non_gate_requires_exact_reviewed_wording() {
+    let schema = Schema::parse(&include_str!("../../../../vendor/tdlib/td_api.tl").replace(
+        "Returns the list of features available for different chat boost levels. This is an offline method",
+        "Requires boost level 1 before returning the list of features",
+    ))
+    .expect("same-family semantic drift fixture");
+
+    let error = documented_runtime_requirements(find_method(&schema, "getChatBoostFeatures"))
+        .expect_err("same lexical family must not inherit terminal non-gate status");
+    assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
+    assert!(
+        error
+            .to_string()
+            .contains("at least one runtime signal still needs a typed disposition")
     );
 }
 

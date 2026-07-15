@@ -73,3 +73,11 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Status: open; zero-open gate не достигнут.
 - Next check: добавить exact per-signal disposition artifact и следующую closed source family (`MessageProperties`/object-field facts), не смешивая runtime capability с prerequisite/retry/lexical lanes.
 - Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-011](../decisions/decisions.md).
+
+## [2026-07-15] open update | P-20260715-005 | Per-signal oracle принят, exact open set уменьшен до 185 methods
+
+- Evidence: [per-signal disposition digest](../raw/2026-07-15-tdlib-runtime-signal-dispositions.md); exact 193-method scan развёрнут в 208 sources и 398 keys. Terminal complete set содержит 8 methods; open-set SHA-256 `b4b68de...009c8`.
+- Transition: exact `getChatBoostFeatures` и `getChatBoostLevelFeatures` lexical vocabulary признана non-gate; explicit consumed-key equality теперь не допускает partial completion. Остальные 185 methods остаются deferred и дают `SchemaDrift`.
+- Status: open; zero-open gate не достигнут.
+- Next check: добавить exact `MessageProperties` schema vocabulary и typed quantified message facts без premature consumption mixed contracts.
+- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md).

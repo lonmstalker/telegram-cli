@@ -23,10 +23,11 @@
 - P0.5a capability foundation закрепляет closed account/auth/entitlement/application/DC vocabularies, additive synchronous path, typed bounded runtime DNF и parameter notices. Pure generator требует exact schema/owner/method/signature/documentation evidence, отклоняет распознанные unsupported capability/runtime gate signals и скрытое policy-сужение; два independent reviews — Approved.
 - P0.5b0 evidence baseline связывает current recognizer с exact 193-method signal set и 188-method fail-closed open set. Authorization validation читает все structured documentation tags; `setCustomLanguagePack.@info` больше не теряет pre-authorization contract. Open rows не считаются capability coverage.
 - P0.5b1 добавляет closed `ResolvedChatKind`/`ChatKindCondition`, exact four-constructor `ChatType` pin и conditional DNF для шести real methods. `unpinChatMessage` полностью dispositioned; exact open set уменьшен до 187 без расширения recognizer. Capability policy format — `2`; independent reviews — Approved.
+- P0.5b2 разворачивает 193-method recognizer в exact 208 source tags/398 signal keys. Explicit consumed-key equality запрещает partial completion; exact normalized lexical exceptions уменьшают open set до 185 без изменения capability format. Два independent reviews — Approved.
 
 ## Not implemented
 
-- Linux x86_64 TDLib artifact, typed dispositions для 187 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
+- Linux x86_64 TDLib artifact, typed dispositions для 185 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
 - Stateful request-chain engine, retry/reconciliation, policy, metrics и agent skill остаются планом.
 
 ## Active boundary
@@ -40,10 +41,10 @@
 
 - [Bootstrap digest](../raw/2026-07-15-project-bootstrap.md)
 - [D-20260715-001](../decisions/archive/2026-07-15--2026-07-15-001.md)
-- [D-20260715-002](../decisions/decisions.md)
-- [W-20260715-005](../logs/work.md)
-- [D-20260715-003](../decisions/decisions.md)
-- [W-20260715-006](../logs/work.md)
+- [D-20260715-002](../decisions/archive/2026-07-15--2026-07-15-002.md)
+- [W-20260715-005](../logs/archive/2026-07-15--2026-07-15-004.md)
+- [D-20260715-003](../decisions/archive/2026-07-15--2026-07-15-002.md)
+- [W-20260715-006](../logs/archive/2026-07-15--2026-07-15-004.md)
 - [Reviewed native macOS arm64 correction digest](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md)
 - [D-20260715-004](../decisions/decisions.md)
 - [D-20260715-005](../decisions/decisions.md)
@@ -60,8 +61,11 @@
 - [TDLib capability generator foundation digest](../raw/2026-07-15-tdlib-capability-generator-foundation.md)
 - [TDLib capability evidence baseline](../raw/2026-07-15-tdlib-capability-evidence-baseline.md)
 - [TDLib ChatKind capability semantics](../raw/2026-07-15-tdlib-chat-kind-capability.md)
+- [TDLib per-signal runtime disposition oracle](../raw/2026-07-15-tdlib-runtime-signal-dispositions.md)
 - [D-20260715-009](../decisions/decisions.md)
 - [W-20260715-012](../logs/work.md)
 - [W-20260715-013](../logs/work.md)
 - [D-20260715-011](../decisions/decisions.md)
+- [D-20260715-012](../decisions/decisions.md)
 - [W-20260715-014](../logs/work.md)
+- [W-20260715-015](../logs/work.md)

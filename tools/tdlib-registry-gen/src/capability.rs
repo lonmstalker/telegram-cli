@@ -989,28 +989,42 @@ fn validate_documented_runtime_requirements(
 fn documented_runtime_requirements(
     method: &Definition,
 ) -> Result<Option<RequirementAlternatives>, CapabilityGenerationError> {
-    for tag in method.documentation().tags() {
-        if tag.name() != "description"
-            && field_type(method, tag.name()).is_some()
-            && has_runtime_gate_signal(&normalized_text(tag.value()))
-        {
-            return Err(unsupported_runtime_documentation(
-                method,
-                "a parameter-level gate needs a typed predicate",
-            ));
-        }
+    let description = normalized_text(&method_description(method));
+    let dispositions = documented_runtime_signal_dispositions(method)?;
+    if dispositions
+        .iter()
+        .any(|(_, disposition)| matches!(disposition, RuntimeSignalDisposition::Deferred(_)))
+    {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "at least one runtime signal still needs a typed disposition",
+        ));
     }
 
-    let description = normalized_text(&method_description(method));
     let Some(contract) = reviewed_runtime_contract(method.name(), &description) else {
-        if has_runtime_gate_signal(&description) {
+        if dispositions.iter().any(|(_, disposition)| {
+            *disposition == RuntimeSignalDisposition::ConsumedByRuntimeRequirements
+        }) {
             return Err(unsupported_runtime_documentation(
                 method,
-                "runtime gate isn't in the exact reviewed documentation corpus",
+                "a consumed runtime signal has no reviewed requirement contract",
             ));
         }
         return Ok(None);
     };
+    let consumed = dispositions
+        .iter()
+        .filter_map(|(key, disposition)| {
+            (*disposition == RuntimeSignalDisposition::ConsumedByRuntimeRequirements)
+                .then_some(key.clone())
+        })
+        .collect::<BTreeSet<_>>();
+    if consumed != contract.consumed_signal_keys() {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed runtime requirements don't consume their exact signal set",
+        ));
+    }
     let clauses = match contract {
         ReviewedRuntimeContract::AdministratorInKinds(kinds) => {
             let target = documented_chat_target(method)?;
@@ -1126,6 +1140,39 @@ enum ReviewedRuntimeContract {
     BusinessConnectionEnabledAndRight(BusinessBotRight),
 }
 
+impl ReviewedRuntimeContract {
+    fn consumed_signal_keys(self) -> BTreeSet<RuntimeSignalKey> {
+        let families: &[RuntimeSignalFamily] = match self {
+            Self::AdministratorInKinds(_) => &[RuntimeSignalFamily::RequiresAdministrator],
+            Self::AdministratorRightInKinds { .. } | Self::AdministratorOrTopicCreator { .. } => &[
+                RuntimeSignalFamily::AdministratorRightPhrase,
+                RuntimeSignalFamily::RequiresRightPhrase,
+            ],
+            Self::MemberRightInKinds { .. } => &[
+                RuntimeSignalFamily::MemberRightPhrase,
+                RuntimeSignalFamily::RequiresRightPhrase,
+            ],
+            Self::OwnerInKind(_) => &[RuntimeSignalFamily::RequiresOwnerPrivileges],
+            Self::ConditionalUnpin => &[
+                RuntimeSignalFamily::AdministratorRightPhrase,
+                RuntimeSignalFamily::MemberRightPhrase,
+                RuntimeSignalFamily::RequiresRightPhrase,
+            ],
+            Self::BusinessConnectionEnabledAndRight(_) => {
+                &[RuntimeSignalFamily::RequiresRightPhrase]
+            }
+        };
+        families
+            .iter()
+            .copied()
+            .map(|family| RuntimeSignalKey {
+                source: RuntimeSignalSource::Description,
+                family,
+            })
+            .collect()
+    }
+}
+
 fn reviewed_runtime_contract(method: &str, description: &str) -> Option<ReviewedRuntimeContract> {
     use ReviewedRuntimeContract as Contract;
 
@@ -1161,7 +1208,7 @@ fn reviewed_runtime_contract(method: &str, description: &str) -> Option<Reviewed
         }),
         (
             "requireSyntheticSupergroupAdministrator",
-            "requires synthetic administrator evidence in a supergroup",
+            "requires administrator evidence in a synthetic supergroup fixture",
         ) => Some(Contract::AdministratorInKinds(&[
             ResolvedChatKind::Supergroup,
         ])),
@@ -1298,31 +1345,350 @@ fn documented_business_connection_argument(
     })
 }
 
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum RuntimeSignalSource {
+    Description,
+    Argument(ArgumentRef),
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum RuntimeSignalFamily {
+    AdministratorRightPhrase,
+    MemberRightPhrase,
+    RequiresAdministrator,
+    RequiresOwnerPrivileges,
+    RequiresRightPhrase,
+    GroupCallFact,
+    GroupCallMessageFact,
+    SupergroupFullInfoFact,
+    MessagePropertiesFact,
+    ChatBoostReference,
+    BoostLevelPhrase,
+    CanFieldReference,
+    IsFieldReference,
+    UserIsAdministrator,
+    MustBeAdministrator,
+    MustHaveAdministratorPrivileges,
+    NamedRight(ChatAdministratorRight),
+    OnlyByAdministrator,
+    OnlyIfAdministrator,
+    AdministratorPrivilegesMayBeRequired,
+    AdministratorRightsMayBeRequired,
+    OptionGate,
+}
+
+#[cfg(test)]
+impl RuntimeSignalFamily {
+    fn canonical_name(self) -> String {
+        match self {
+            Self::AdministratorRightPhrase => "administrator_right_phrase".to_owned(),
+            Self::MemberRightPhrase => "member_right_phrase".to_owned(),
+            Self::RequiresAdministrator => "requires_administrator".to_owned(),
+            Self::RequiresOwnerPrivileges => "requires_owner_privileges".to_owned(),
+            Self::RequiresRightPhrase => "requires_right_phrase".to_owned(),
+            Self::GroupCallFact => "group_call_fact".to_owned(),
+            Self::GroupCallMessageFact => "group_call_message_fact".to_owned(),
+            Self::SupergroupFullInfoFact => "supergroup_full_info_fact".to_owned(),
+            Self::MessagePropertiesFact => "message_properties_fact".to_owned(),
+            Self::ChatBoostReference => "chat_boost_reference".to_owned(),
+            Self::BoostLevelPhrase => "boost_level_phrase".to_owned(),
+            Self::CanFieldReference => "can_field_reference".to_owned(),
+            Self::IsFieldReference => "is_field_reference".to_owned(),
+            Self::UserIsAdministrator => "user_is_administrator".to_owned(),
+            Self::MustBeAdministrator => "must_be_administrator".to_owned(),
+            Self::MustHaveAdministratorPrivileges => {
+                "must_have_administrator_privileges".to_owned()
+            }
+            Self::NamedRight(right) => format!("named_right:{}", right.as_str()),
+            Self::OnlyByAdministrator => "only_by_administrator".to_owned(),
+            Self::OnlyIfAdministrator => "only_if_administrator".to_owned(),
+            Self::AdministratorPrivilegesMayBeRequired => {
+                "administrator_privileges_may_be_required".to_owned()
+            }
+            Self::AdministratorRightsMayBeRequired => {
+                "administrator_rights_may_be_required".to_owned()
+            }
+            Self::OptionGate => "option_gate".to_owned(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct RuntimeSignalKey {
+    source: RuntimeSignalSource,
+    family: RuntimeSignalFamily,
+}
+
+impl RuntimeSignalKey {
+    fn source(&self) -> &RuntimeSignalSource {
+        &self.source
+    }
+
+    fn family(&self) -> RuntimeSignalFamily {
+        self.family
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DeferredSignalLane {
+    UnclassifiedDescription,
+    InputPrerequisite,
+    RetryCondition,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum NonGateReason {
+    ChatBoostVocabulary,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RuntimeSignalDisposition {
+    ConsumedByRuntimeRequirements,
+    Deferred(DeferredSignalLane),
+    NotRuntimeGate(NonGateReason),
+}
+
+#[cfg(test)]
+impl RuntimeSignalDisposition {
+    fn canonical_name(self) -> &'static str {
+        match self {
+            Self::ConsumedByRuntimeRequirements => "consumed_by_runtime_requirements",
+            Self::Deferred(DeferredSignalLane::UnclassifiedDescription) => {
+                "deferred:unclassified_description"
+            }
+            Self::Deferred(DeferredSignalLane::InputPrerequisite) => "deferred:input_prerequisite",
+            Self::Deferred(DeferredSignalLane::RetryCondition) => "deferred:retry_condition",
+            Self::NotRuntimeGate(NonGateReason::ChatBoostVocabulary) => {
+                "not_runtime_gate:chat_boost_vocabulary"
+            }
+        }
+    }
+}
+
+fn documented_runtime_signal_keys(
+    method: &Definition,
+) -> Result<BTreeSet<RuntimeSignalKey>, CapabilityGenerationError> {
+    let mut keys = BTreeSet::new();
+    let mut sources = BTreeSet::new();
+    for tag in method.documentation().tags() {
+        let families = runtime_signal_families(&normalized_text(tag.value()));
+        if families.is_empty() {
+            continue;
+        }
+        let source = if tag.name() == "description" {
+            RuntimeSignalSource::Description
+        } else if field_type(method, tag.name()).is_some() {
+            RuntimeSignalSource::Argument(
+                ArgumentRef::try_from(tag.name())
+                    .map_err(CapabilityGenerationError::from_model_value)?,
+            )
+        } else {
+            return Err(unsupported_runtime_documentation(
+                method,
+                "runtime signal belongs to neither @description nor a method argument",
+            ));
+        };
+        if !sources.insert(source.clone()) {
+            return Err(unsupported_runtime_documentation(
+                method,
+                "runtime signal source tag is duplicated",
+            ));
+        }
+        keys.extend(families.into_iter().map(|family| RuntimeSignalKey {
+            source: source.clone(),
+            family,
+        }));
+    }
+    Ok(keys)
+}
+
+fn documented_runtime_signal_dispositions(
+    method: &Definition,
+) -> Result<Vec<(RuntimeSignalKey, RuntimeSignalDisposition)>, CapabilityGenerationError> {
+    let description = normalized_text(&method_description(method));
+    let consumed = reviewed_runtime_contract(method.name(), &description)
+        .map(ReviewedRuntimeContract::consumed_signal_keys)
+        .unwrap_or_default();
+    runtime_signal_dispositions_with_consumed(method, &consumed)
+}
+
+fn runtime_signal_dispositions_with_consumed(
+    method: &Definition,
+    consumed: &BTreeSet<RuntimeSignalKey>,
+) -> Result<Vec<(RuntimeSignalKey, RuntimeSignalDisposition)>, CapabilityGenerationError> {
+    documented_runtime_signal_keys(method).map(|keys| {
+        keys.into_iter()
+            .map(|key| {
+                let disposition = if is_terminal_non_gate(method, &key) {
+                    RuntimeSignalDisposition::NotRuntimeGate(NonGateReason::ChatBoostVocabulary)
+                } else if consumed.contains(&key) {
+                    RuntimeSignalDisposition::ConsumedByRuntimeRequirements
+                } else if is_retry_signal(method, &key) {
+                    RuntimeSignalDisposition::Deferred(DeferredSignalLane::RetryCondition)
+                } else if matches!(key.source, RuntimeSignalSource::Argument(_)) {
+                    RuntimeSignalDisposition::Deferred(DeferredSignalLane::InputPrerequisite)
+                } else {
+                    RuntimeSignalDisposition::Deferred(DeferredSignalLane::UnclassifiedDescription)
+                };
+                (key, disposition)
+            })
+            .collect()
+    })
+}
+
+fn is_terminal_non_gate(method: &Definition, key: &RuntimeSignalKey) -> bool {
+    let source_text = normalized_signal_source_text(method, key.source());
+    match (method.name(), key.source(), key.family()) {
+        (
+            "getChatBoostFeatures",
+            RuntimeSignalSource::Description,
+            RuntimeSignalFamily::BoostLevelPhrase,
+        ) => {
+            source_text.as_deref()
+                == Some(
+                    "returns the list of features available for different chat boost levels. this is an offline method",
+                )
+        }
+        (
+            "getChatBoostLevelFeatures",
+            RuntimeSignalSource::Description,
+            RuntimeSignalFamily::BoostLevelPhrase,
+        ) => {
+            source_text.as_deref()
+                == Some(
+                    "returns the list of features available on the specific chat boost level. this is an offline method",
+                )
+        }
+        (
+            "getChatBoostLevelFeatures",
+            RuntimeSignalSource::Argument(argument),
+            RuntimeSignalFamily::BoostLevelPhrase,
+        ) => argument.as_str() == "level" && source_text.as_deref() == Some("chat boost level"),
+        _ => false,
+    }
+}
+
+fn is_retry_signal(method: &Definition, key: &RuntimeSignalKey) -> bool {
+    if !matches!(
+        (key.source(), key.family()),
+        (
+            RuntimeSignalSource::Description,
+            RuntimeSignalFamily::CanFieldReference,
+        )
+    ) {
+        return false;
+    }
+    matches!(
+        (
+            method.name(),
+            normalized_signal_source_text(method, key.source()).as_deref()
+        ),
+        (
+            "resendMessages",
+            Some(
+                "resends messages which failed to send. can be called only for messages for which messagesendingstatefailed.can_retry is true and after specified in messagesendingstatefailed.retry_after time passed. if a message is re-sent, the corresponding failed to send message is deleted. returns the sent messages in the same order as the message identifiers passed in message_ids. if a message can't be re-sent, null will be returned instead of the message"
+            )
+        ) | (
+            "readdQuickReplyShortcutMessages",
+            Some(
+                "readds quick reply messages which failed to add. can be called only for messages for which messagesendingstatefailed.can_retry is true and after specified in messagesendingstatefailed.retry_after time passed. if a message is readded, the corresponding failed to send message is deleted. returns the sent messages in the same order as the message identifiers passed in message_ids. if a message can't be readded, null will be returned instead of the message"
+            )
+        )
+    )
+}
+
+fn normalized_signal_source_text(
+    method: &Definition,
+    source: &RuntimeSignalSource,
+) -> Option<String> {
+    let tag_name = match source {
+        RuntimeSignalSource::Description => "description",
+        RuntimeSignalSource::Argument(argument) => argument.as_str(),
+    };
+    method
+        .documentation()
+        .tags()
+        .iter()
+        .find(|tag| tag.name() == tag_name)
+        .map(|tag| normalized_text(tag.value()))
+}
+
+fn runtime_signal_families(value: &str) -> BTreeSet<RuntimeSignalFamily> {
+    let mut families = BTreeSet::new();
+    if contains_word_sequence(value, "administrator right") {
+        families.insert(RuntimeSignalFamily::AdministratorRightPhrase);
+    }
+    if contains_word_sequence(value, "member right") {
+        families.insert(RuntimeSignalFamily::MemberRightPhrase);
+    }
+    if value.contains("requires administrator") {
+        families.insert(RuntimeSignalFamily::RequiresAdministrator);
+    }
+    if value.contains("requires owner privileges") {
+        families.insert(RuntimeSignalFamily::RequiresOwnerPrivileges);
+    }
+    if value.contains("requires ") && contains_word_sequence(value, "right") {
+        families.insert(RuntimeSignalFamily::RequiresRightPhrase);
+    }
+    if value.contains("requires groupcall.") {
+        families.insert(RuntimeSignalFamily::GroupCallFact);
+    }
+    if value.contains("requires groupcallmessage.") {
+        families.insert(RuntimeSignalFamily::GroupCallMessageFact);
+    }
+    if value.contains("supergroupfullinfo.") {
+        families.insert(RuntimeSignalFamily::SupergroupFullInfoFact);
+    }
+    if value.contains("messageproperties.") {
+        families.insert(RuntimeSignalFamily::MessagePropertiesFact);
+    }
+    if value.contains("chatboost") {
+        families.insert(RuntimeSignalFamily::ChatBoostReference);
+    }
+    if value.contains("boost level") {
+        families.insert(RuntimeSignalFamily::BoostLevelPhrase);
+    }
+    if value.contains(".can_") {
+        families.insert(RuntimeSignalFamily::CanFieldReference);
+    }
+    if value.contains(".is_") {
+        families.insert(RuntimeSignalFamily::IsFieldReference);
+    }
+    if value.contains("user is an administrator") {
+        families.insert(RuntimeSignalFamily::UserIsAdministrator);
+    }
+    if value.contains("must be an administrator") {
+        families.insert(RuntimeSignalFamily::MustBeAdministrator);
+    }
+    if value.contains("must have administrator privileges") {
+        families.insert(RuntimeSignalFamily::MustHaveAdministratorPrivileges);
+    }
+    for right in ChatAdministratorRight::ALL {
+        if value.contains(&format!("{} right", right.as_str())) {
+            families.insert(RuntimeSignalFamily::NamedRight(right));
+        }
+    }
+    if value.contains("only by ") && value.contains("administrator") {
+        families.insert(RuntimeSignalFamily::OnlyByAdministrator);
+    }
+    if value.contains("only if ") && value.contains("administrator") {
+        families.insert(RuntimeSignalFamily::OnlyIfAdministrator);
+    }
+    if value.contains("administrator privileges may be required") {
+        families.insert(RuntimeSignalFamily::AdministratorPrivilegesMayBeRequired);
+    }
+    if value.contains("administrator rights may be required") {
+        families.insert(RuntimeSignalFamily::AdministratorRightsMayBeRequired);
+    }
+    if value.contains("only if getoption(") {
+        families.insert(RuntimeSignalFamily::OptionGate);
+    }
+    families
+}
+
+#[cfg(test)]
 fn has_runtime_gate_signal(value: &str) -> bool {
-    contains_word_sequence(value, "administrator right")
-        || contains_word_sequence(value, "member right")
-        || value.contains("requires administrator")
-        || value.contains("requires owner privileges")
-        || (value.contains("requires ") && contains_word_sequence(value, "right"))
-        || value.contains("requires groupcall.")
-        || value.contains("requires groupcallmessage.")
-        || value.contains("supergroupfullinfo.")
-        || value.contains("messageproperties.")
-        || value.contains("chatboost")
-        || value.contains("boost level")
-        || value.contains(".can_")
-        || value.contains(".is_")
-        || value.contains("user is an administrator")
-        || value.contains("must be an administrator")
-        || value.contains("must have administrator privileges")
-        || ChatAdministratorRight::ALL
-            .iter()
-            .any(|right| value.contains(&format!("{} right", right.as_str())))
-        || (value.contains("only by ") && value.contains("administrator"))
-        || (value.contains("only if ") && value.contains("administrator"))
-        || value.contains("administrator privileges may be required")
-        || value.contains("administrator rights may be required")
-        || value.contains("only if getoption(")
+    !runtime_signal_families(value).is_empty()
 }
 
 fn contains_word_sequence(value: &str, phrase: &str) -> bool {

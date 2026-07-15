@@ -1163,8 +1163,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            72,
-            "6075cb099bb5bd91e3e58108b85c855c423c8b1a725bf99a5579b4ae28f3bd7e".to_owned()
+            73,
+            "5f071d0f663b25ea1819b13afa107be02385c1076a1ae410d2c9bee9798439cb".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -1180,8 +1180,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            75,
-            "b0313021036610a5f6d9412e2ea99361681f59b983d8a6a14d6a6e9598c5d69a".to_owned()
+            76,
+            "61cd3f0ae0ea7b4a4ac55908217d0b1b7f2b6e060d42ca14036605e7471166f1".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -1190,12 +1190,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        118,
+        117,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "090cf24de23ace4b7bc1a9b9115181afacdca75b23eff0d8506fc0efc5a6c29a",
+        "e39bd801f0cba2b684c0b9025e0a048a7e8a08e49541a63fbd66ab8a85078e98",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -1272,7 +1272,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "f6d0258163531e781ef5911161fe9d5f9cf2671010bb4167c71aa6c0e1742b7f"
+        "6cf71ae778b3e7884164ba23b3005b7e1390916133d8666c22612d9d0d9a534b"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -4250,6 +4250,116 @@ fn pinned_chat_event_log_contract_is_exact() {
     assert_eq!(
         documented_runtime_requirements(find_method(&additional_signal, "getChatEventLog"))
             .expect_err("unconsumed event-log argument signal must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
+fn pinned_chat_boost_list_contract_is_exact() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let method = find_method(&schema, "getChatBoosts");
+    assert_eq!(
+        method.canonical_signature(),
+        "getChatBoosts chat_id:int53 only_gift_codes:Bool offset:string limit:int32 = FoundChatBoosts;"
+    );
+    assert_eq!(
+        normalized_text(&super::method_description(method)),
+        "returns the list of boosts applied to a chat; requires administrator rights in the chat"
+    );
+
+    let target = ChatTargetRef::try_from("chat_id").expect("chat target");
+    let expected =
+        RequirementAlternatives::try_new(vec![vec![RuntimeRequirement::ChatAdministrator {
+            target: target.clone(),
+        }]])
+        .expect("chat-boost alternatives");
+    assert_eq!(
+        documented_runtime_requirements(method)
+            .expect("reviewed chat-boost documentation")
+            .expect("chat-boost contract"),
+        expected
+    );
+
+    let descriptor = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        expected.clone(),
+        Vec::new(),
+    )
+    .expect("chat-boost descriptor");
+    validate_documented_method_constraints(method, &descriptor).expect("regular-user contract");
+    validate_documented_runtime_requirements(method, &descriptor).expect("runtime contract");
+    assert_eq!(
+        documented_runtime_signal_dispositions(method).expect("chat-boost signals"),
+        vec![(
+            RuntimeSignalKey {
+                source: RuntimeSignalSource::Description,
+                family: RuntimeSignalFamily::RequiresAdministrator,
+            },
+            RuntimeSignalDisposition::ConsumedByRuntimeRequirements,
+        )]
+    );
+
+    let bot_enabled = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser, AccountKind::Bot],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        expected,
+        Vec::new(),
+    )
+    .expect("structurally valid bot-enabled chat-boost descriptor");
+    assert_eq!(
+        validate_documented_method_constraints(method, &bot_enabled)
+            .expect_err("pinned CHECK_IS_USER must reject bot-enabled policy")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let source_drift = pinned.replacen(
+        "Returns the list of boosts applied to a chat; requires administrator rights in the chat",
+        "Returns boosts applied to a chat; requires administrator rights in the chat",
+        1,
+    );
+    let source_drift = Schema::parse(&source_drift).expect("valid chat-boost source drift");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&source_drift, "getChatBoosts"))
+            .expect_err("chat-boost source drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let signature_drift = pinned.replacen(
+        "getChatBoosts chat_id:int53 only_gift_codes:Bool offset:string limit:int32 = FoundChatBoosts;",
+        "getChatBoosts chat_id:int32 only_gift_codes:Bool offset:string limit:int32 = FoundChatBoosts;",
+        1,
+    );
+    let signature_drift =
+        Schema::parse(&signature_drift).expect("valid chat-boost signature drift");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&signature_drift, "getChatBoosts"))
+            .expect_err("chat-boost signature drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let additional_signal = pinned.replacen(
+        "@only_gift_codes Pass true to receive only boosts received from gift codes and giveaways created by the chat",
+        "@only_gift_codes Pass true to receive only gift-code boosts; requires administrator rights",
+        1,
+    );
+    let additional_signal = Schema::parse(&additional_signal).expect("valid additional signal");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&additional_signal, "getChatBoosts"))
+            .expect_err("unconsumed chat-boost argument signal must fail closed")
             .kind(),
         CapabilityGenerationErrorKind::SchemaDrift
     );

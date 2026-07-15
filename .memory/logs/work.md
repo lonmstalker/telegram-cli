@@ -2,17 +2,6 @@
 
 Active append-only checkpoints. Решения и проблемы хранятся отдельно и здесь только упоминаются по ID.
 
-## [2026-07-15] work | W-20260715-028 | Exact chat event log capability contract
-
-- Цель: закрыть один полностью доказанный method contract без нового generic domain atom или broad lexical inference.
-- Sources: [chat event log capability digest](../raw/2026-07-15-tdlib-chat-event-log-capability.md), exact pinned schema, `Requests.cpp`, `DialogEventLog.cpp` и [D-20260715-024](../decisions/decisions.md).
-- Red/green/refactor: pinned test сначала получил `SchemaDrift`; exact semantic module добавил regular-user scope, two-branch kind/admin DNF, consumed-signal equality и source/signature/additional-signal/bot negative controls.
-- Result: supported 67, terminal 70, open 123; capability format — `8`; semantic module включён в engine hash. Planning/task IDs в executable code отсутствуют.
-- Verification: 59 generator + 24 core = 83 workspace tests, Clippy `-D warnings`, fmt, planning/workspace/schema/native/skeleton/diff gates green с `jobs=2`.
-- Review: independent reviewer дал `APPROVED`, actionable findings отсутствуют; повторно проверены 59 generator tests и clean diff.
-- Problems: [P-20260715-005](../problems/problems.md) open at 123.
-- Boundary: static prerequisite не доказывает current administrator status; runtime evaluator/freshness, full 1010-method policy/artifact, P1–P10 и live acceptance не закрыты.
-
 ## [2026-07-15] review | W-20260715-028 | Code and evidence reviews accepted
 
 - Code verdict: independent reviewer дал `APPROVED`, findings отсутствуют. Exact signature/source, `CHECK_IS_USER()`, channel-dialog kind, administrator DNF, signal dispositions, account controls, oracle transitions и engine hash подтверждены.
@@ -160,3 +149,17 @@ Active append-only checkpoints. Решения и проблемы хранят�
 
 - P009 discovery is in [problem shard 018](../problems/archive/2026-07-15--2026-07-15-018.md), first resolution in [shard 019](../problems/archive/2026-07-15--2026-07-15-019.md), and the later reviewer-confirmed resolved update remains active in `problems.md`.
 - W027 implementation remains in shard 029; its final accepted review is now in [work shard 030](archive/2026-07-15--2026-07-15-030.md).
+
+## [2026-07-15] work | W-20260715-037 | Exact chat-boost list access
+
+- Sources: [capability digest](../raw/2026-07-15-tdlib-chat-boost-list-capability.md), pinned schema/Requests/BoostManager/telegram API and [D-20260715-033](../decisions/decisions.md).
+- TDD/result: initial deferred `SchemaDrift`; minimal `chat_boosts.rs` produces regular-user + generic `ChatAdministrator(chat_id)` DNF. Bot-enabled, source/signature drift and additional argument signal fail closed; no chat-kind/value atom is invented.
+- Oracles: supported 73, terminal 76, open 117; format `8`, semantic SHA-256 `6cf71ae7...a534b`.
+- Verification/review: 68 generator + 24 core = 92 workspace tests with `jobs=2`; independent source/Rust review — `APPROVED`, findings absent.
+- Boundary: read/admin freshness, request-value validity, full corpus, P1–P10/live acceptance remain open; [P-20260715-005](../problems/problems.md) at 117.
+
+## [2026-07-15] archive link map | W-20260715-037 | Rotated W028 implementation
+
+- [Work shard 031](archive/2026-07-15--2026-07-15-031.md) contains W028 implementation; its final accepted review remains active above.
+- Shard-031 dependencies remain current: [D024](../decisions/decisions.md); historical P005 state is superseded by latest active boundary 117.
+- P009 lifecycle now resolves discovery shard 018, first resolution shard 019 and reviewer-confirmed resolution [shard 021](../problems/archive/2026-07-15--2026-07-15-021.md); earlier active-path wording is historical.

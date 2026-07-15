@@ -44,11 +44,12 @@
 - P0.5b20 correction переносит `deleteChatMessagesBySender` в `capability/message_moderation.rs`: pinned contract требует regular user, supergroup, `is_direct_messages_group=false` и `can_delete_messages`. Counts остаются 70/73/120, format `8`; review — Approved.
 - P0.5b21 расширяет message-moderation domain exact `deleteAllRecentMessageReactionsFromSender`: regular user или bot и `basic_group|supergroup AND can_delete_messages`, без invented subtype flags. Open set — 119, format `8`; review — Approved.
 - P0.5b22 расширяет existing chat-settings domain exact `toggleChatGiftNotifications`: regular user и `channel AND can_post_messages`. `are_enabled` остаётся request value; open set — 118, format `8`; review — Approved.
+- P0.5b23 добавляет semantic chat-boost domain exact `getChatBoosts`: regular user и `ChatAdministrator(chat_id)` без invented chat-kind/value predicates. Open set — 117, format `8`; review — Approved.
 - Planning boundary gate с семью negative controls запрещает `FeatureId`, numeric planning IDs и owner-manifest taxonomy в runtime/tooling/machine contracts; real discovery проверяет scripts/all root machine files, file/root symlink fail closed.
 
 ## Not implemented
 
-- Linux x86_64 TDLib artifact, typed dispositions для 118 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
+- Linux x86_64 TDLib artifact, typed dispositions для 117 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
 - Stateful request-chain engine, retry/reconciliation, policy, metrics и agent skill остаются планом.
 
 ## Active boundary
@@ -105,6 +106,9 @@
 - [TDLib channel gift-notification capability](../raw/2026-07-15-tdlib-chat-gift-notification-capability.md)
 - [D-20260715-032](../decisions/decisions.md)
 - [W-20260715-036](../logs/work.md)
+- [TDLib chat-boost list capability](../raw/2026-07-15-tdlib-chat-boost-list-capability.md)
+- [D-20260715-033](../decisions/decisions.md)
+- [W-20260715-037](../logs/work.md)
 - [TDLib getChatBoostLinkInfo lexical non-gate digest](../raw/2026-07-15-tdlib-chat-boost-link-non-gate.md)
 - [D-20260715-009](../decisions/archive/2026-07-15--2026-07-15-008.md)
 - [W-20260715-012](../logs/archive/2026-07-15--2026-07-15-011.md)
@@ -137,7 +141,8 @@
 - [W-20260715-027](../logs/archive/2026-07-15--2026-07-15-029.md)
 - [W-20260715-027 final review](../logs/archive/2026-07-15--2026-07-15-030.md)
 - [D-20260715-024](../decisions/decisions.md)
-- [W-20260715-028](../logs/work.md)
+- [W-20260715-028 implementation](../logs/archive/2026-07-15--2026-07-15-031.md)
+- [W-20260715-028 final review](../logs/work.md)
 - [D-20260715-025](../decisions/decisions.md)
 - [W-20260715-029](../logs/work.md)
 - [D-20260715-026](../decisions/decisions.md)

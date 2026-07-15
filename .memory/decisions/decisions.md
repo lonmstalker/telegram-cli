@@ -127,3 +127,12 @@ Active append-only decision records. Изменение решения офор�
 ## [2026-07-15] archive link correction | D-20260715-023 | Exact rotated dependencies
 
 - Immutable shard 025 historical active-path links resolve [D010](archive/2026-07-15--2026-07-15-009.md), [D020 base](archive/2026-07-15--2026-07-15-022.md) plus [accepted correction](archive/2026-07-15--2026-07-15-023.md), [D021](archive/2026-07-15--2026-07-15-023.md) and [D022](archive/2026-07-15--2026-07-15-024.md).
+
+## [2026-07-15] accepted | D-20260715-033 | Chat-boost list has no proved chat-kind gate
+
+- Context: public schema requires administrator rights in a generic chat; pinned dispatcher rejects bots, while handler/query add read access and request-value validation but no dialog-type branch.
+- Decision: `getChatBoosts` supports exactly `RegularUser + ChatAdministrator(chat_id)`. No `ChatKind` is inferred from neighbouring boost methods or server expectations.
+- Runtime rule: read/administrator evidence must be current account/target/session-bound; missing, stale or gap-affected facts fail closed. Offset/limit validity and server acceptance are invocation boundaries.
+- Evidence: [capability digest](../raw/2026-07-15-tdlib-chat-boost-list-capability.md), exact TDD/drift/account tests, corpus oracles and independent `APPROVED`.
+- Consequences: supported 72→73, terminal 75→76, open 118→117; format stays `8`. Runtime evaluator/full corpus remain open.
+- Extends: [D-20260715-032](decisions.md); executable code contains no planning/task IDs.

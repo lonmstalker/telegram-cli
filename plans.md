@@ -76,7 +76,7 @@ flowchart LR
 
 | Phase | Результат | Status |
 |---|---|---|
-| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-036 |
+| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-037 |
 | P1 | Core transport, authorization и ordered updates | pending |
 | P2 | Singleton daemon и shared session lifecycle | pending |
 | P3 | Полный generated raw API | pending |
@@ -112,7 +112,7 @@ flowchart LR
   - [x] Exact real-schema capability-signal baseline и all-tag authorization evidence.
   - [x] Closed `ChatKind` predicate и exact conditional DNF для первой reviewed source family.
   - [x] Exact per-signal oracle, quantified `MessageProperties`, typed `GroupCall`, `SupergroupFullInfo` и runtime boolean option predicates.
-- [ ] Closed typed dispositions для 118 распознанных, но ещё unsupported runtime-signal methods.
+- [ ] Closed typed dispositions для 117 распознанных, но ещё unsupported runtime-signal methods.
   - [x] Exact `SupergroupFullInfo` schema/property family: 5 complete typed DNF, 7 mixed methods deferred.
   - [x] Exact `OptionGate` family: `setNewChatPrivacySettings` complete, `postStory` и withdrawal mixed semantics deferred.
   - [x] Exact owner family: 4 username contracts, 2 complete contracts в других semantic families и 12 mixed owner methods deferred.
@@ -130,6 +130,7 @@ flowchart LR
   - [x] Correction: `deleteChatMessagesBySender` требует regular user и non-direct-messages supergroup (`is_direct_messages_group=false`) сверх `can_delete_messages`; прежний broad contract удалён.
   - [x] Exact reaction-moderation contract: `deleteAllRecentMessageReactionsFromSender` допускает regular user и bot, требует `basic_group|supergroup AND can_delete_messages`; subtype flags не изобретаются.
   - [x] Exact channel gift-notification contract: `toggleChatGiftNotifications` требует regular user и `channel AND can_post_messages`; `are_enabled` остаётся request value.
+  - [x] Exact chat-boost list contract: `getChatBoosts` требует regular user и `ChatAdministrator(chat_id)` без недоказанного `ChatKind`; request fields остаются values.
   - [ ] Reviewed canonical capability policy/artifact для всех 1010 methods.
 - [ ] Определить supported targets: macOS arm64 и Linux x86_64 минимум.
 - [ ] Перенести только доказанно reusable части `tg-analytics`; не переносить NATS/Postgres/analytics orchestration.
@@ -175,6 +176,7 @@ flowchart LR
 - `W-20260715-034`: correction переносит `deleteChatMessagesBySender` из generic table в `capability/message_moderation.rs`. Pinned dispatcher/deeper handler требуют regular user, supergroup, `is_direct_messages_group=false` и `can_delete_messages`; прежние bot-enabled и broad-supergroup descriptors теперь fail closed. Supported/terminal/open остаются 70/73/120, semantic SHA-256 `d050be73...370e`. 89 workspace tests и independent source/Rust review — `APPROVED`; решение `D-20260715-030`, `P-20260715-011` resolved.
 - `W-20260715-035`: `capability/message_moderation.rs` расширен exact `deleteAllRecentMessageReactionsFromSender` row. Pinned request/deeper path не добавляет account/subtype guard; static DNF содержит `basic_group|supergroup AND can_delete_messages`, account scope — regular user и bot. Supported 71, terminal 74, open 119 с SHA-256 `27dd1e3d...c6ca2`; semantic SHA-256 `44c17d11...d4b1`. 90 workspace tests, independent source/Rust review — `APPROVED`; решение `D-20260715-031`, `P-20260715-005` open at 119.
 - `W-20260715-036`: existing `capability/chat_settings.rs` расширен exact `toggleChatGiftNotifications` row. Pinned dispatcher требует regular user; handler — read access, public channel и `can_post_messages`. DNF содержит одну `channel AND ChatAdministratorRight(can_post_messages)` ветку; `are_enabled` не превращён в capability atom. Supported 72, terminal 75, open 118 с SHA-256 `090cf24d...a6c29a`; semantic SHA-256 `f6d02581...1742b7f`. 91 workspace test, independent source/Rust review — `APPROVED`; решение `D-20260715-032`, `P-20260715-005` open at 118.
+- `W-20260715-037`: новый semantic module `capability/chat_boosts.rs` закрепляет exact `getChatBoosts` contract. Pinned dispatcher требует regular user; schema — administrator, а handler/query добавляет только read access и request-value validation без chat-kind branch. DNF содержит только `ChatAdministrator(chat_id)`; `only_gift_codes`, `offset`, `limit` остаются values. Supported 73, terminal 76, open 117 с SHA-256 `e39bd801...078e98`; semantic SHA-256 `6cf71ae7...a534b`. 92 workspace tests, independent source/Rust review — `APPROVED`; решение `D-20260715-033`, `P-20260715-005` open at 117.
 
 ## P1 — Core transport, authorization и ordered state
 

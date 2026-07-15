@@ -2,21 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] open correction | P-20260715-005 | addChatMember correction увеличила open set до 125 methods
-
-- Corrects: preceding 124-method current state, где incomplete `addChatMember` считался complete.
-- Evidence: [addChatMember correction digest](../raw/2026-07-15-tdlib-add-chat-member-overclaim-correction.md); supported 65, terminal 68, open-set SHA-256 `ff2f1639bd2947b460ebac2d7a733e71556619db8804ebe49f7410e73cd13af6`.
-- Status: open; zero-open gate не достигнут, 125 methods дают `SchemaDrift` и не считаются capability coverage.
-- Next check: закрывать exact source families только после dispatcher/deeper-handler evidence; subtype/account-sensitive methods fail closed.
-- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-022](../decisions/decisions.md).
-
-## [2026-07-15] resolved update | P-20260715-009 | Reviewer сохраняет singular membership contract deferred
-
-- Evidence: [supergroup subtype capability digest](../raw/2026-07-15-tdlib-supergroup-flag-capabilities.md); independent reviewer подтвердил, что self-join обходит `can_invite_users`, а non-self path требует right.
-- Resolution: false-positive correction остаётся в силе; ни singular, ни size-one plural path не возвращены в supported set без typed self/non-self/cardinality invocation partition.
-- Status: resolved как устранённый overclaim; missing singular capability остаётся частью [P-20260715-005](../problems/problems.md), а не новым ложным contract.
-- Related decision: [D-20260715-023](../decisions/decisions.md).
-
 ## [2026-07-15] open update | P-20260715-005 | Ordinary-supergroup subtype contract уменьшил open set до 124 methods
 
 - Evidence: [supergroup subtype capability digest](../raw/2026-07-15-tdlib-supergroup-flag-capabilities.md); exact supported set 66, terminal set 69, open-set SHA-256 `437c17ed2ccb09f23aa7eba6b04223e0b05a97ae55493d280fa18f28fe7ce796`.
@@ -174,3 +159,17 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Immutable problem shard 018 historical D022 link resolves to [decision shard 024](../decisions/archive/2026-07-15--2026-07-15-024.md); P009 status remains resolved.
 - Immutable problem shard 019 resolved-entry D022 link resolves to the same decision shard 024; lifecycle remains resolved.
 - Exact lifecycle correction: discovery is shard 018, first resolution is shard 019, and the later reviewer-confirmed resolved update remains active above.
+
+## [2026-07-15] open update | P-20260715-005 | Chat-boost list reduces open set to 117
+
+- Evidence: [capability digest](../raw/2026-07-15-tdlib-chat-boost-list-capability.md); open SHA-256 `e39bd801f0cba2b684c0b9025e0a048a7e8a08e49541a63fbd66ab8a85078e98`.
+- Transition: exact regular-user + generic chat-administrator contract without invented kind/value atoms; supported 73, terminal 76, format `8`.
+- Status/next: open at 117; continue exact handler tasks, runtime read/administrator evidence fails closed on stale/gap.
+- Decision: [D-20260715-033](../decisions/decisions.md).
+
+## [2026-07-15] archive link map | P-20260715-005 | Rotated add-member correction
+
+- [Problem shard 020](archive/2026-07-15--2026-07-15-020.md) contains the historical 125-method correction; latest boundary remains 117.
+- Immutable shard dependencies resolve [D010](../decisions/archive/2026-07-15--2026-07-15-009.md), [D012](../decisions/archive/2026-07-15--2026-07-15-011.md) and [D022](../decisions/archive/2026-07-15--2026-07-15-024.md).
+- [Problem shard 021](archive/2026-07-15--2026-07-15-021.md) contains the later P009 resolved update; its historical D023 link resolves [decision shard 025](../decisions/archive/2026-07-15--2026-07-15-025.md).
+- Exact P009 lifecycle is discovery shard 018, first resolution shard 019 and reviewer-confirmed resolution shard 021; status remains resolved.

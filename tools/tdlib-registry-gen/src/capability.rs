@@ -3,6 +3,7 @@
 //! This module classifies static requirements. It never claims that a runtime
 //! account currently satisfies them and it does not grant policy permission.
 
+mod chat_boosts;
 mod chat_event_logs;
 mod chat_invite_links;
 mod chat_settings;
@@ -1262,6 +1263,7 @@ fn validate_documented_method_constraints(
     let message_moderation_contract = reviewed_message_moderation_contract(method)?;
     let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
     let boolean_option_contract = reviewed_runtime_boolean_option_contract(method)?;
+    let chat_boost_contract = reviewed_chat_boost_contract(method)?;
     let chat_event_log_contract = reviewed_chat_event_log_contract(method)?;
     let chat_invite_link_contract = reviewed_chat_invite_link_contract(method)?;
     let chat_setting_contract = reviewed_chat_setting_contract(method)?;
@@ -1304,6 +1306,7 @@ fn validate_documented_method_constraints(
         || message_moderation_contract.is_some_and(|contract| contract.regular_user_only())
         || supergroup_full_info_contract.is_some()
         || boolean_option_contract.is_some_and(|contract| contract.regular_user_only)
+        || chat_boost_contract.is_some()
         || chat_event_log_contract.is_some()
         || chat_invite_link_contract.is_some_and(|contract| contract.regular_user_only())
         || chat_setting_contract.is_some_and(|contract| contract.regular_user_only())
@@ -1368,6 +1371,7 @@ fn documented_runtime_requirements(
     let message_moderation_contract = reviewed_message_moderation_contract(method)?;
     let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
     let boolean_option_contract = reviewed_runtime_boolean_option_contract(method)?;
+    let chat_boost_contract = reviewed_chat_boost_contract(method)?;
     let chat_event_log_contract = reviewed_chat_event_log_contract(method)?;
     let chat_invite_link_contract = reviewed_chat_invite_link_contract(method)?;
     let chat_setting_contract = reviewed_chat_setting_contract(method)?;
@@ -1380,6 +1384,7 @@ fn documented_runtime_requirements(
         message_moderation_contract.is_some(),
         supergroup_full_info_contract.is_some(),
         boolean_option_contract.is_some(),
+        chat_boost_contract.is_some(),
         chat_event_log_contract.is_some(),
         chat_invite_link_contract.is_some(),
         chat_setting_contract.is_some(),
@@ -1442,8 +1447,11 @@ fn documented_runtime_requirements(
     if let Some(contract) = boolean_option_contract {
         expected_consumed.extend(contract.consumed_signal_keys());
     }
+    if chat_boost_contract.is_some() {
+        expected_consumed.extend(chat_administrator_consumed_signal_keys());
+    }
     if chat_event_log_contract.is_some() {
-        expected_consumed.extend(chat_event_log_consumed_signal_keys());
+        expected_consumed.extend(chat_administrator_consumed_signal_keys());
     }
     if let Some(contract) = chat_invite_link_contract {
         expected_consumed.extend(chat_invite_link_consumed_signal_keys(contract));
@@ -1475,6 +1483,9 @@ fn documented_runtime_requirements(
         vec![vec![RuntimeRequirement::BooleanOptionEnabled {
             option: contract.option,
         }]]
+    } else if chat_boost_contract.is_some() {
+        let target = documented_chat_target(method)?;
+        vec![vec![RuntimeRequirement::ChatAdministrator { target }]]
     } else if let Some(contract) = chat_event_log_contract {
         let target = documented_chat_target(method)?;
         chat_kind_clauses(&target, contract.supported_chat_kinds(), |target| {
@@ -1699,6 +1710,31 @@ fn reviewed_chat_event_log_contract(
     Ok(Some(contract))
 }
 
+fn reviewed_chat_boost_contract(
+    method: &Definition,
+) -> Result<Option<&'static chat_boosts::ChatBoostContract>, CapabilityGenerationError> {
+    let Some(contract) = chat_boosts::reviewed_contract(method.name()) else {
+        return Ok(None);
+    };
+    if method.canonical_signature() != contract.canonical_signature() {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed chat-boost signature drifted",
+        ));
+    }
+    if !signal_source_has_exact_text(
+        method,
+        &RuntimeSignalSource::Description,
+        contract.source_text(),
+    ) {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed chat-boost source text drifted or disappeared",
+        ));
+    }
+    Ok(Some(contract))
+}
+
 fn reviewed_message_moderation_contract(
     method: &Definition,
 ) -> Result<Option<&'static message_moderation::MessageModerationContract>, CapabilityGenerationError>
@@ -1873,7 +1909,7 @@ fn chat_invite_link_consumed_signal_keys(
         .collect()
 }
 
-fn chat_event_log_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
+fn chat_administrator_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
     [RuntimeSignalKey {
         source: RuntimeSignalSource::Description,
         family: RuntimeSignalFamily::RequiresAdministrator,
@@ -3184,6 +3220,9 @@ fn documented_runtime_signal_dispositions(
     if let Some(contract) = reviewed_runtime_boolean_option_contract(method)? {
         consumed.extend(contract.consumed_signal_keys());
     }
+    if reviewed_chat_boost_contract(method)?.is_some() {
+        consumed.extend(chat_administrator_consumed_signal_keys());
+    }
     if reviewed_supergroup_username_contract(method)?.is_some() {
         consumed.extend(supergroup_username_consumed_signal_keys());
     }
@@ -3191,7 +3230,7 @@ fn documented_runtime_signal_dispositions(
         consumed.extend(chat_invite_link_consumed_signal_keys(contract));
     }
     if reviewed_chat_event_log_contract(method)?.is_some() {
-        consumed.extend(chat_event_log_consumed_signal_keys());
+        consumed.extend(chat_administrator_consumed_signal_keys());
     }
     if let Some(contract) = reviewed_chat_setting_contract(method)? {
         consumed.extend(chat_setting_consumed_signal_keys(contract));
@@ -3702,6 +3741,10 @@ fn engine_source_sha256() -> String {
     let mut hasher = Sha256::new();
     for (path, bytes) in [
         ("capability.rs", include_bytes!("capability.rs").as_slice()),
+        (
+            "capability/chat_boosts.rs",
+            include_bytes!("capability/chat_boosts.rs").as_slice(),
+        ),
         (
             "capability/chat_event_logs.rs",
             include_bytes!("capability/chat_event_logs.rs").as_slice(),

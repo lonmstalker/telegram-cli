@@ -455,6 +455,46 @@ mod tests {
                         );
                     }
                 }
+                "searchPublicChat" => {
+                    let failing = request["username"] == "fail";
+                    let chat_id = if failing { 51 } else { 50 };
+                    let supergroup_id = if failing { 61 } else { 60 };
+                    let chat = json!({
+                        "@type":"chat",
+                        "id":chat_id,
+                        "type":{
+                            "@type":"chatTypeSupergroup",
+                            "supergroup_id":supergroup_id,
+                            "is_channel":true
+                        },
+                        "positions":[],
+                        "chat_lists":[]
+                    });
+                    inner.incoming.push_back(
+                        json!({"@type":"updateNewChat","chat":chat.clone()}).to_string(),
+                    );
+                    let mut response = chat;
+                    response
+                        .as_object_mut()
+                        .unwrap()
+                        .insert("@extra".to_owned(), extra);
+                    inner.incoming.push_back(response.to_string());
+                }
+                "checkChatInviteLink" => inner.incoming.push_back(
+                    json!({"@type":"chatInviteLinkInfo","chat_id":0,"@extra":extra}).to_string(),
+                ),
+                "openChat" | "closeChat" => inner
+                    .incoming
+                    .push_back(json!({"@type":"ok","@extra":extra}).to_string()),
+                "getSupergroupFullInfo" if request["supergroup_id"] == 61 => {
+                    inner.incoming.push_back(
+                        json!({"@type":"error","code":400,"message":"unavailable","@extra":extra})
+                            .to_string(),
+                    );
+                }
+                "getSupergroupFullInfo" => inner
+                    .incoming
+                    .push_back(json!({"@type":"supergroupFullInfo","@extra":extra}).to_string()),
                 _ => unreachable!(),
             }
             Ok(())
@@ -573,6 +613,118 @@ mod tests {
             [(20, 3), (10, 2)]
         );
         assert_eq!(state.inner.lock().unwrap().load_calls, 3);
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn chat_inspection_waits_for_cache_and_pairs_open_with_close() {
+        let identity = pinned_identity().unwrap();
+        let (backend, state) = StartupBackend::new(identity.version);
+        let mut runtime =
+            CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let policy = crate::raw_api::RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![
+                crate::registry::RiskClass::Read,
+                crate::registry::RiskClass::Presence,
+            ],
+        );
+        let inspection = crate::workflows::inspect_chat(
+            &mut runtime,
+            &policy,
+            crate::workflows::ChatTarget::PublicLink("https://t.me/public_name"),
+            true,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+
+        assert!(inspection.complete());
+        assert_eq!(
+            inspection.full_info.unwrap().as_value()["@type"],
+            "supergroupFullInfo"
+        );
+        assert!(state.inner.lock().unwrap().sent_types.ends_with(&[
+            "searchPublicChat".to_owned(),
+            "openChat".to_owned(),
+            "getSupergroupFullInfo".to_owned(),
+            "closeChat".to_owned(),
+        ]));
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn chat_inspection_closes_open_chat_when_full_info_fails() {
+        let identity = pinned_identity().unwrap();
+        let (backend, state) = StartupBackend::new(identity.version);
+        let mut runtime =
+            CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let policy = crate::raw_api::RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![
+                crate::registry::RiskClass::Read,
+                crate::registry::RiskClass::Presence,
+            ],
+        );
+        assert!(matches!(
+            crate::workflows::inspect_chat(
+                &mut runtime,
+                &policy,
+                crate::workflows::ChatTarget::PublicUsername("fail"),
+                true,
+                Instant::now() + Duration::from_secs(1),
+            ),
+            Err(crate::workflows::ChatWorkflowError::Tdlib {
+                method: "getSupergroupFullInfo",
+                code: Some(400)
+            })
+        ));
+        assert_eq!(
+            state
+                .inner
+                .lock()
+                .unwrap()
+                .sent_types
+                .last()
+                .map(String::as_str),
+            Some("closeChat")
+        );
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn private_invite_inspection_requires_membership_without_joining() {
+        let identity = pinned_identity().unwrap();
+        let (backend, state) = StartupBackend::new(identity.version);
+        let mut runtime =
+            CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let policy = crate::raw_api::RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![crate::registry::RiskClass::Read],
+        );
+        let inspection = crate::workflows::inspect_chat(
+            &mut runtime,
+            &policy,
+            crate::workflows::ChatTarget::InviteLink("private-link"),
+            true,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+
+        assert_eq!(
+            inspection.status,
+            crate::workflows::ChatInspectionStatus::MembershipRequired
+        );
+        assert!(!inspection.complete());
+        assert_eq!(
+            state
+                .inner
+                .lock()
+                .unwrap()
+                .sent_types
+                .last()
+                .map(String::as_str),
+            Some("checkChatInviteLink")
+        );
         runtime.shutdown().unwrap();
     }
 }

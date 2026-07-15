@@ -11,9 +11,11 @@ use crate::reducer::{ChatList, ChatListPosition, ReducerError};
 use crate::registry::TdObject;
 use crate::runtime::{CoreRuntime, RuntimeError};
 
+#[derive(Clone, Copy)]
 pub enum ChatTarget<'value> {
     Id(i64),
     PublicUsername(&'value str),
+    PublicLink(&'value str),
     InviteLink(&'value str),
 }
 
@@ -68,6 +70,28 @@ pub struct ChatListSnapshot {
     pub terminal: ChatListTerminal,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ChatInspectionStatus {
+    Complete,
+    MembershipRequired,
+    Unknown,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChatInspection {
+    pub status: ChatInspectionStatus,
+    pub resolution: ChatResolution,
+    pub cached_chat: Option<Value>,
+    pub full_info: Option<TdObject>,
+    pub used_open_lease: bool,
+}
+
+impl ChatInspection {
+    pub fn complete(&self) -> bool {
+        self.status == ChatInspectionStatus::Complete
+    }
+}
+
 pub fn resolve(
     runtime: &CoreRuntime,
     policy: &RawPolicy,
@@ -118,6 +142,56 @@ pub fn load_chat_list(
     })
 }
 
+pub fn inspect_chat(
+    runtime: &mut CoreRuntime,
+    policy: &RawPolicy,
+    target: ChatTarget<'_>,
+    open: bool,
+    deadline: Instant,
+) -> Result<ChatInspection, ChatWorkflowError> {
+    let (method, request) = resolution_request(target)?;
+    let (raw, boundary) = td_call_with_boundary(runtime, policy, request, deadline)
+        .map_err(ChatWorkflowError::Call)?;
+    runtime
+        .apply_through_boundary(boundary, deadline)
+        .map_err(ChatWorkflowError::Runtime)?;
+    let resolution = resolution_from_raw(method, checked_response(method, raw)?)?;
+
+    let chat_id = match resolution.state {
+        ResolutionState::Chat { chat_id } => chat_id,
+        ResolutionState::InvitePreview {
+            chat_id: Some(chat_id),
+        } if runtime.state().chat(chat_id).is_some() => chat_id,
+        ResolutionState::InvitePreview { .. } => {
+            return Ok(ChatInspection {
+                status: ChatInspectionStatus::MembershipRequired,
+                resolution,
+                cached_chat: None,
+                full_info: None,
+                used_open_lease: false,
+            });
+        }
+        ResolutionState::Unknown => {
+            return Ok(ChatInspection {
+                status: ChatInspectionStatus::Unknown,
+                resolution,
+                cached_chat: None,
+                full_info: None,
+                used_open_lease: false,
+            });
+        }
+    };
+    let cached_chat = wait_for_chat(runtime, chat_id, deadline)?;
+    let full_info = load_full_info(runtime, policy, &cached_chat, open, deadline)?;
+    Ok(ChatInspection {
+        status: ChatInspectionStatus::Complete,
+        resolution,
+        cached_chat: Some(cached_chat),
+        full_info: Some(full_info),
+        used_open_lease: open,
+    })
+}
+
 fn load_until_terminal(
     list: Value,
     limit: i32,
@@ -152,18 +226,33 @@ fn resolve_with(
     target: ChatTarget<'_>,
     mut call: impl FnMut(Value) -> Result<TdObject, RawApiError>,
 ) -> Result<ChatResolution, ChatWorkflowError> {
-    let (method, request) = match target {
+    let (method, request) = resolution_request(target)?;
+    let raw = checked_call(method, request, &mut call)?;
+    resolution_from_raw(method, raw)
+}
+
+fn resolution_request(target: ChatTarget<'_>) -> Result<(&'static str, Value), ChatWorkflowError> {
+    Ok(match target {
         ChatTarget::Id(chat_id) => ("getChat", json!({"@type":"getChat","chat_id":chat_id})),
         ChatTarget::PublicUsername(username) => (
             "searchPublicChat",
-            json!({"@type":"searchPublicChat","username":username}),
+            json!({"@type":"searchPublicChat","username":username_value(username)?}),
+        ),
+        ChatTarget::PublicLink(link) => (
+            "searchPublicChat",
+            json!({"@type":"searchPublicChat","username":public_link_username(link)?}),
         ),
         ChatTarget::InviteLink(invite_link) => (
             "checkChatInviteLink",
             json!({"@type":"checkChatInviteLink","invite_link":invite_link}),
         ),
-    };
-    let raw = checked_call(method, request, &mut call)?;
+    })
+}
+
+fn resolution_from_raw(
+    method: &'static str,
+    raw: TdObject,
+) -> Result<ChatResolution, ChatWorkflowError> {
     let state = match raw.as_value()["@type"].as_str() {
         Some("chat") => ResolutionState::Chat {
             chat_id: required_i64(raw.as_value(), "id", method)?,
@@ -174,6 +263,199 @@ fn resolve_with(
         _ => ResolutionState::Unknown,
     };
     Ok(ChatResolution { state, raw })
+}
+
+fn username_value(username: &str) -> Result<&str, ChatWorkflowError> {
+    let username = username.strip_prefix('@').unwrap_or(username);
+    if username.is_empty() || username.contains('/') {
+        return Err(ChatWorkflowError::InvalidTarget);
+    }
+    Ok(username)
+}
+
+fn public_link_username(link: &str) -> Result<&str, ChatWorkflowError> {
+    const PREFIXES: [&str; 4] = [
+        "https://t.me/",
+        "http://t.me/",
+        "https://telegram.me/",
+        "http://telegram.me/",
+    ];
+    let path = PREFIXES
+        .iter()
+        .find_map(|prefix| link.strip_prefix(prefix))
+        .ok_or(ChatWorkflowError::InvalidTarget)?;
+    let username = path.split(['?', '#']).next().unwrap_or_default();
+    if username.starts_with('+') || username.starts_with("joinchat/") {
+        return Err(ChatWorkflowError::InvalidTarget);
+    }
+    username_value(username)
+}
+
+fn wait_for_chat(
+    runtime: &mut CoreRuntime,
+    chat_id: i64,
+    deadline: Instant,
+) -> Result<Value, ChatWorkflowError> {
+    loop {
+        if let Some(chat) = runtime.state().chat(chat_id) {
+            return Ok(chat.value.clone());
+        }
+        match runtime
+            .next_event_until(deadline)
+            .map_err(ChatWorkflowError::Runtime)?
+        {
+            crate::runtime::CoreRuntimeEvent::State(_) => {}
+            crate::runtime::CoreRuntimeEvent::UnmatchedResponse { .. } => {
+                return Err(ChatWorkflowError::Runtime(
+                    RuntimeError::UnexpectedRuntimeEvent,
+                ));
+            }
+        }
+    }
+}
+
+fn load_full_info(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    chat: &Value,
+    open: bool,
+    deadline: Instant,
+) -> Result<TdObject, ChatWorkflowError> {
+    let (method, request) = full_info_request(chat)?;
+    if !open {
+        return invoke(runtime, policy, method, request, deadline);
+    }
+
+    let chat_id = required_i64(chat, "id", "chat")?;
+    let lease = OpenChatLease::acquire(runtime, policy, chat_id, deadline)?;
+    let result = invoke(runtime, policy, method, request, deadline);
+    let cleanup = lease.close();
+    cleanup?;
+    result
+}
+
+fn full_info_request(chat: &Value) -> Result<(&'static str, Value), ChatWorkflowError> {
+    let chat_type = chat["type"]
+        .as_object()
+        .ok_or(ChatWorkflowError::InvalidResult {
+            method: "chat",
+            field: "type",
+        })?;
+    Ok(match chat_type.get("@type").and_then(Value::as_str) {
+        Some("chatTypePrivate" | "chatTypeSecret") => (
+            "getUserFullInfo",
+            json!({
+                "@type":"getUserFullInfo",
+                "user_id":required_i64(&chat["type"], "user_id", "chat")?
+            }),
+        ),
+        Some("chatTypeBasicGroup") => (
+            "getBasicGroupFullInfo",
+            json!({
+                "@type":"getBasicGroupFullInfo",
+                "basic_group_id":required_i64(&chat["type"], "basic_group_id", "chat")?
+            }),
+        ),
+        Some("chatTypeSupergroup") => (
+            "getSupergroupFullInfo",
+            json!({
+                "@type":"getSupergroupFullInfo",
+                "supergroup_id":required_i64(&chat["type"], "supergroup_id", "chat")?
+            }),
+        ),
+        _ => {
+            return Err(ChatWorkflowError::InvalidResult {
+                method: "chat",
+                field: "type.@type",
+            });
+        }
+    })
+}
+
+struct OpenChatLease<'runtime> {
+    runtime: &'runtime CoreRuntime,
+    policy: &'runtime RawPolicy,
+    chat_id: i64,
+    deadline: Instant,
+    active: bool,
+}
+
+impl<'runtime> OpenChatLease<'runtime> {
+    fn acquire(
+        runtime: &'runtime CoreRuntime,
+        policy: &'runtime RawPolicy,
+        chat_id: i64,
+        deadline: Instant,
+    ) -> Result<Self, ChatWorkflowError> {
+        expect_ok(
+            invoke(
+                runtime,
+                policy,
+                "openChat",
+                json!({"@type":"openChat","chat_id":chat_id}),
+                deadline,
+            )?,
+            "openChat",
+        )?;
+        Ok(Self {
+            runtime,
+            policy,
+            chat_id,
+            deadline,
+            active: true,
+        })
+    }
+
+    fn close(mut self) -> Result<(), ChatWorkflowError> {
+        self.active = false;
+        close_chat(self.runtime, self.policy, self.chat_id, self.deadline)
+    }
+}
+
+impl Drop for OpenChatLease<'_> {
+    fn drop(&mut self) {
+        if self.active {
+            self.active = false;
+            let _ = close_chat(self.runtime, self.policy, self.chat_id, self.deadline);
+        }
+    }
+}
+
+fn close_chat(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    chat_id: i64,
+    deadline: Instant,
+) -> Result<(), ChatWorkflowError> {
+    expect_ok(
+        invoke(
+            runtime,
+            policy,
+            "closeChat",
+            json!({"@type":"closeChat","chat_id":chat_id}),
+            deadline,
+        )?,
+        "closeChat",
+    )
+}
+
+fn invoke(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    method: &'static str,
+    request: Value,
+    deadline: Instant,
+) -> Result<TdObject, ChatWorkflowError> {
+    let response = td_call(runtime, policy, request, deadline).map_err(ChatWorkflowError::Call)?;
+    checked_response(method, response)
+}
+
+fn expect_ok(response: TdObject, method: &'static str) -> Result<(), ChatWorkflowError> {
+    if response.as_value()["@type"] == "ok" {
+        Ok(())
+    } else {
+        Err(ChatWorkflowError::UnexpectedResult { method })
+    }
 }
 
 fn ensure_membership_with(
@@ -211,10 +493,19 @@ fn checked_call(
     call: &mut impl FnMut(Value) -> Result<TdObject, RawApiError>,
 ) -> Result<TdObject, ChatWorkflowError> {
     let response = call(request).map_err(ChatWorkflowError::Call)?;
+    checked_response(method, response)
+}
+
+fn checked_response(
+    method: &'static str,
+    response: TdObject,
+) -> Result<TdObject, ChatWorkflowError> {
     if response.as_value()["@type"] == "error" {
         return Err(ChatWorkflowError::Tdlib {
             method,
-            code: response.as_value()["code"].as_i64(),
+            code: response.as_value()["code"]
+                .as_i64()
+                .or_else(|| response.as_value()["code"].as_str()?.parse().ok()),
         });
     }
     Ok(response)
@@ -255,6 +546,7 @@ pub enum ChatWorkflowError {
     UnexpectedResult {
         method: &'static str,
     },
+    InvalidTarget,
     InvalidLimit,
 }
 
@@ -273,6 +565,7 @@ impl fmt::Display for ChatWorkflowError {
             Self::UnexpectedResult { method } => {
                 write!(formatter, "TDLib `{method}` returned an unexpected result")
             }
+            Self::InvalidTarget => formatter.write_str("chat target is invalid or ambiguous"),
             Self::InvalidLimit => formatter.write_str("chat list load limit must be positive"),
         }
     }
@@ -287,6 +580,7 @@ impl Error for ChatWorkflowError {
             Self::Tdlib { .. }
             | Self::InvalidResult { .. }
             | Self::UnexpectedResult { .. }
+            | Self::InvalidTarget
             | Self::InvalidLimit => None,
         }
     }
@@ -307,6 +601,7 @@ mod tests {
         for target in [
             ChatTarget::Id(7),
             ChatTarget::PublicUsername("public_name"),
+            ChatTarget::PublicLink("https://t.me/public_name?single"),
             ChatTarget::InviteLink("private-link"),
         ] {
             resolve_with(target, |request| {
@@ -324,8 +619,17 @@ mod tests {
         }
         assert_eq!(
             methods,
-            ["getChat", "searchPublicChat", "checkChatInviteLink"]
+            [
+                "getChat",
+                "searchPublicChat",
+                "searchPublicChat",
+                "checkChatInviteLink"
+            ]
         );
+        assert!(matches!(
+            resolution_request(ChatTarget::PublicLink("https://t.me/+invite")),
+            Err(ChatWorkflowError::InvalidTarget)
+        ));
     }
 
     #[test]
@@ -396,5 +700,35 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn chat_type_selects_exact_full_info_method() {
+        let cases = [
+            (
+                json!({"@type":"chatTypePrivate","user_id":1}),
+                "getUserFullInfo",
+            ),
+            (
+                json!({"@type":"chatTypeSecret","user_id":1}),
+                "getUserFullInfo",
+            ),
+            (
+                json!({"@type":"chatTypeBasicGroup","basic_group_id":2}),
+                "getBasicGroupFullInfo",
+            ),
+            (
+                json!({"@type":"chatTypeSupergroup","supergroup_id":3}),
+                "getSupergroupFullInfo",
+            ),
+        ];
+        for (chat_type, expected) in cases {
+            assert_eq!(
+                full_info_request(&json!({"@type":"chat","id":7,"type":chat_type}))
+                    .unwrap()
+                    .0,
+                expected
+            );
+        }
     }
 }

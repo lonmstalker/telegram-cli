@@ -61,8 +61,9 @@ Owner/admin/member/bot capability matrix is explicit; cannot-get-members/statist
 
 ## Live Verification Boundary
 
-Core отделяет read-only `resolve` от explicit `ensure_membership` и сохраняет pending join
-outcome. Live join не выполнялся; будущие тесты используют disposable chats/channels и cleanup evidence.
+Core отделяет read-only resolve/inspection от explicit `ensure_membership`, сохраняет pending
+join outcome и не join-ит private invite при cache miss. Live join не выполнялся; будущие
+тесты используют disposable chats/channels и cleanup evidence.
 
 ## Scope
 

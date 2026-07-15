@@ -26,6 +26,7 @@ source_of_truth: true
 - Прямой TDJSON transport и bounded core runtime: один receive loop, transport-owned `@extra`, deadlines/cancellation, runtime identity handshake и startup `getCurrentState`.
 - `telegramd` принимает profile config, удерживает exclusive canonical DB owner lock и поднимает private `0600` Unix socket с stale recovery.
 - Private socket обслуживает bounded JSONL leases: boot-unique ID, principal/opaque scopes, TTL, heartbeat и explicit release.
+- Per-profile `AccountScheduler` применяет FIFO fairness: bounded read prefix и ровно одна active mutation.
 - Ручное capability-ревью 74 методов сохранено в `docs/capability-notes.md`; documentation-recognizer engine удалён как переусложнение (см. git history).
 - Существующая зашифрованная TDLib-сессия свежим live-gate достигла Ready, прошла `getMe` и штатно закрылась без нового login input; database key поступил через protected loader.
 - Источник reusable решений: `tg-analytics/crates/telegram-tdlib` и `telegram-agent-gateway`; evidence-backed disposition закреплён в `docs/tg-analytics-reuse.md`, без копирования analytics-оркестрации.
@@ -104,7 +105,7 @@ flowchart LR
 |---|---|---|
 | P0 | Контракт, repository skeleton и pinned schema | accepted |
 | P1 | Core transport, authorization и ordered updates | accepted |
-| P2 | Singleton daemon и shared session lifecycle | in_progress — ownership/socket/leases готовы, далее fair queue |
+| P2 | Singleton daemon и shared session lifecycle | in_progress — ownership/socket/leases/queue готовы, далее lifecycle |
 | P3 | Полный generated raw API и capability-таблица | pending |
 | P4 | Stateful request-chain engine | pending |
 | P5 | Reliability, policy, limits и observability | pending |
@@ -158,7 +159,7 @@ flowchart LR
 - [x] Один `telegramd` на profile; exclusive OS lock по canonical DB path.
 - [x] Unix socket `0600`, atomic startup election, stale-socket recovery.
 - [x] Lease: ID, principal/scopes, TTL, heartbeat, explicit release.
-- [ ] Fair per-account queue; bounded concurrent reads, serialized mutations в MVP.
+- [x] Fair per-account queue; bounded concurrent reads, serialized mutations в MVP.
 - [ ] Lifecycle `Stopped -> Starting -> Ready -> Draining -> Closed`; idle shutdown только без активных leases/workflows; `close` с ожиданием `authorizationStateClosed`.
 
 ### Acceptance

@@ -18,6 +18,7 @@
 - [Daemon profile ownership contract](../../docs/daemon-profile-ownership.md)
 - [Daemon profile socket/election contract](../../docs/daemon-profile-socket.md)
 - [Daemon lease contract](../../docs/daemon-leases.md)
+- [Per-account scheduler contract](../../docs/daemon-scheduler.md)
 - [Current project state](project-state.md)
 
 ## Memory streams
@@ -40,7 +41,7 @@
 
 ## Current records
 
-- Implementation: P1 accepted, P2 ownership/socket/leases готовы; следующий пункт — fair queue; см. [project-state.md](project-state.md).
+- Implementation: P1 accepted, P2 ownership/socket/leases/scheduler готовы; следующий пункт — lifecycle; см. [project-state.md](project-state.md).
 - Открытые проблемы: [P-20260715-001](../problems/problems.md) (gateway key wiring). Linux artifact закрыт в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -54,6 +55,7 @@
 - Canonical DB owner lock: [D-20260715-043](../decisions/decisions.md), [W-20260715-048](../logs/work.md), [`docs/daemon-profile-ownership.md`](../../docs/daemon-profile-ownership.md).
 - Private profile socket/election: [D-20260715-044](../decisions/decisions.md), [W-20260715-049](../logs/work.md), [`docs/daemon-profile-socket.md`](../../docs/daemon-profile-socket.md).
 - Lease protocol: [D-20260715-045](../decisions/decisions.md), [W-20260715-050](../logs/work.md), [`docs/daemon-leases.md`](../../docs/daemon-leases.md).
+- Per-account scheduler: [D-20260715-046](../decisions/decisions.md), [W-20260715-051](../logs/work.md), [`docs/daemon-scheduler.md`](../../docs/daemon-scheduler.md).
 
 ## Operating rules
 

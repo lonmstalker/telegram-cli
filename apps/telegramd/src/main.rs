@@ -6,6 +6,7 @@ use std::process::ExitCode;
 
 pub mod lease;
 pub mod ownership;
+pub mod scheduler;
 pub mod server;
 pub mod socket;
 

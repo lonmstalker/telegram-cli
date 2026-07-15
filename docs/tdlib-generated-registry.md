@@ -30,6 +30,9 @@ Registry пересоздаётся `cargo run -p tdlib-registry-gen`. Gate
 artifact и generator output; schema identity по-прежнему закрепляет только
 `scripts/check-tdlib-pin.py`.
 
+Core consumer: [`core-raw-api.md`](core-raw-api.md). Он предоставляет общие
+version/capability/search/describe/call operations без generated per-method functions.
+
 ## Почему не готовый crate
 
 Проверенный `tdlib-rs 1.4.0` поддерживает TDLib 1.8.61, тогда как product pin — 1.8.66.

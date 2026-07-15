@@ -4,7 +4,7 @@ use std::fmt;
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::time::Instant;
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use crate::reducer::{AppliedUpdate, ReducerError, StateReducer};
 use crate::transport::{TdJsonBackend, TdJsonEvent, TdJsonTransport, TransportError};
@@ -367,9 +367,12 @@ mod tests {
                     );
                     inner.incoming.push_back(
                         json!({"@type":"updateUserStatus","user_id":"7","status":{"@type":"userStatusOnline","expires":10}})
-                            .to_string(),
+                        .to_string(),
                     );
                 }
+                "getMe" => inner
+                    .incoming
+                    .push_back(json!({"@type":"user","id":"7","@extra":extra}).to_string()),
                 _ => unreachable!(),
             }
             Ok(())
@@ -410,6 +413,23 @@ mod tests {
             state.inner.lock().unwrap().sent_types,
             ["setLogStream", "getOption", "getOption", "getCurrentState"]
         );
+        let version = crate::raw_api::version(&runtime);
+        assert_eq!(version.tdlib_version, identity.version());
+        let response = crate::raw_api::td_call(
+            &runtime,
+            json!({"@type":"getMe"}),
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+        assert_eq!(response.as_value()["@type"], "user");
+        assert!(matches!(
+            crate::raw_api::td_call(
+                &runtime,
+                json!({"@type":"futureMethod"}),
+                Instant::now() + Duration::from_secs(1),
+            ),
+            Err(crate::raw_api::RawApiError::Validation(_))
+        ));
         runtime.shutdown().unwrap();
     }
 

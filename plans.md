@@ -175,7 +175,7 @@ flowchart LR
 
 - [x] Generated registry из pinned schema: request/type validation, self-describing descriptors, forward-compatible unknown fields.
 - [x] Capability-таблица (данные): risk class, account scope, runtime requirements, retry/idempotency. Стартовое наполнение — `docs/capability-notes.md`; всё остальное default-deny.
-- [ ] `version`, `capabilities`, `schema search`, `schema describe`, `td call` в core.
+- [x] `version`, `capabilities`, `schema search`, `schema describe`, `td call` в core.
 - [ ] Policy применяется до raw dispatch.
 - [ ] Coverage report генерируется из manifest в `docs/tdlib-api-coverage.md`.
 

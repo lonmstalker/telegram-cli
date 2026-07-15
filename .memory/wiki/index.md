@@ -21,6 +21,7 @@
 - [Per-account scheduler contract](../../docs/daemon-scheduler.md)
 - [Daemon shared-session lifecycle contract](../../docs/daemon-session-lifecycle.md)
 - [Generated TDLib registry contract](../../docs/tdlib-generated-registry.md)
+- [Core generated raw API contract](../../docs/core-raw-api.md)
 - [Current project state](project-state.md)
 
 ## Memory streams
@@ -45,7 +46,7 @@
 
 ## Current records
 
-- Implementation: P0–P2 accepted; registry и capability table P3 закрыты, следующий пункт — universal core discovery/call; см. [project-state.md](project-state.md).
+- Implementation: P0–P2 accepted; registry/capability/core call P3 закрыты, следующий пункт — policy before dispatch; см. [project-state.md](project-state.md).
 - Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -63,6 +64,7 @@
 - Shared-session lifecycle и P2 acceptance: [D-20260715-047](../decisions/decisions.md), [W-20260715-052](../logs/work.md), [`docs/daemon-session-lifecycle.md`](../../docs/daemon-session-lifecycle.md).
 - Exact generated registry: [D-20260715-048](../decisions/decisions.md), [W-20260715-053](../logs/work.md), [`docs/tdlib-generated-registry.md`](../../docs/tdlib-generated-registry.md).
 - Capability table/default-deny: [D-20260715-049](../decisions/decisions.md), [W-20260715-054](../logs/work.md), [`docs/capability-notes.md`](../../docs/capability-notes.md).
+- Core discovery/call: [D-20260715-050](../decisions/decisions.md), [W-20260715-055](../logs/work.md), [`docs/core-raw-api.md`](../../docs/core-raw-api.md).
 
 ## Operating rules
 

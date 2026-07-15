@@ -52,12 +52,13 @@ fn run() -> Result<(), Box<dyn Error>> {
     let backend = config.load_native()?;
     let mut runtime = lifecycle::start_runtime(backend)?;
     lifecycle::reach_ready(&mut runtime, &config, &database_key, &ownership)?;
+    let risk_scopes = config.risk_scopes().collect::<Vec<_>>();
     drop(database_key);
     drop(config);
     lifecycle.ready(std::time::Instant::now())?;
     eprintln!("telegramd: Ready");
 
-    let server = LeaseServer::new(LeaseManager::new());
+    let server = LeaseServer::new(LeaseManager::new(risk_scopes));
     lifecycle::serve_until_idle(runtime, socket, server, &mut lifecycle)?;
     eprintln!("telegramd: Closed");
     Ok(())

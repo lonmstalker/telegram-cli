@@ -3,13 +3,15 @@
 use std::collections::{BTreeSet, HashMap};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use telegram_protocol::{LeaseErrorCode, LeaseId, LeaseView};
+use telegram_core::raw_api::RawPolicy;
+use telegram_core::registry::{AccountKind, RiskClass};
+use telegram_protocol::{LeaseErrorCode, LeaseId, LeaseView, RiskScope};
 
 const MAX_LEASE_TTL_MS: u64 = 60_000;
 
 struct LeaseRecord {
     principal: String,
-    scopes: BTreeSet<String>,
+    scopes: BTreeSet<RiskScope>,
     ttl_ms: u64,
     expires_at: Instant,
 }
@@ -18,50 +20,48 @@ pub struct LeaseManager {
     epoch: u128,
     next_id: u64,
     leases: HashMap<LeaseId, LeaseRecord>,
+    allowed_scopes: BTreeSet<RiskScope>,
 }
 
 impl Default for LeaseManager {
     fn default() -> Self {
-        Self::new()
+        Self::new([RiskScope::Read])
     }
 }
 
 impl LeaseManager {
-    pub fn new() -> Self {
+    pub fn new(allowed_scopes: impl IntoIterator<Item = RiskScope>) -> Self {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos();
         let epoch = nanos ^ ((std::process::id() as u128) << 64);
-        Self::with_epoch(epoch)
+        Self::with_epoch(epoch, allowed_scopes)
     }
 
-    fn with_epoch(epoch: u128) -> Self {
+    fn with_epoch(epoch: u128, allowed_scopes: impl IntoIterator<Item = RiskScope>) -> Self {
         Self {
             epoch,
             next_id: 1,
             leases: HashMap::new(),
+            allowed_scopes: allowed_scopes.into_iter().collect(),
         }
     }
 
     pub fn acquire(
         &mut self,
         principal: String,
-        scopes: Vec<String>,
+        scopes: Vec<RiskScope>,
         ttl_ms: u64,
         now: Instant,
     ) -> Result<LeaseView, LeaseErrorCode> {
         validate_label(&principal).map_err(|_| LeaseErrorCode::InvalidPrincipal)?;
-        let scopes = scopes
-            .into_iter()
-            .map(|scope| {
-                validate_label(&scope)
-                    .map(|_| scope)
-                    .map_err(|_| LeaseErrorCode::InvalidScope)
-            })
-            .collect::<Result<BTreeSet<_>, _>>()?;
+        let scopes = scopes.into_iter().collect::<BTreeSet<_>>();
         if scopes.is_empty() {
             return Err(LeaseErrorCode::InvalidScope);
+        }
+        if !scopes.is_subset(&self.allowed_scopes) {
+            return Err(LeaseErrorCode::ScopeDenied);
         }
         let ttl = Duration::from_millis(ttl_ms);
         let Some(expires_at) = (ttl_ms != 0 && ttl_ms <= MAX_LEASE_TTL_MS)
@@ -131,6 +131,27 @@ impl LeaseManager {
         self.leases.len()
     }
 
+    pub fn raw_policy(
+        &mut self,
+        lease_id: &LeaseId,
+        principal: &str,
+        account: AccountKind,
+        now: Instant,
+    ) -> Result<RawPolicy, LeaseErrorCode> {
+        self.reject_expired(lease_id, now)?;
+        let record = self
+            .leases
+            .get(lease_id)
+            .ok_or(LeaseErrorCode::LeaseNotFound)?;
+        if record.principal != principal {
+            return Err(LeaseErrorCode::PrincipalMismatch);
+        }
+        Ok(RawPolicy::new(
+            account,
+            record.scopes.iter().copied().map(risk_class).collect(),
+        ))
+    }
+
     fn reject_expired(&mut self, lease_id: &LeaseId, now: Instant) -> Result<(), LeaseErrorCode> {
         if self
             .leases
@@ -163,6 +184,19 @@ fn validate_label(value: &str) -> Result<(), ()> {
     }
 }
 
+fn risk_class(scope: RiskScope) -> RiskClass {
+    match scope {
+        RiskScope::Read => RiskClass::Read,
+        RiskScope::Presence => RiskClass::Presence,
+        RiskScope::Send => RiskClass::Send,
+        RiskScope::ReversibleMutation => RiskClass::ReversibleMutation,
+        RiskScope::Admin => RiskClass::Admin,
+        RiskScope::Destructive => RiskClass::Destructive,
+        RiskScope::Financial => RiskClass::Financial,
+        RiskScope::AuthSecurity => RiskClass::AuthSecurity,
+    }
+}
+
 fn snapshot(id: &LeaseId, record: &LeaseRecord, now: Instant) -> LeaseView {
     LeaseView {
         lease_id: id.clone(),
@@ -185,16 +219,16 @@ mod tests {
     #[test]
     fn heartbeat_extends_ttl_and_release_checks_principal() {
         let start = Instant::now();
-        let mut manager = LeaseManager::with_epoch(7);
+        let mut manager = LeaseManager::with_epoch(7, [RiskScope::Read, RiskScope::Send]);
         let lease = manager
             .acquire(
                 "agent-a".to_owned(),
-                vec!["write".to_owned(), "read".to_owned(), "read".to_owned()],
+                vec![RiskScope::Send, RiskScope::Read, RiskScope::Read],
                 1_000,
                 start,
             )
             .unwrap();
-        assert_eq!(lease.scopes, ["read", "write"]);
+        assert_eq!(lease.scopes, [RiskScope::Read, RiskScope::Send]);
         assert_eq!(manager.active_count(), 1);
         assert_eq!(
             manager.release(&lease.lease_id, "agent-b", start),
@@ -221,27 +255,51 @@ mod tests {
     #[test]
     fn expired_or_invalid_lease_fails_closed() {
         let start = Instant::now();
-        let mut manager = LeaseManager::with_epoch(9);
+        let mut manager = LeaseManager::with_epoch(9, [RiskScope::Read]);
         assert_eq!(
-            manager.acquire("".to_owned(), vec!["read".to_owned()], 10, start),
+            manager.acquire("".to_owned(), vec![RiskScope::Read], 10, start),
             Err(LeaseErrorCode::InvalidPrincipal)
         );
         assert_eq!(
             manager.acquire(
                 "agent".to_owned(),
-                vec!["read".to_owned()],
+                vec![RiskScope::Read],
                 MAX_LEASE_TTL_MS + 1,
                 start
             ),
             Err(LeaseErrorCode::InvalidTtl)
         );
         let lease = manager
-            .acquire("agent".to_owned(), vec!["read".to_owned()], 10, start)
+            .acquire("agent".to_owned(), vec![RiskScope::Read], 10, start)
             .unwrap();
         assert_eq!(
             manager.heartbeat(&lease.lease_id, "agent", start + Duration::from_millis(10)),
             Err(LeaseErrorCode::LeaseExpired)
         );
         assert_eq!(manager.active_count(), 0);
+    }
+
+    #[test]
+    fn owner_ceiling_and_lease_scopes_build_raw_policy() {
+        let start = Instant::now();
+        let mut manager = LeaseManager::with_epoch(11, [RiskScope::Read, RiskScope::Send]);
+        assert_eq!(
+            manager.acquire("agent".to_owned(), vec![RiskScope::Financial], 1_000, start,),
+            Err(LeaseErrorCode::ScopeDenied)
+        );
+
+        let lease = manager
+            .acquire("agent".to_owned(), vec![RiskScope::Read], 1_000, start)
+            .unwrap();
+        let policy = manager
+            .raw_policy(&lease.lease_id, "agent", AccountKind::RegularUser, start)
+            .unwrap();
+        assert_eq!(policy.authorize("getChatStatistics"), Ok(()));
+        assert_eq!(
+            policy.authorize("sendBotStartMessage"),
+            Err(telegram_core::raw_api::PolicyError::RiskDenied {
+                risk: RiskClass::Send,
+            })
+        );
     }
 }

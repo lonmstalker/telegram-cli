@@ -68,8 +68,8 @@ with jitter. Core retry executor допускает только generated `safe
 read ждёт весь supplied server delay, convergent повторяет тот же request только после
 desired-state probe. Durable journal fsync-ит fingerprint state до/после dispatch и
 восстанавливает interrupted `pending` как `uncertain`. Production values и live FLOOD_WAIT
-ещё не измерены; approval, metrics exporter и full domain fault injection остаются
-следующими P5 slices.
+ещё не измерены. Lease scopes теперь closed и ограничены owner ceiling; approval,
+metrics exporter и full domain fault injection остаются следующими P5 slices.
 
 ## Scope
 
@@ -161,8 +161,8 @@ desired-state probe. Durable journal fsync-ит fingerprint state до/посл�
 
 ## Coverage Notes
 
-- Kernel coverage: generated risk/retry admission, queue/rate scopes, flood backoff, bounded
-  retry и durable fingerprint/outcome journal implemented; telemetry remains modeled.
+- Kernel coverage: generated risk/retry admission, eight typed lease scopes with owner ceiling,
+  queue/rate scopes, flood backoff, bounded retry и durable outcome journal implemented.
 - Modeled: policy approval and domain-specific reconciliation probes.
 - Partial: production budget values, workflow reconciliation wiring and exporter.
 - Unknown: measured production thresholds.

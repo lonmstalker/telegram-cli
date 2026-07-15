@@ -1,5 +1,6 @@
 //! Protected runtime configuration for the daemon-owned TDLib client.
 
+use std::collections::BTreeSet;
 use std::env;
 use std::fmt;
 use std::fs::File;
@@ -14,6 +15,7 @@ use telegram_core::authorization::SensitiveString;
 use telegram_core::database_key::{
     DatabaseKey, DatabaseKeyError, DatabaseKeySource, TdlibParameters,
 };
+use telegram_protocol::RiskScope;
 
 use crate::ownership::ProfileDatabaseLock;
 
@@ -40,6 +42,7 @@ pub struct DaemonConfig {
     api_hash: SensitiveString,
     expected_user_id: Option<i64>,
     idle_timeout: Duration,
+    risk_scopes: BTreeSet<RiskScope>,
 }
 
 impl DaemonConfig {
@@ -81,6 +84,7 @@ impl DaemonConfig {
         if idle_timeout_ms == 0 {
             return Err(ConfigError::InvalidValue("TELEGRAM_IDLE_TIMEOUT_MS"));
         }
+        let risk_scopes = configured_risk_scopes()?;
 
         Ok(Self {
             database_directory: ownership.canonical_database_directory().to_owned(),
@@ -94,6 +98,7 @@ impl DaemonConfig {
             api_hash,
             expected_user_id,
             idle_timeout: Duration::from_millis(idle_timeout_ms),
+            risk_scopes,
         })
     }
 
@@ -135,6 +140,10 @@ impl DaemonConfig {
 
     pub fn idle_timeout(&self) -> Duration {
         self.idle_timeout
+    }
+
+    pub fn risk_scopes(&self) -> impl Iterator<Item = RiskScope> + '_ {
+        self.risk_scopes.iter().copied()
     }
 }
 
@@ -228,6 +237,28 @@ fn parse_bool(name: &'static str, default: bool) -> Result<bool, ConfigError> {
             _ => Err(ConfigError::InvalidValue(name)),
         },
         Err(env::VarError::NotUnicode(_)) => Err(ConfigError::InvalidValue(name)),
+    }
+}
+
+fn configured_risk_scopes() -> Result<BTreeSet<RiskScope>, ConfigError> {
+    match env::var("TELEGRAM_RISK_SCOPES") {
+        Err(env::VarError::NotPresent) => Ok([RiskScope::Read].into_iter().collect()),
+        Ok(value) if value.is_empty() => Ok([RiskScope::Read].into_iter().collect()),
+        Ok(value) => value
+            .split(',')
+            .map(|scope| match scope {
+                "read" => Ok(RiskScope::Read),
+                "presence" => Ok(RiskScope::Presence),
+                "send" => Ok(RiskScope::Send),
+                "reversible_mutation" => Ok(RiskScope::ReversibleMutation),
+                "admin" => Ok(RiskScope::Admin),
+                "destructive" => Ok(RiskScope::Destructive),
+                "financial" => Ok(RiskScope::Financial),
+                "auth_security" => Ok(RiskScope::AuthSecurity),
+                _ => Err(ConfigError::InvalidValue("TELEGRAM_RISK_SCOPES")),
+            })
+            .collect(),
+        Err(env::VarError::NotUnicode(_)) => Err(ConfigError::InvalidValue("TELEGRAM_RISK_SCOPES")),
     }
 }
 

@@ -160,7 +160,7 @@ impl RawPolicy {
         }
     }
 
-    fn authorize(&self, method: &str) -> Result<(), PolicyError> {
+    pub fn authorize(&self, method: &str) -> Result<(), PolicyError> {
         let capability = registry::capability(method).ok_or(PolicyError::DefaultDeny)?;
         let CapabilityDisposition::Reviewed { risk, accounts, .. } = capability.disposition else {
             return Err(PolicyError::DefaultDeny);

@@ -20,7 +20,8 @@ registry и daemon-owned `CoreRuntime`.
 
 Per-method wrappers и application-level literals `@type` не нужны: caller выбирает
 method через discovery, а discriminator строит общий JSON contract. `RawPolicy`
-создаётся trusted product layer из account/risk grants; agent input ещё не подключён.
+создаётся daemon из trusted account kind и typed scopes действующего lease; requested
+scopes ограничены owner-configured ceiling.
 Unreviewed method, wrong account и missing risk возвращают `PolicyError` до send.
 Runtime-requirement expression остаётся discoverable prerequisite и не выдаётся за
 удовлетворённое без будущего live-state consumer.

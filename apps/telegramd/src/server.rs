@@ -141,7 +141,7 @@ mod tests {
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use telegram_protocol::LeaseView;
+    use telegram_protocol::{LeaseView, RiskScope};
 
     use crate::ownership::ProfileDatabaseLock;
     use crate::socket::DaemonSocket;
@@ -155,14 +155,14 @@ mod tests {
         let ownership = ProfileDatabaseLock::acquire(profile, &root).unwrap();
         let socket = DaemonSocket::bind(&ownership).unwrap();
         socket.listener().set_nonblocking(true).unwrap();
-        let mut server = LeaseServer::new(LeaseManager::new());
+        let mut server = LeaseServer::new(LeaseManager::default());
 
         let granted = exchange(
             &mut server,
             &socket,
             LeaseRequest::LeaseAcquire {
                 principal: "agent".to_owned(),
-                scopes: vec!["read".to_owned()],
+                scopes: vec![RiskScope::Read],
                 ttl_ms: 1_000,
             },
         );

@@ -4,6 +4,19 @@
 
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RiskScope {
+    Read,
+    Presence,
+    Send,
+    ReversibleMutation,
+    Admin,
+    Destructive,
+    Financial,
+    AuthSecurity,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct LeaseId(String);
@@ -23,7 +36,7 @@ impl LeaseId {
 pub enum LeaseRequest {
     LeaseAcquire {
         principal: String,
-        scopes: Vec<String>,
+        scopes: Vec<RiskScope>,
         ttl_ms: u64,
     },
     LeaseHeartbeat {
@@ -40,7 +53,7 @@ pub enum LeaseRequest {
 pub struct LeaseView {
     pub lease_id: LeaseId,
     pub principal: String,
-    pub scopes: Vec<String>,
+    pub scopes: Vec<RiskScope>,
     pub ttl_ms: u64,
     pub expires_in_ms: u64,
 }
@@ -60,6 +73,7 @@ pub enum LeaseErrorCode {
     InvalidRequest,
     InvalidPrincipal,
     InvalidScope,
+    ScopeDenied,
     InvalidTtl,
     LeaseNotFound,
     LeaseExpired,

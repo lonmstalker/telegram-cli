@@ -101,7 +101,7 @@ flowchart LR
 | Phase | Результат | Status |
 |---|---|---|
 | P0 | Контракт, repository skeleton и pinned schema | accepted |
-| P1 | Core transport, authorization и ordered updates | in_progress — reducer/caches готовы, далее lossless unknown updates |
+| P1 | Core transport, authorization и ordered updates | in_progress — ordered/lossless updates готовы, далее deadlines/startup handshake |
 | P2 | Singleton daemon и shared session lifecycle | pending |
 | P3 | Полный generated raw API и capability-таблица | pending |
 | P4 | Stateful request-chain engine | pending |
@@ -138,13 +138,13 @@ flowchart LR
 - [x] Полная authorization state machine: QR/phone/code/2FA/email/device/registration branches.
 - [x] Database encryption key из file descriptor/file secret/OS keychain; wrong key fail-closed.
 - [x] Ordered reducer и caches для auth, user, chat, basic/supergroup, file, connection и message send state.
-- [ ] Неизвестные updates сохраняются raw, без потери.
+- [x] Неизвестные updates сохраняются raw, без потери.
 - [ ] Deadlines, cancellation, startup `getCurrentState`, runtime version handshake.
 
 ### Acceptance
 
 - [x] Параллельные requests не путают responses — зачем: это фундамент корректности всего API; ошибка здесь ломает каждый вызов выше.
-- [ ] Updates воспроизводятся строго в receive order — зачем: state-machine TDLib предполагает ordering; нарушение даёт тихо неверный cache.
+- [x] Updates воспроизводятся строго в receive order — зачем: state-machine TDLib предполагает ordering; нарушение даёт тихо неверный cache.
 - [ ] Restart возвращает Ready без нового login — зачем: повторные login-flows ведут к rate-limits и риску блокировки аккаунта.
 - [ ] Wrong/missing key не запускает phone authorization и не повреждает DB — зачем: авто-fallback на новый login уничтожил бы существующую сессию.
 - [ ] Secrets отсутствуют в logs, metrics и crash output — зачем: невыполнение — прямая утечка доступа к аккаунту; проверяется secret-scanning тестом.

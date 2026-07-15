@@ -76,6 +76,7 @@ pub struct StateReducer {
     files: BTreeMap<i32, VersionedValue>,
     connection: Option<VersionedValue>,
     message_sends: BTreeMap<MessageSendKey, VersionedMessageSendState>,
+    unknown_updates: Vec<VersionedValue>,
 }
 
 impl StateReducer {
@@ -129,6 +130,14 @@ impl StateReducer {
 
     pub fn message_send(&self, key: MessageSendKey) -> Option<&VersionedMessageSendState> {
         self.message_sends.get(&key)
+    }
+
+    pub fn unknown_updates(&self) -> &[VersionedValue] {
+        &self.unknown_updates
+    }
+
+    pub fn drain_unknown_updates(&mut self) -> impl Iterator<Item = VersionedValue> + '_ {
+        self.unknown_updates.drain(..)
     }
 
     pub fn apply_transport_event(
@@ -233,7 +242,13 @@ impl StateReducer {
             "updateMessageSendAcknowledged" => self.apply_message_acknowledged(object, sequence)?,
             "updateMessageSendSucceeded" => self.apply_message_terminal(object, sequence, true)?,
             "updateMessageSendFailed" => self.apply_message_terminal(object, sequence, false)?,
-            _ => CachedUpdateKind::Unknown,
+            _ => {
+                self.unknown_updates.push(VersionedValue {
+                    sequence,
+                    value: update.clone(),
+                });
+                CachedUpdateKind::Unknown
+            }
         };
 
         self.sequence = sequence.0;
@@ -748,7 +763,7 @@ mod tests {
     }
 
     #[test]
-    fn partial_update_requires_base_entity_and_unknown_only_advances_order() {
+    fn partial_update_requires_base_entity_and_unknown_is_lossless() {
         let mut reducer = StateReducer::default();
         assert!(matches!(
             reducer.apply(&json!({"@type":"updateChatTitle","chat_id":42,"title":"lost"})),
@@ -758,10 +773,18 @@ mod tests {
             })
         ));
         assert_eq!(reducer.last_sequence(), None);
-        let applied = reducer
-            .apply(&json!({"@type":"updateFutureConstructor","payload":{"kept_later":true}}))
-            .unwrap();
-        assert_eq!(applied.kind, CachedUpdateKind::Unknown);
-        assert_eq!(applied.sequence.get(), 1);
+        let updates = [
+            json!({"@type":"updateFutureConstructor","payload":{"nested":[1,"2",null]}}),
+            json!({"@type":"updateFutureConstructor","payload":{"nested":[]}}),
+        ];
+        for update in &updates {
+            reducer.apply(update).unwrap();
+        }
+        assert_eq!(reducer.unknown_updates().len(), 2);
+        let drained = reducer.drain_unknown_updates().collect::<Vec<_>>();
+        assert_eq!(drained[0].value, updates[0]);
+        assert_eq!(drained[1].value, updates[1]);
+        assert_eq!(drained[1].sequence.get(), 2);
+        assert!(reducer.unknown_updates().is_empty());
     }
 }

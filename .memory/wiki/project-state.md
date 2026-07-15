@@ -18,10 +18,11 @@
 - P1 authorization [D-20260715-038](../decisions/decisions.md): exhaustive challenge machine, exact QR/phone/code/2FA/email/device/registration requests, stale/duplicate input fail closed, auth values redacted/zeroizing.
 - P1 database key [D-20260715-039](../decisions/decisions.md): FD/strict `0600` file/macOS-Linux keychain sources, zeroizing raw bytes, Base64 TDJSON, empty-key preflight deny и wrong-key 401 latch без phone fallback.
 - P1 reducer [D-20260715-040](../decisions/decisions.md): transport-order sequence и versioned auth/user/chat/group/file/connection/message-send caches; partial updates require base entity, send terminal states не регрессируют.
+- P1 unknown updates [D-20260715-041](../decisions/decisions.md): unknown constructors сохраняются exact raw Value в FIFO sequence; field patches известных objects сохраняют будущие поля.
 
 ## Not implemented
 
-- Остальной runtime P1–P10: unknown raw update persistence, startup runtime driver, daemon, generated registry, capability-таблица, workflows, policy, CLI, MCP, packaging.
+- Остальной runtime P1–P10: deadlines/cancellation/startup handshake, daemon, generated registry, capability-таблица, workflows, policy, CLI, MCP, packaging.
 
 ## Active boundary
 
@@ -30,4 +31,4 @@
 - Core key provider готов; wiring в штатный daemon всё ещё открыт как [P-20260715-001](../problems/problems.md).
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: пятый Tasks-пункт P1 — lossless raw storage неизвестных updates.
+- Следующий implementation boundary: шестой Tasks-пункт P1 — deadlines, cancellation, startup `getCurrentState` и runtime version handshake.

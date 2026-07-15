@@ -35,7 +35,7 @@
 
 ## Current records
 
-- Implementation: P1 in_progress — ordered reducer/caches закрыты, следующий пункт lossless unknown updates; см. [project-state.md](project-state.md).
+- Implementation: P1 in_progress — ordered/lossless reducer закрыт, следующий пункт deadlines/cancellation/startup handshake; см. [project-state.md](project-state.md).
 - Открытые проблемы: [P-20260715-001](../problems/problems.md) (gateway key wiring). Linux artifact закрыт в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -44,6 +44,7 @@
 - Authorization machine: [D-20260715-038](../decisions/decisions.md), [W-20260715-043](../logs/work.md), [`docs/authorization-state-machine.md`](../../docs/authorization-state-machine.md).
 - Database key provider: [D-20260715-039](../decisions/decisions.md), [W-20260715-044](../logs/work.md), [`docs/database-encryption-key.md`](../../docs/database-encryption-key.md).
 - Ordered reducer: [D-20260715-040](../decisions/decisions.md), [W-20260715-045](../logs/work.md), [`docs/ordered-state-reducer.md`](../../docs/ordered-state-reducer.md).
+- Lossless unknown updates: [D-20260715-041](../decisions/decisions.md), [W-20260715-046](../logs/work.md), [`docs/ordered-state-reducer.md`](../../docs/ordered-state-reducer.md).
 
 ## Operating rules
 

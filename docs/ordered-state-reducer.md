@@ -15,8 +15,10 @@ Unmatched responses и fatal transport events не являются updates и s
 
 TDJSON `int53`/`int64` принимаются как strings, которые реально выдаёт pinned ClientJson; numeric form также принимается по его exact input codec. Full raw objects и nested fields не нормализуются сверх перечисленных cache patches.
 
-## Текущая граница
+## Lossless unknown updates
 
-Unknown constructor получает sequence и outcome `Unknown`, но raw payload пока не сохраняется. Это намеренная граница следующего Tasks-пункта P1, а не claim lossless coverage. Gap/resync/freshness принадлежат дальнейшим фазам и не изобретаются здесь.
+Unknown constructor получает тот же global sequence и сохраняется целиком как raw `Value` в FIFO queue без дедупликации. Read-only slice и ordered drain позволяют runtime переслать payload дальнейшему consumer без изменения fields, nested values или TDJSON integer representation. Field patch известного entity изменяет только перечисленные поля, поэтому неизвестные поля full object сохраняются.
 
-Behavior tests связывают ordered transport events с reducer sequence, проверяют все перечисленные core cache categories, chat base-entity gate и terminal message-send transition. Тесты не хранят список/хеш update constructors.
+Queue не является durable journal и не заявляет backpressure policy: persistence/limits принадлежат runtime/reliability phases. Gap/resync/freshness также не подменяются обычным sequence.
+
+Behavior tests связывают ordered transport events с reducer sequence и проверяют все перечисленные core cache categories, exact unknown payload/order, chat base-entity gate и terminal message-send transition. Тесты не хранят список/хеш update constructors.

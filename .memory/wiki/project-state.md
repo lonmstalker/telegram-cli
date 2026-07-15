@@ -12,6 +12,8 @@
 - Ручное capability-ревью: 74 supported contract и 116 deferred методов сохранены в `docs/capability-notes.md`. Recognizer engine удалён ([D-20260715-035](../decisions/decisions.md)); классификация — данные с default-deny.
 - Существующая зашифрованная сессия ранее достигала Ready/getMe; database key получен; `.env.local` contract (mode `0600`, protected loader) настроен.
 - Canonical GitHub remote: `https://github.com/lonmstalker/telegram-cli.git` (public, принято пользователем).
+- P0 accepted: `tg-analytics@e35c54ce213aa170fb0b411eab614485424b3e60` audited from clean archive (97 tests); phase-neutral patterns перенесены, runtime contracts распределены по owner-фазам в `docs/tg-analytics-reuse.md`.
+- Account/session model [D-20260715-036](../decisions/decisions.md): один `telegramd` owner на profile, CLI/MCP lease clients, returning auth с `Ready` + `getMe` proof.
 
 ## Not implemented
 
@@ -24,3 +26,4 @@
 - Gateway key wiring — [P-20260715-001](../problems/problems.md).
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
+- Следующий implementation boundary: первый Tasks-пункт P1 — TDJSON transport, один receive loop и `@extra` correlation.

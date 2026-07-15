@@ -62,7 +62,7 @@ Any authenticated principal may hold a scoped lease; force-stop, logout and dest
 
 ## Live Verification Boundary
 
-Current evidence proves one encrypted returning session can reach Ready, `getMe` and Closed. Multi-agent/lease behavior remains unimplemented.
+Account/session model принят до runtime в `D-20260715-036`. Current evidence proves one encrypted returning session can reach Ready, `getMe` and Closed. Multi-agent/lease behavior remains unimplemented.
 
 ## Scope
 

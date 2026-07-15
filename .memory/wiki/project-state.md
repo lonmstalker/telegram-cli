@@ -14,10 +14,13 @@
 - P0 начат: Cargo workspace содержит шесть целевых packages, а dependency/target/default-member boundaries защищены executable contract с negative controls.
 - До появления runtime все четыре binary entrypoint fail closed; process guard ограничен timeout и очищает всю отдельную process group.
 - Initial production schema pin: TDLib `1.8.66`, exact commit `07d3a097...`; vendored schema hash/counts проверяются offline с negative controls.
+- Exact macOS arm64 `tdjson` подтверждён crash-safe reviewed rebuild: artifact SHA-256 `5dbd3009...6852e7e`, 27 654 296 bytes; Mach-O/dependencies/exports/version/commit и no-DB smoke проверены.
+- Global build lock наследуется всеми watchdog paths; gated handshake, recursive stale recovery и proof-backed finalization проверены parent/inspection `SIGKILL` controls. RSS/tree limits являются sampled thresholds, не kernel hard caps.
+- Native binary хранится в ignored content-addressed cache; Git хранит exact policy/recipe/provenance. Одна сборка помечена `reproducibility=not_verified`.
 
 ## Not implemented
 
-- Native TDLib artifact, generated schema registry, singleton daemon, рабочий CLI и MCP ещё не созданы; текущие binaries являются только fail-closed skeleton.
+- Linux x86_64 TDLib artifact, generated schema registry, singleton daemon, рабочий CLI и MCP ещё не созданы; текущие binaries являются только fail-closed skeleton.
 - Stateful request-chain engine, retry/reconciliation, policy, metrics и agent skill остаются планом.
 
 ## Active boundary
@@ -25,6 +28,7 @@
 - Full API означает L0–L2 для всей pinned schema; curated workflows и live proofs учитываются отдельно.
 - Секреты находятся вне model-visible interfaces.
 - Gateway key wiring остаётся [P-20260715-001](../problems/problems.md).
+- Linux target proof остаётся [P-20260715-003](../problems/problems.md); macOS artifact нельзя считать доказательством Linux или bit-for-bit reproducibility.
 
 ## Evidence
 
@@ -34,3 +38,7 @@
 - [W-20260715-005](../logs/work.md)
 - [D-20260715-003](../decisions/decisions.md)
 - [W-20260715-006](../logs/work.md)
+- [Reviewed native macOS arm64 correction digest](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md)
+- [D-20260715-004](../decisions/decisions.md)
+- [D-20260715-005](../decisions/decisions.md)
+- [W-20260715-008](../logs/work.md)

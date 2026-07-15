@@ -76,7 +76,7 @@ flowchart LR
 
 | Phase | Результат | Status |
 |---|---|---|
-| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-005 |
+| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-008 |
 | P1 | Core transport, authorization и ordered updates | pending |
 | P2 | Singleton daemon и shared session lifecycle | pending |
 | P3 | Полный generated raw API | pending |
@@ -103,7 +103,7 @@ flowchart LR
 ### Tasks
 
 - [x] Создать Cargo workspace и crate boundaries из раздела Architecture.
-- [ ] Зафиксировать exact TDLib commit/native build и сохранить `td_api.tl` + SHA-256.
+- [x] Зафиксировать exact TDLib commit/native build и сохранить `td_api.tl` + SHA-256.
 - [ ] Реализовать schema parser, method/type/update/auth-state inventory и feature-owner manifest.
 - [ ] Зафиксировать capability matrix: regular user, bot, Business/Premium, admin-gated, official-only.
 - [ ] Определить supported targets: macOS arm64 и Linux x86_64 минимум.
@@ -121,6 +121,8 @@ flowchart LR
 
 - `W-20260715-005`: создан workspace из шести целевых packages; optional `telegram-mcp` исключён из `default-members`; skeleton binaries fail closed. Доказательства: `scripts/check-workspace-boundaries.py` с двумя negative controls, `scripts/test-skeleton-process-guard.py`, `scripts/check-skeleton-fails-closed.py`, `cargo test --workspace --all-targets --jobs 2`, `cargo clippy --workspace --all-targets --jobs 2 -- -D warnings`; независимое ревью — approved. Build footprint после gate: 9.1 MiB.
 - `W-20260715-006`: exact TDLib schema pin сохранён в `vendor/tdlib` для commit `07d3a097...`; offline gate подтверждает SHA-256, 2168 definitions, 1010 functions, 184 updates и 13 authorization states; independent review — approved. Решение: `D-20260715-003`. Native artifact/build provenance ещё не закреплены, поэтому объединённый task checkbox остаётся open.
+- `W-20260715-007`: exact macOS arm64 `tdjson` собран bounded `jobs=2` recipe из pinned source; artifact 27 637 784 bytes, SHA-256 `99e7cdb1...fbb6b49`; committed provenance фиксирует policy/recipe/toolchain/peak resources/Mach-O/dependencies/exports/runtime version+commit и `reproducibility=not_verified`. `provenance-only` и `artifact-verified` gates, 8 tar, 7 process-group, lock, commit и 16 provenance negative controls passed; scratch/process cleanup доказан. Решение: `D-20260715-004`; Linux x86_64 остаётся отдельным open target `P-20260715-003`.
+- `W-20260715-008` supersedes current artifact/resource facts из `W-20260715-007` после crash-safety review: offline `jobs=2` rebuild дал 27 654 296 bytes, SHA-256 `5dbd3009...6852e7e`; build 330.225 s, peak sampled RSS 2 064 613 376 bytes, tree 310 298 581 bytes, processes 13. Global lock наследуют все watchdog paths; target gate, recursive stale-state recovery и proof-backed finalization проверены parent/inspection `SIGKILL` controls. Оба checker mode, 17 provenance controls и шесть crash/build suites green; cache `1`, leftovers `0`, `target` 42 MiB. Решение: `D-20260715-005`; Linux `P-20260715-003` и bit-for-bit reproducibility остаются open.
 
 ## P1 — Core transport, authorization и ordered state
 

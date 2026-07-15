@@ -12,7 +12,7 @@
 - product_context_source: product.md
 - Feature purpose: сделать всю закреплённую TDLib-схему discoverable, валидируемой и вызываемой без ручного wrapper на каждый method.
 - Product workflow/job served: version -> search/describe -> policy -> call -> typed/raw result.
-- Primary ambiguity to keep explicit: schema pin принят, но target-specific native artifact и generated registry ещё отсутствуют.
+- Primary ambiguity to keep explicit: schema pin и macOS arm64 artifact приняты, но Linux x86_64 artifact и generated registry ещё отсутствуют.
 
 ## Product Context
 
@@ -28,7 +28,8 @@
 - SRC001: product.md; type: file; supports: full-scope rule; limits: none.
 - SRC002: HARNESS.md; type: file; supports: owner/classification gates; limits: none.
 - SRC003: docs/tdlib-api-coverage.md; type: file; supports: baseline/counts/formula; limits: generator absent.
-- SRC004: `vendor/tdlib/manifest.json`, exact official commit `07d3a097...` и raw digest `.memory/raw/2026-07-15-tdlib-1.8.66-schema-pin.md`; type: verified repo source; supports: 1010 functions/2168 definitions/184 updates/13 auth states; limits: native artifact absent.
+- SRC004: `vendor/tdlib/manifest.json`, exact official commit `07d3a097...` и raw digest `.memory/raw/2026-07-15-tdlib-1.8.66-schema-pin.md`; type: verified repo source; supports: 1010 functions/2168 definitions/184 updates/13 auth states; limits: generated registry absent.
+- SRC005: `vendor/tdlib/native-build-policy.json`, `vendor/tdlib/native-builds/aarch64-apple-darwin.json` и `.memory/raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md`; type: verified repo source; supports: exact crash-safe macOS arm64 artifact identity, runtime version/commit and bounded recovery contract; limits: resource thresholds sampled, Linux artifact и bit-for-bit reproducibility не доказаны.
 
 ## TDLib API Coverage
 
@@ -62,7 +63,7 @@ Registry records user/bot/business/premium/admin/official-only constraints separ
 
 ## Live Verification Boundary
 
-Current counts/hash проверены against upstream и vendored offline; target-specific native artifact, generated registry и live per-method matrix отсутствуют.
+Current counts/hash проверены against upstream и vendored offline; macOS arm64 artifact проверен по hash/Mach-O/dependencies/exports/runtime version+commit. Linux artifact, generated registry и live per-method matrix отсутствуют.
 
 ## Scope
 
@@ -76,7 +77,7 @@ Current counts/hash проверены against upstream и vendored offline; tar
 
 ### Ambiguous
 
-- Native artifact identity и target-specific build provenance остаются незакрытой частью P0.
+- Linux x86_64 artifact identity и target-specific build provenance остаются незакрытой частью P0.
 
 ## Context Map
 
@@ -146,7 +147,7 @@ Current counts/hash проверены against upstream и vendored offline; tar
 
 ## Assumptions
 
-- A001: exact upstream commit remains retrievable for reproducible builds; support_basis: repo_source.
+- A001: exact upstream commit remains retrievable for bounded repeat builds; bit-for-bit reproducibility после одной сборки не заявляется; support_basis: repo_source.
 
 ## Open Questions
 
@@ -156,6 +157,6 @@ Current counts/hash проверены against upstream и vendored offline; tar
 
 - Kernel coverage: complete contract, no implementation.
 - Modeled: pin/diff/classify/discover/call claims.
-- Partial: native artifact и generated registry отсутствуют.
+- Partial: macOS arm64 native proof complete; Linux artifact и generated registry отсутствуют.
 - Unknown: none for schema source identity.
 - Not applicable: domain-specific request chains.

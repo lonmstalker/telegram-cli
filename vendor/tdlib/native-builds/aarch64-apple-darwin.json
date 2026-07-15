@@ -1,0 +1,153 @@
+{
+  "artifact": {
+    "bytes": 27654296,
+    "cache_path": "target/tdlib-native/aarch64-apple-darwin/by-sha256/5dbd30094b4fbfd35904e88d88e413f423ea7283bd81b34305eac31be6852e7e/libtdjson.1.8.66.dylib",
+    "sha256": "5dbd30094b4fbfd35904e88d88e413f423ea7283bd81b34305eac31be6852e7e"
+  },
+  "build": {
+    "built_at_utc": "2026-07-15T00:29:56.532097Z",
+    "dependencies": {
+      "openssl": {
+        "cellar_path": "/opt/homebrew/Cellar/openssl@3/3.6.2",
+        "formula": "openssl@3",
+        "libcrypto_bytes": 8571216,
+        "libcrypto_sha256": "074d179c9a8361e8f9143eb89a07954f4a251061dfb98a06c53f84153ed8d1b7",
+        "libssl_bytes": 1462304,
+        "libssl_sha256": "b99b1dcccdd5d524cb7a752b57a62c18cff85ebd12b22a00deba14d579f64c4a",
+        "linkage": "static",
+        "prefix": "/opt/homebrew/opt/openssl@3",
+        "version": "OpenSSL 3.6.2 7 Apr 2026 (Library: OpenSSL 3.6.2 7 Apr 2026)"
+      },
+      "zlib": {
+        "linkage": "system",
+        "provider": "macos-sdk"
+      }
+    },
+    "host": {
+      "machine": "arm64",
+      "release": "25.5.0",
+      "system": "Darwin"
+    },
+    "phases": {
+      "build": {
+        "duration_seconds": 330.225,
+        "log_bytes": 373275,
+        "log_sha256": "7a0cc6b0972f1809689f67689750f8c051ef773d4f635a9680c96202eae868b4",
+        "peak_group_processes": 13,
+        "peak_group_rss_bytes": 2064613376,
+        "peak_tree_bytes": 310298581,
+        "return_code": 0
+      },
+      "configure": {
+        "duration_seconds": 4.27,
+        "log_bytes": 5182,
+        "log_sha256": "dc0e3781a378f57831370424750b3e47beeb599fc904af5a7a03d3f479953fda",
+        "peak_group_processes": 8,
+        "peak_group_rss_bytes": 83869696,
+        "peak_tree_bytes": 40614071,
+        "return_code": 0
+      }
+    },
+    "source_preparation": {
+      "archive_bytes": 5785154,
+      "archive_cache_reused": true,
+      "archive_sha256": "1a8c9429af7b2eae2e36f24db9a9b8f523dbd5bd2ae448f8bb9322bb1c80dbfb",
+      "commit_identity": {
+        "commit": "07d3a0973f5113b0827a04d54a93aaaa9e288348",
+        "generated_sha256": "27d3e57adf55d87170b9390c54d287703d043094c84a78bdcf2e756aa0c30c0b",
+        "head_sha256": "037fbbb82c16d37a78e24bdf0a0d16075d0cb217da1f6f74b45e53df9e7a08a7",
+        "strategy": "synthetic-detached-head",
+        "template_sha256": "5acbcbb038b97ec3a05cf04c3b2e50cf7f846fdcfb03cdbe4a9d1ce6a7b3e1e7"
+      },
+      "extracted_logical_bytes": 29405486,
+      "extracted_members": 1729
+    },
+    "toolchain": {
+      "clang": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+      "cmake": "cmake version 4.3.3",
+      "gperf": "GNU gperf 3.3",
+      "make": "GNU Make 3.81",
+      "python": "Python 3.14.5",
+      "xcode_sdk": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+    }
+  },
+  "format_version": 1,
+  "policy_sha256": "32fa3e3875b822945fe25a873f3202da763b9bc7828df17215bf26df80583c72",
+  "recipe": {
+    "files": {
+      "scripts/build-tdlib-native.py": "9c96e4567d0bde8489bd65c837e0c00baca8d3b0fec4e37c551353a50d2ba91b",
+      "scripts/process-group-target-gate.py": "b1fabf796f6921c478cd4c73baf1dbbb5b828973d25e061882b0140c8327afbd",
+      "scripts/process-group-watchdog.py": "104992eac60e95035eada6f345ed127c4a6bfc20a096928884d535fb599df9b3",
+      "scripts/smoke-tdlib-native.py": "96415d673eaa2800582b472e740a47f75d24aa4109601816521df0aaab33407e",
+      "scripts/tdlib_native.py": "ebd1a4dde7bdfc93d150a763411d67de8bebbb7197b881b0429e4f92ca339c0d"
+    }
+  },
+  "reproducibility": {
+    "claim": "exact source and bounded local recipe only; bit-for-bit reproducibility is not established",
+    "independent_builds": 1,
+    "status": "not_verified"
+  },
+  "source": {
+    "archive_bytes": 5785154,
+    "archive_root": "td-07d3a0973f5113b0827a04d54a93aaaa9e288348",
+    "archive_sha256": "1a8c9429af7b2eae2e36f24db9a9b8f523dbd5bd2ae448f8bb9322bb1c80dbfb",
+    "archive_url": "https://github.com/tdlib/td/archive/07d3a0973f5113b0827a04d54a93aaaa9e288348.tar.gz",
+    "commit": "07d3a0973f5113b0827a04d54a93aaaa9e288348",
+    "commit_identity_strategy": "synthetic-detached-head",
+    "content_length_policy": "verify-if-present",
+    "git_commit_generated_sha256": "27d3e57adf55d87170b9390c54d287703d043094c84a78bdcf2e756aa0c30c0b",
+    "git_commit_template_sha256": "5acbcbb038b97ec3a05cf04c3b2e50cf7f846fdcfb03cdbe4a9d1ce6a7b3e1e7",
+    "git_head_sha256": "037fbbb82c16d37a78e24bdf0a0d16075d0cb217da1f6f74b45e53df9e7a08a7",
+    "repository": "https://github.com/tdlib/td",
+    "schema_sha256": "10a00b48d557d00c0daa231a8dad38a9d0c99de78360a1e4b0b7579b28188f31",
+    "version": "1.8.66"
+  },
+  "target": {
+    "cmake_defines": [
+      "BUILD_TESTING=OFF",
+      "CCACHE_FOUND=CCACHE_FOUND-NOTFOUND",
+      "CMAKE_BUILD_TYPE=Release",
+      "CMAKE_FIND_USE_PACKAGE_REGISTRY=OFF",
+      "CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF",
+      "CMAKE_OSX_ARCHITECTURES=arm64",
+      "CMAKE_OSX_DEPLOYMENT_TARGET=11.0",
+      "MEMPROF=OFF",
+      "OPENSSL_USE_STATIC_LIBS=TRUE",
+      "TD_ENABLE_DOTNET=OFF",
+      "TD_ENABLE_JNI=OFF",
+      "TD_ENABLE_LTO=OFF",
+      "TD_INSTALL_SHARED_LIBRARIES=ON",
+      "TD_INSTALL_STATIC_LIBRARIES=OFF"
+    ],
+    "cmake_generator": "Unix Makefiles",
+    "cmake_target": "tdjson",
+    "parallel_jobs": 2,
+    "triple": "aarch64-apple-darwin"
+  },
+  "verification": {
+    "architectures": [
+      "arm64"
+    ],
+    "database_files_created": 0,
+    "dynamic_dependencies": [
+      "/usr/lib/libz.1.dylib",
+      "/usr/lib/libc++.1.dylib",
+      "/usr/lib/libSystem.B.dylib"
+    ],
+    "exports": [
+      "td_json_client_create",
+      "td_json_client_send",
+      "td_json_client_receive",
+      "td_json_client_execute",
+      "td_json_client_destroy"
+    ],
+    "file_format": "Mach-O 64-bit dynamically linked shared library arm64",
+    "install_name": "@rpath/libtdjson.1.8.66.dylib",
+    "minimum_macos": "11.0",
+    "options": {
+      "commit_hash": "07d3a0973f5113b0827a04d54a93aaaa9e288348",
+      "version": "1.8.66"
+    },
+    "rpaths": []
+  }
+}

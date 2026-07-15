@@ -1,6 +1,6 @@
 # Полнота TDLib API
 
-Статус: exact schema snapshot закреплён; native artifact, generator и implementation ещё не созданы.
+Статус: exact schema snapshot и macOS arm64 native artifact закреплены; Linux artifact, generator и implementation ещё не созданы.
 
 ## Проверенный upstream baseline
 
@@ -12,8 +12,10 @@
 - Updates: `184`; authorization states: `13`.
 - Source: <https://github.com/tdlib/td/tree/07d3a0973f5113b0827a04d54a93aaaa9e288348>.
 - Local manifest: [`vendor/tdlib/manifest.json`](../vendor/tdlib/manifest.json); offline gate: `python3 scripts/check-tdlib-pin.py`.
+- macOS arm64 native provenance: [`vendor/tdlib/native-builds/aarch64-apple-darwin.json`](../vendor/tdlib/native-builds/aarch64-apple-darwin.json); local artifact gate: `python3 scripts/check-tdlib-native-pin.py --require-local-artifact`.
+- Current local artifact: 27 654 296 bytes, SHA-256 `5dbd30094b4fbfd35904e88d88e413f423ea7283bd81b34305eac31be6852e7e`; correction evidence: [reviewed rebuild digest](../.memory/raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md).
 
-Этот exact commit принят как initial production schema pin в `D-20260715-003`; переход на другой commit требует явного manifest/schema diff и повторной классификации. Native artifact и generated registry остаются отдельными P0 gates.
+Этот exact commit принят как initial production schema pin в `D-20260715-003`; переход на другой commit требует явного manifest/schema diff и повторной классификации. Текущий macOS arm64 artifact и crash ownership доказаны correction checkpoint `W-20260715-008`; `W-20260715-007` остаётся историей первой pre-review build. Linux x86_64 artifact и generated registry остаются отдельными P0 gates. Одна reviewed macOS rebuild не считается доказательством bit-for-bit reproducibility; RSS/tree limits являются sampled watchdog thresholds.
 
 ## Что входит в coverage
 

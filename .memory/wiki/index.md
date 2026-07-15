@@ -20,16 +20,20 @@
 - [Problem archive](../problems/archive/index.md)
 - [Bootstrap source digest](../raw/2026-07-15-project-bootstrap.md)
 - [TDLib 1.8.66 schema pin digest](../raw/2026-07-15-tdlib-1.8.66-schema-pin.md)
+- [TDLib 1.8.66 macOS arm64 first-build digest](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64.md) — historical pre-review evidence.
+- [TDLib 1.8.66 macOS arm64 reviewed rebuild correction](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — current artifact/resource truth.
 
 ## Current records
 
-- Implementation: [P0 in progress](project-state.md) — Cargo workspace boundary закрыт checkpoint `W-20260715-005`, runtime ещё не реализован.
-- Schema pin: [TDLib 1.8.66 source digest](../raw/2026-07-15-tdlib-1.8.66-schema-pin.md) — exact source/schema закреплены, native artifact ещё не доказан.
+- Implementation: [P0 in progress](project-state.md) — workspace, exact schema и reviewed macOS native pin закрыты через `W-20260715-008`; parser/registry/runtime ещё не реализованы.
+- Native pin: [reviewed rebuild correction](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — exact source/schema и crash-safe macOS arm64 artifact закреплены; Linux/reproducibility остаются open.
 - Decision: [D-20260715-001](../decisions/decisions.md) — раздельная memory model, rotation и secret boundary.
 - Decision: [D-20260715-002](../decisions/decisions.md) — публичный GitHub remote принят как canonical `origin`.
 - Decision: [D-20260715-003](../decisions/decisions.md) — initial production schema pin использует exact TDLib commit, не moving branch.
+- Decision: [D-20260715-004](../decisions/decisions.md) — binary остаётся в content-addressed local cache, Git хранит exact policy/recipe/provenance.
+- Decision: [D-20260715-005](../decisions/decisions.md) — inherited global lease, gated target и proof-backed recovery определяют crash ownership.
 - Open problem: [P-20260715-001](../problems/problems.md) — database key ещё не подключён к штатному gateway.
-- Open problem: [P-20260715-002](../problems/problems.md) — exact target-specific TDLib native artifact ещё не закреплён.
+- Open problem: [P-20260715-003](../problems/problems.md) — Linux x86_64 native artifact ещё не закреплён.
 
 ## Operating rules
 

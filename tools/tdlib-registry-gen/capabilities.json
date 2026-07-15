@@ -389,12 +389,30 @@
       "retry": "safe_read"
     },
     {
+      "method": "getStatisticalGraph",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKnown { target: chat_id }",
+      "retry": "safe_read"
+    },
+    {
       "method": "getSupergroupFullInfo",
       "risk": "read",
       "accounts": [
         "regular_user"
       ],
       "runtime_requirements": "SupergroupKnown { target: supergroup_id }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getSupergroupMembers",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "SupergroupFullInfoProperty { target: supergroup_id, property: CanGetMembers }",
       "retry": "safe_read"
     },
     {

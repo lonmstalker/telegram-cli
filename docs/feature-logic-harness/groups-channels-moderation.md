@@ -62,8 +62,10 @@ Owner/admin/member/bot capability matrix is explicit; cannot-get-members/statist
 ## Live Verification Boundary
 
 Core отделяет read-only resolve/inspection от explicit `ensure_membership`, сохраняет pending
-join outcome и не join-ит private invite при cache miss. Live join не выполнялся; будущие
-тесты используют disposable chats/channels и cleanup evidence.
+join outcome и не join-ит private invite при cache miss. Members workflow проверяет
+`can_get_members`, продолжает короткие страницы и отмечает no-progress как partial.
+Live join/member query не выполнялись; будущие тесты используют disposable chats/channels
+и cleanup evidence.
 
 ## Scope
 
@@ -155,7 +157,8 @@ join outcome и не join-ит private invite при cache miss. Live join не 
 
 ## Coverage Notes
 
-- Kernel coverage: resolve/membership dispatch boundary implemented; rights/config/uncertainty modeled.
+- Kernel coverage: resolve/membership dispatch boundary и read-only members pagination implemented;
+  rights/config/uncertainty modeled.
 - Modeled: routine administration and moderation boundaries.
 - Partial: exact method classification and live matrix.
 - Unknown: account-specific available rights.

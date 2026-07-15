@@ -35,7 +35,7 @@ Canonical machine-readable source после P3 —
 - Generator создаёт descriptor для каждого pinned method. Reviewed rows получают эти
   поля, остальные — только `DefaultDeny` без угаданной классификации.
 
-## Reviewed contracts (87)
+## Reviewed contracts (89)
 
 | Method | Accounts | Runtime requirements |
 |---|---|---|
@@ -79,7 +79,9 @@ Canonical machine-readable source после P3 —
 | `getMessageThreadHistory` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetMessageThread }` |
 | `getMessageViewers` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetViewers }` |
 | `getPollVoteStatistics` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetPollVoteStatistics }` |
+| `getStatisticalGraph` | regular_user | `ChatKnown { target: chat_id }` |
 | `getSupergroupFullInfo` | regular_user | `SupergroupKnown { target: supergroup_id }` |
+| `getSupergroupMembers` | regular_user | `SupergroupFullInfoProperty { target: supergroup_id, property: CanGetMembers }` |
 | `getUserChatBoosts` | bot | `ChatAdministrator { target: chat_id }` |
 | `getUserFullInfo` | regular_user | `UserKnown { target: user_id }` |
 | `getVideoChatRtmpUrl` | regular_user | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats })` |

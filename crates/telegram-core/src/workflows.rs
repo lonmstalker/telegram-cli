@@ -1,9 +1,9 @@
 //! Curated stateful workflows поверх общего TDJSON call.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt;
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
 use serde_json::{Value, json};
 
@@ -11,6 +11,7 @@ use crate::raw_api::{RawApiError, RawPolicy, td_call, td_call_with_boundary};
 use crate::reducer::{ChatList, ChatListPosition, ReducerError};
 use crate::registry::TdObject;
 use crate::runtime::{CoreRuntime, RuntimeError};
+use crate::transport::TransportError;
 
 #[derive(Clone, Copy)]
 pub enum ChatTarget<'value> {
@@ -121,6 +122,41 @@ pub struct MessagePage {
     pub next_from_message_id: Option<i64>,
     pub boundary: PageBoundary,
     pub complete: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Freshness {
+    ServerSnapshot,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MembersQuery {
+    pub supergroup_id: i64,
+    pub count: usize,
+    pub page_limit: i32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MembersSnapshot {
+    pub members: Vec<Value>,
+    pub pages: usize,
+    pub total_count: i32,
+    pub boundary: PageBoundary,
+    pub complete: bool,
+    pub capability_sequence: u64,
+    pub observed_at: SystemTime,
+    pub freshness: Freshness,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct StatisticsSnapshot {
+    pub statistics: Value,
+    pub graph_lineage: BTreeMap<String, Vec<String>>,
+    pub unresolved_tokens: Vec<String>,
+    pub complete: bool,
+    pub capability_sequence: u64,
+    pub observed_at: SystemTime,
+    pub freshness: Freshness,
 }
 
 impl ChatInspection {
@@ -249,6 +285,305 @@ pub fn search_chat_messages(
     search_chat_messages_with(query, |request| {
         invoke(runtime, policy, "searchChatMessages", request, deadline)
     })
+}
+
+pub fn supergroup_members(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    query: MembersQuery,
+    deadline: Instant,
+) -> Result<MembersSnapshot, ChatWorkflowError> {
+    let capability = runtime
+        .state()
+        .supergroup_full_info(query.supergroup_id)
+        .ok_or(ChatWorkflowError::PrerequisiteMissing {
+            prerequisite: "supergroupFullInfo",
+        })?;
+    let allowed =
+        capability.value["can_get_members"]
+            .as_bool()
+            .ok_or(ChatWorkflowError::InvalidResult {
+                method: "supergroupFullInfo",
+                field: "can_get_members",
+            })?;
+    supergroup_members_with(query, allowed, capability.sequence.get(), |request| {
+        invoke(runtime, policy, "getSupergroupMembers", request, deadline)
+    })
+}
+
+pub fn chat_statistics(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    chat_id: i64,
+    is_dark: bool,
+    deadline: Instant,
+) -> Result<StatisticsSnapshot, ChatWorkflowError> {
+    let chat = runtime
+        .state()
+        .chat(chat_id)
+        .ok_or(ChatWorkflowError::PrerequisiteMissing {
+            prerequisite: "chat",
+        })?;
+    let supergroup_id = match chat.value["type"]["@type"].as_str() {
+        Some("chatTypeSupergroup") => required_i64(&chat.value["type"], "supergroup_id", "chat")?,
+        _ => {
+            return Err(ChatWorkflowError::CapabilityDenied {
+                capability: "can_get_statistics",
+            });
+        }
+    };
+    let capability = runtime.state().supergroup_full_info(supergroup_id).ok_or(
+        ChatWorkflowError::PrerequisiteMissing {
+            prerequisite: "supergroupFullInfo",
+        },
+    )?;
+    let allowed = capability.value["can_get_statistics"].as_bool().ok_or(
+        ChatWorkflowError::InvalidResult {
+            method: "supergroupFullInfo",
+            field: "can_get_statistics",
+        },
+    )?;
+    chat_statistics_with(
+        chat_id,
+        is_dark,
+        allowed,
+        capability.sequence.get(),
+        |method, request| invoke(runtime, policy, method, request, deadline),
+    )
+}
+
+fn supergroup_members_with(
+    query: MembersQuery,
+    allowed: bool,
+    capability_sequence: u64,
+    mut call: impl FnMut(Value) -> Result<TdObject, ChatWorkflowError>,
+) -> Result<MembersSnapshot, ChatWorkflowError> {
+    if !allowed {
+        return Err(ChatWorkflowError::CapabilityDenied {
+            capability: "can_get_members",
+        });
+    }
+    if query.count == 0 || !(1..=200).contains(&query.page_limit) {
+        return Err(ChatWorkflowError::InvalidPageOptions);
+    }
+
+    let mut offset = 0_i32;
+    let mut pages = 0;
+    let mut total_count: i32;
+    let mut members = Vec::new();
+    let mut seen = BTreeSet::new();
+    let boundary = loop {
+        let response = call(json!({
+            "@type":"getSupergroupMembers",
+            "supergroup_id":query.supergroup_id,
+            "filter":null,
+            "offset":offset,
+            "limit":query.page_limit
+        }))?;
+        pages += 1;
+        if response.as_value()["@type"] != "chatMembers" {
+            return Err(ChatWorkflowError::UnexpectedResult {
+                method: "getSupergroupMembers",
+            });
+        }
+        total_count = i32::try_from(required_i64(
+            response.as_value(),
+            "total_count",
+            "getSupergroupMembers",
+        )?)
+        .map_err(|_| ChatWorkflowError::InvalidResult {
+            method: "getSupergroupMembers",
+            field: "total_count",
+        })?;
+        let page =
+            response.as_value()["members"]
+                .as_array()
+                .ok_or(ChatWorkflowError::InvalidResult {
+                    method: "getSupergroupMembers",
+                    field: "members",
+                })?;
+        for member in page {
+            if member["@type"] != "chatMember" {
+                return Err(ChatWorkflowError::InvalidResult {
+                    method: "getSupergroupMembers",
+                    field: "members[].@type",
+                });
+            }
+            let key = serde_json::to_string(&member["member_id"]).map_err(|_| {
+                ChatWorkflowError::InvalidResult {
+                    method: "getSupergroupMembers",
+                    field: "members[].member_id",
+                }
+            })?;
+            if seen.insert(key) {
+                members.push(member.clone());
+                if members.len() == query.count {
+                    break;
+                }
+            }
+        }
+        offset = offset
+            .checked_add(i32::try_from(page.len()).map_err(|_| {
+                ChatWorkflowError::InvalidResult {
+                    method: "getSupergroupMembers",
+                    field: "members",
+                }
+            })?)
+            .ok_or(ChatWorkflowError::InvalidPageOptions)?;
+        if members.len() == query.count {
+            break PageBoundary::Count;
+        }
+        if offset >= total_count {
+            break PageBoundary::Exhausted;
+        }
+        if page.is_empty() {
+            break PageBoundary::NoProgress;
+        }
+    };
+    Ok(MembersSnapshot {
+        members,
+        pages,
+        total_count,
+        boundary,
+        complete: boundary != PageBoundary::NoProgress,
+        capability_sequence,
+        observed_at: SystemTime::now(),
+        freshness: Freshness::ServerSnapshot,
+    })
+}
+
+fn chat_statistics_with(
+    chat_id: i64,
+    is_dark: bool,
+    allowed: bool,
+    capability_sequence: u64,
+    mut call: impl FnMut(&'static str, Value) -> Result<TdObject, ChatWorkflowError>,
+) -> Result<StatisticsSnapshot, ChatWorkflowError> {
+    if !allowed {
+        return Err(ChatWorkflowError::CapabilityDenied {
+            capability: "can_get_statistics",
+        });
+    }
+    let mut statistics = call(
+        "getChatStatistics",
+        json!({"@type":"getChatStatistics","chat_id":chat_id,"is_dark":is_dark}),
+    )?
+    .into_value();
+    if !matches!(
+        statistics["@type"].as_str(),
+        Some("chatStatisticsSupergroup" | "chatStatisticsChannel")
+    ) {
+        return Err(ChatWorkflowError::UnexpectedResult {
+            method: "getChatStatistics",
+        });
+    }
+
+    let mut initial_tokens = BTreeSet::new();
+    collect_async_tokens(&statistics, &mut initial_tokens)?;
+    let mut resolved = BTreeMap::<String, Value>::new();
+    let mut unresolved = BTreeSet::new();
+    let mut graph_lineage = BTreeMap::new();
+    for initial in initial_tokens {
+        let mut token = initial.clone();
+        let mut lineage = Vec::new();
+        let terminal = loop {
+            if let Some(graph) = resolved.get(&token) {
+                break Some(graph.clone());
+            }
+            if lineage.contains(&token) {
+                break None;
+            }
+            lineage.push(token.clone());
+            let graph = match call(
+                "getStatisticalGraph",
+                json!({"@type":"getStatisticalGraph","chat_id":chat_id,"token":token,"x":0}),
+            ) {
+                Ok(graph) => graph.into_value(),
+                Err(ChatWorkflowError::Call(RawApiError::Transport(
+                    TransportError::ResponseTimeout,
+                ))) => break None,
+                Err(error) => return Err(error),
+            };
+            match graph["@type"].as_str() {
+                Some("statisticalGraphData" | "statisticalGraphError") => {
+                    for seen in &lineage {
+                        resolved.insert(seen.clone(), graph.clone());
+                    }
+                    break Some(graph);
+                }
+                Some("statisticalGraphAsync") => {
+                    token = required_string(&graph, "token", "getStatisticalGraph")?.to_owned();
+                }
+                _ => {
+                    return Err(ChatWorkflowError::UnexpectedResult {
+                        method: "getStatisticalGraph",
+                    });
+                }
+            }
+        };
+        if let Some(graph) = terminal {
+            replace_async_graph(&mut statistics, &initial, &graph);
+        } else {
+            unresolved.insert(initial.clone());
+        }
+        graph_lineage.insert(initial, lineage);
+    }
+    Ok(StatisticsSnapshot {
+        statistics,
+        graph_lineage,
+        complete: unresolved.is_empty(),
+        unresolved_tokens: unresolved.into_iter().collect(),
+        capability_sequence,
+        observed_at: SystemTime::now(),
+        freshness: Freshness::ServerSnapshot,
+    })
+}
+
+fn collect_async_tokens(
+    value: &Value,
+    tokens: &mut BTreeSet<String>,
+) -> Result<(), ChatWorkflowError> {
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                collect_async_tokens(value, tokens)?;
+            }
+        }
+        Value::Object(object)
+            if object.get("@type").and_then(Value::as_str) == Some("statisticalGraphAsync") =>
+        {
+            tokens.insert(required_string(value, "token", "getChatStatistics")?.to_owned());
+        }
+        Value::Object(object) => {
+            for value in object.values() {
+                collect_async_tokens(value, tokens)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn replace_async_graph(value: &mut Value, token: &str, graph: &Value) {
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                replace_async_graph(value, token, graph);
+            }
+        }
+        Value::Object(object)
+            if object.get("@type").and_then(Value::as_str) == Some("statisticalGraphAsync")
+                && object.get("token").and_then(Value::as_str) == Some(token) =>
+        {
+            *value = graph.clone();
+        }
+        Value::Object(object) => {
+            for value in object.values_mut() {
+                replace_async_graph(value, token, graph);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn chat_history_with(
@@ -769,6 +1104,16 @@ fn required_i64(
         .ok_or(ChatWorkflowError::InvalidResult { method, field })
 }
 
+fn required_string<'value>(
+    value: &'value Value,
+    field: &'static str,
+    method: &'static str,
+) -> Result<&'value str, ChatWorkflowError> {
+    value[field]
+        .as_str()
+        .ok_or(ChatWorkflowError::InvalidResult { method, field })
+}
+
 fn optional_nonzero_i64(
     value: &Value,
     field: &'static str,
@@ -793,6 +1138,12 @@ pub enum ChatWorkflowError {
     UnexpectedResult {
         method: &'static str,
     },
+    PrerequisiteMissing {
+        prerequisite: &'static str,
+    },
+    CapabilityDenied {
+        capability: &'static str,
+    },
     InvalidTarget,
     InvalidLimit,
     InvalidPageOptions,
@@ -813,10 +1164,16 @@ impl fmt::Display for ChatWorkflowError {
             Self::UnexpectedResult { method } => {
                 write!(formatter, "TDLib `{method}` returned an unexpected result")
             }
+            Self::PrerequisiteMissing { prerequisite } => {
+                write!(formatter, "required cached `{prerequisite}` is missing")
+            }
+            Self::CapabilityDenied { capability } => {
+                write!(formatter, "TDLib capability `{capability}` is unavailable")
+            }
             Self::InvalidTarget => formatter.write_str("chat target is invalid or ambiguous"),
             Self::InvalidLimit => formatter.write_str("chat list load limit must be positive"),
             Self::InvalidPageOptions => {
-                formatter.write_str("message count and page limit must be within bounds")
+                formatter.write_str("requested count and page limit must be within bounds")
             }
         }
     }
@@ -831,6 +1188,8 @@ impl Error for ChatWorkflowError {
             Self::Tdlib { .. }
             | Self::InvalidResult { .. }
             | Self::UnexpectedResult { .. }
+            | Self::PrerequisiteMissing { .. }
+            | Self::CapabilityDenied { .. }
             | Self::InvalidTarget
             | Self::InvalidLimit
             | Self::InvalidPageOptions => None,
@@ -1119,5 +1478,149 @@ mod tests {
         .unwrap();
         assert_eq!(exhausted.boundary, PageBoundary::Exhausted);
         assert!(exhausted.complete);
+    }
+
+    #[test]
+    fn members_continue_after_short_page_and_stop_without_progress() {
+        let mut offsets = Vec::new();
+        let complete = supergroup_members_with(
+            MembersQuery {
+                supergroup_id: 7,
+                count: 3,
+                page_limit: 200,
+            },
+            true,
+            11,
+            |request| {
+                let offset = request["offset"].as_i64().unwrap();
+                offsets.push(offset);
+                workflow_object(if offset == 0 {
+                    json!({"@type":"chatMembers","total_count":3,"members":[
+                        {"@type":"chatMember","member_id":{"@type":"messageSenderUser","user_id":1}}
+                    ]})
+                } else {
+                    json!({"@type":"chatMembers","total_count":3,"members":[
+                        {"@type":"chatMember","member_id":{"@type":"messageSenderUser","user_id":2}},
+                        {"@type":"chatMember","member_id":{"@type":"messageSenderUser","user_id":3}}
+                    ]})
+                })
+            },
+        )
+        .unwrap();
+        assert_eq!(offsets, [0, 1]);
+        assert_eq!(complete.boundary, PageBoundary::Count);
+        assert_eq!(complete.members.len(), 3);
+        assert_eq!(complete.capability_sequence, 11);
+        assert!(complete.complete);
+
+        let partial = supergroup_members_with(
+            MembersQuery {
+                supergroup_id: 7,
+                count: 3,
+                page_limit: 200,
+            },
+            true,
+            12,
+            |_| workflow_object(json!({"@type":"chatMembers","total_count":3,"members":[]})),
+        )
+        .unwrap();
+        assert_eq!(partial.boundary, PageBoundary::NoProgress);
+        assert!(!partial.complete);
+    }
+
+    #[test]
+    fn statistics_follow_async_lineage_to_terminal_graph() {
+        let mut calls = Vec::new();
+        let result = chat_statistics_with(7, false, true, 13, |method, request| {
+            calls.push((method, request["token"].as_str().map(str::to_owned)));
+            workflow_object(match method {
+                "getChatStatistics" => json!({
+                    "@type":"chatStatisticsChannel",
+                    "views_by_source_graph":{"@type":"statisticalGraphAsync","token":"first"}
+                }),
+                "getStatisticalGraph" if request["token"] == "first" => {
+                    json!({"@type":"statisticalGraphAsync","token":"second"})
+                }
+                "getStatisticalGraph" => {
+                    json!({"@type":"statisticalGraphData","json_data":"{}","zoom_token":""})
+                }
+                _ => unreachable!(),
+            })
+        })
+        .unwrap();
+
+        assert_eq!(
+            calls,
+            [
+                ("getChatStatistics", None),
+                ("getStatisticalGraph", Some("first".to_owned())),
+                ("getStatisticalGraph", Some("second".to_owned()))
+            ]
+        );
+        assert_eq!(result.graph_lineage["first"], ["first", "second"]);
+        assert_eq!(
+            result.statistics["views_by_source_graph"]["@type"],
+            "statisticalGraphData"
+        );
+        assert!(result.unresolved_tokens.is_empty());
+        assert!(result.complete);
+    }
+
+    #[test]
+    fn repeated_or_timed_out_graph_token_is_partial() {
+        let repeated = chat_statistics_with(7, false, true, 14, |method, _| {
+            workflow_object(if method == "getChatStatistics" {
+                json!({"@type":"chatStatisticsChannel","graph":{"@type":"statisticalGraphAsync","token":"same"}})
+            } else {
+                json!({"@type":"statisticalGraphAsync","token":"same"})
+            })
+        })
+        .unwrap();
+        assert_eq!(repeated.unresolved_tokens, ["same"]);
+        assert_eq!(repeated.graph_lineage["same"], ["same"]);
+        assert!(!repeated.complete);
+
+        let timed_out = chat_statistics_with(7, false, true, 15, |method, _| {
+            if method == "getChatStatistics" {
+                workflow_object(json!({"@type":"chatStatisticsChannel","graph":{"@type":"statisticalGraphAsync","token":"late"}}))
+            } else {
+                Err(ChatWorkflowError::Call(RawApiError::Transport(
+                    TransportError::ResponseTimeout,
+                )))
+            }
+        })
+        .unwrap();
+        assert_eq!(timed_out.unresolved_tokens, ["late"]);
+        assert!(!timed_out.complete);
+    }
+
+    #[test]
+    fn missing_capability_is_denied_before_dispatch() {
+        let members = supergroup_members_with(
+            MembersQuery {
+                supergroup_id: 7,
+                count: 1,
+                page_limit: 1,
+            },
+            false,
+            1,
+            |_| unreachable!(),
+        )
+        .unwrap_err();
+        assert!(matches!(
+            members,
+            ChatWorkflowError::CapabilityDenied {
+                capability: "can_get_members"
+            }
+        ));
+
+        let statistics =
+            chat_statistics_with(7, false, false, 1, |_, _| unreachable!()).unwrap_err();
+        assert!(matches!(
+            statistics,
+            ChatWorkflowError::CapabilityDenied {
+                capability: "can_get_statistics"
+            }
+        ));
     }
 }

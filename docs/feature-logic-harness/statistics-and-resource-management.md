@@ -62,7 +62,9 @@ Check `can_get_statistics`/method-specific availability, channel role, time rang
 
 ## Live Verification Boundary
 
-Account access is proven, but no channel/statistics query has yet been executed in this project. P10 needs owned/test channels with known ranges.
+Pure core tests prove capability denial before dispatch, async-token traversal to
+data/error, token-lineage preservation and partial results on repeat/deadline. No live
+channel/statistics query has yet been executed; P10 needs owned/test channels with known ranges.
 
 ## Scope
 
@@ -155,8 +157,9 @@ Account access is proven, but no channel/statistics query has yet been executed 
 
 ## Coverage Notes
 
-- Kernel coverage: request chains, graphs, freshness and resource effects modeled.
+- Kernel coverage: chat statistics capability, graph traversal, lineage and snapshot
+  freshness implemented; resource effects remain modeled.
 - Modeled: principal statistics/resource families.
-- Partial: exact schema mapping and live fixtures.
+- Partial: other statistics/resource families, export UX and live fixtures.
 - Unknown: final export UX.
 - Not applicable: browser rendering.

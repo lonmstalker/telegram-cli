@@ -2,13 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] resolved | P-20260715-007 | Ordinary-only method возвращён в deferred
-
-- Evidence: contract row удалён, exhaustive test включает method в deferred, full generator oracle даёт supported 63/terminal 66/open 127.
-- Resolution: broad claim удалён; runtime false positive невозможен через W024 contract.
-- Status: resolved for current implementation. Отсутствующий ordinary-supergroup predicate остаётся честной причиной deferred state в [P-20260715-005](../problems/problems.md).
-- Related decisions: corrected [D-20260715-020](../decisions/decisions.md).
-
 ## [2026-07-15] open correction | P-20260715-005 | Supergroup setting rights уменьшают open set до 127 methods
 
 - Corrects: preceding 126-method transition, основанный на broad ordinary-supergroup claim.
@@ -161,3 +154,10 @@ Active append-only problem lifecycle. Status changes добавляются но
 ## [2026-07-15] link correction | P-20260715-005 | D020 split
 
 - Shard-012 D020 resolves [base](../decisions/archive/2026-07-15--2026-07-15-022.md) + [accepted correction](../decisions/decisions.md); open 122.
+
+## [2026-07-15] open update | P-20260715-005 | RTMP replacement уменьшил open set до 121
+
+- Evidence: [replacement digest](../raw/2026-07-15-tdlib-video-chat-rtmp-replacement-capability.md); open SHA-256 `f12c4e511942b14979dc26a17bc4797ff05bbcaceda7f45625829960222faf0c`.
+- Transition: exact regular-user, three-kind owner revoke contract; supported 69, terminal 72, format `8`.
+- Status/next: open at 121; продолжать exact handler tasks, runtime owner/read evidence fail closed на stale/gap.
+- Decision: [D-20260715-028](../decisions/decisions.md).

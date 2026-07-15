@@ -46,10 +46,11 @@
 - [TDLib unpinChatMessage overclaim correction](../raw/2026-07-15-tdlib-unpin-chat-message-overclaim-correction.md) — hidden account/subtype/message branches возвращают incomplete real-method DNF в deferred; open set 124.
 - [TDLib chat invite-link counts capability](../raw/2026-07-15-tdlib-chat-invite-link-counts-capability.md) — exact regular-user, three-kind owner contract в existing invite-link module; open set 123.
 - [TDLib video chat RTMP access capability](../raw/2026-07-15-tdlib-video-chat-rtmp-access-capability.md) — exact regular-user, three-kind `can_manage_video_chats` contract; dialog read access остаётся runtime boundary, open set 122.
+- [TDLib video chat RTMP replacement capability](../raw/2026-07-15-tdlib-video-chat-rtmp-replacement-capability.md) — exact regular-user, three-kind owner revoke contract; shared admin precheck не ослабляет public owner boundary, open set 121.
 
 ## Current records
 
-- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option/username-owner/invite-link/chat-setting/supergroup-subtype/chat-event-log/video-chat-streaming semantics, planning-taxonomy/unpin corrections и macOS native pin закрыты через `W-20260715-031`; 122 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
+- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option/username-owner/invite-link/chat-setting/supergroup-subtype/chat-event-log/video-chat-streaming semantics, planning-taxonomy/unpin corrections и macOS native pin закрыты через `W-20260715-032`; 121 typed disposition, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
 - Native pin: [reviewed rebuild correction](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — exact source/schema и crash-safe macOS arm64 artifact закреплены; Linux/reproducibility остаются open.
 - Decision: [D-20260715-001](../decisions/archive/2026-07-15--2026-07-15-001.md) — раздельная memory model, rotation и secret boundary.
 - Decision: [D-20260715-002](../decisions/archive/2026-07-15--2026-07-15-002.md) — публичный GitHub remote принят как canonical `origin`.
@@ -78,9 +79,10 @@
 - Decision: [D-20260715-025](../decisions/decisions.md) — `unpinChatMessage` остаётся deferred, пока grammar не выражает account/subtype/message branches deeper handler.
 - Decision: [D-20260715-026](../decisions/decisions.md) — invite-link `RequiredAccess` связывает owner/admin semantics с account scope, DNF и exact consumed keys.
 - Decision: [D-20260715-027](../decisions/decisions.md) — RTMP access pin-ит regular-user, chat-kind и `can_manage_video_chats` prerequisites без invented call-state gates.
+- Decision: [D-20260715-028](../decisions/decisions.md) — RTMP revoke использует stricter owner contract поверх shared local administrator precheck.
 - Open problem: [P-20260715-001](../problems/problems.md) — database key ещё не подключён к штатному gateway.
 - Open problem: [P-20260715-003](../problems/problems.md) — Linux x86_64 native artifact ещё не закреплён.
-- Open problem: [P-20260715-005](../problems/problems.md) — 122 pinned runtime-signal methods ещё не имеют typed disposition.
+- Open problem: [P-20260715-005](../problems/problems.md) — 121 pinned runtime-signal method ещё не имеет typed disposition.
 
 ## Operating rules
 

@@ -102,3 +102,12 @@ Active append-only decision records. Изменение решения офор�
 ## [2026-07-15] split link correction | D-20260715-020 | Base и correction
 
 - [Historical base](archive/2026-07-15--2026-07-15-022.md) исправлена [accepted correction](decisions.md); current claims используют correction.
+
+## [2026-07-15] accepted | D-20260715-028 | RTMP revoke требует owner поверх shared precheck
+
+- Context: revoke использует общий handler с `can_manage_video_chats`, но exact public contract требует owner.
+- Decision: `RequiredAccess::Owner` задаёт regular-user и three-kind `ChatOwner` DNF; owner имплицирует manage right, поэтому второй atom не дублируется. Active-call/RTMP-state predicates не изобретаются.
+- Runtime rule: owner/kind/read-access evidence current и session-bound; stale/gap fail closed, static pass не обещает server success.
+- Evidence: [replacement digest](../raw/2026-07-15-tdlib-video-chat-rtmp-replacement-capability.md), pinned sources, exact tests/oracles, independent `APPROVED`.
+- Consequences: supported 68→69, terminal 71→72, open 122→121; format `8`.
+- Extends: [D-20260715-027](decisions.md); full corpus/evaluator остаются open.

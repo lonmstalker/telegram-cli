@@ -1446,8 +1446,8 @@ fn documented_runtime_requirements(
     if supergroup_username_contract.is_some() {
         expected_consumed.extend(supergroup_username_consumed_signal_keys());
     }
-    if video_chat_streaming_contract.is_some() {
-        expected_consumed.extend(video_chat_streaming_consumed_signal_keys());
+    if let Some(contract) = video_chat_streaming_contract {
+        expected_consumed.extend(video_chat_streaming_consumed_signal_keys(contract));
     }
     if consumed != expected_consumed {
         return Err(unsupported_runtime_documentation(
@@ -1502,12 +1502,21 @@ fn documented_runtime_requirements(
         documented_chat_setting_clauses(method, contract)?
     } else if let Some(contract) = video_chat_streaming_contract {
         let target = documented_chat_target(method)?;
-        chat_kind_clauses(&target, contract.supported_chat_kinds(), |target| {
-            RuntimeRequirement::ChatAdministratorRight {
-                target: target.clone(),
-                right: contract.required_right(),
-            }
-        })?
+        chat_kind_clauses(
+            &target,
+            contract.supported_chat_kinds(),
+            |target| match contract.required_access() {
+                video_chat_streaming::RequiredAccess::AdministratorRight(right) => {
+                    RuntimeRequirement::ChatAdministratorRight {
+                        target: target.clone(),
+                        right,
+                    }
+                }
+                video_chat_streaming::RequiredAccess::Owner => RuntimeRequirement::ChatOwner {
+                    target: target.clone(),
+                },
+            },
+        )?
     } else {
         let Some(contract) = runtime_contract else {
             return Err(unsupported_runtime_documentation(
@@ -1840,17 +1849,25 @@ fn chat_event_log_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
     .collect()
 }
 
-fn video_chat_streaming_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
-    [
-        RuntimeSignalFamily::AdministratorRightPhrase,
-        RuntimeSignalFamily::RequiresRightPhrase,
-    ]
-    .into_iter()
-    .map(|family| RuntimeSignalKey {
-        source: RuntimeSignalSource::Description,
-        family,
-    })
-    .collect()
+fn video_chat_streaming_consumed_signal_keys(
+    contract: &video_chat_streaming::VideoChatStreamingContract,
+) -> BTreeSet<RuntimeSignalKey> {
+    let families = match contract.required_access() {
+        video_chat_streaming::RequiredAccess::AdministratorRight(_) => vec![
+            RuntimeSignalFamily::AdministratorRightPhrase,
+            RuntimeSignalFamily::RequiresRightPhrase,
+        ],
+        video_chat_streaming::RequiredAccess::Owner => {
+            vec![RuntimeSignalFamily::RequiresOwnerPrivileges]
+        }
+    };
+    families
+        .into_iter()
+        .map(|family| RuntimeSignalKey {
+            source: RuntimeSignalSource::Description,
+            family,
+        })
+        .collect()
 }
 
 fn supergroup_username_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
@@ -3103,8 +3120,8 @@ fn documented_runtime_signal_dispositions(
     if let Some(contract) = reviewed_chat_setting_contract(method)? {
         consumed.extend(chat_setting_consumed_signal_keys(contract));
     }
-    if reviewed_video_chat_streaming_contract(method)?.is_some() {
-        consumed.extend(video_chat_streaming_consumed_signal_keys());
+    if let Some(contract) = reviewed_video_chat_streaming_contract(method)? {
+        consumed.extend(video_chat_streaming_consumed_signal_keys(contract));
     }
     runtime_signal_dispositions_with_consumed(method, &consumed)
 }

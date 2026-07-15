@@ -7,6 +7,8 @@ use telegram_core::raw_api::RawPolicy;
 use telegram_core::registry::{AccountKind, RiskClass};
 use telegram_protocol::{LeaseErrorCode, LeaseId, LeaseView, RiskScope};
 
+use crate::telemetry::Telemetry;
+
 const MAX_LEASE_TTL_MS: u64 = 60_000;
 
 struct LeaseRecord {
@@ -21,6 +23,7 @@ pub struct LeaseManager {
     next_id: u64,
     leases: HashMap<LeaseId, LeaseRecord>,
     allowed_scopes: BTreeSet<RiskScope>,
+    telemetry: Telemetry,
 }
 
 impl Default for LeaseManager {
@@ -31,20 +34,37 @@ impl Default for LeaseManager {
 
 impl LeaseManager {
     pub fn new(allowed_scopes: impl IntoIterator<Item = RiskScope>) -> Self {
+        Self::with_telemetry(allowed_scopes, Telemetry::default())
+    }
+
+    pub fn with_telemetry(
+        allowed_scopes: impl IntoIterator<Item = RiskScope>,
+        telemetry: Telemetry,
+    ) -> Self {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos();
         let epoch = nanos ^ ((std::process::id() as u128) << 64);
-        Self::with_epoch(epoch, allowed_scopes)
+        Self::with_epoch_and_telemetry(epoch, allowed_scopes, telemetry)
     }
 
+    #[cfg(test)]
     fn with_epoch(epoch: u128, allowed_scopes: impl IntoIterator<Item = RiskScope>) -> Self {
+        Self::with_epoch_and_telemetry(epoch, allowed_scopes, Telemetry::default())
+    }
+
+    fn with_epoch_and_telemetry(
+        epoch: u128,
+        allowed_scopes: impl IntoIterator<Item = RiskScope>,
+        telemetry: Telemetry,
+    ) -> Self {
         Self {
             epoch,
             next_id: 1,
             leases: HashMap::new(),
             allowed_scopes: allowed_scopes.into_iter().collect(),
+            telemetry,
         }
     }
 
@@ -80,6 +100,7 @@ impl LeaseManager {
         };
         let view = snapshot(&id, &record, now);
         self.leases.insert(id, record);
+        self.telemetry.observe_leases(self.leases.len());
         Ok(view)
     }
 
@@ -118,12 +139,14 @@ impl LeaseManager {
             return Err(LeaseErrorCode::PrincipalMismatch);
         }
         self.leases.remove(lease_id);
+        self.telemetry.observe_leases(self.leases.len());
         Ok(())
     }
 
     pub fn expire(&mut self, now: Instant) -> usize {
         let before = self.leases.len();
         self.leases.retain(|_, lease| lease.expires_at > now);
+        self.telemetry.observe_leases(self.leases.len());
         before - self.leases.len()
     }
 

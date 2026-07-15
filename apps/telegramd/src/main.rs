@@ -17,6 +17,7 @@ pub mod ownership;
 pub mod scheduler;
 pub mod server;
 pub mod socket;
+pub mod telemetry;
 
 use config::DaemonConfig;
 use lease::LeaseManager;
@@ -24,6 +25,7 @@ use lifecycle::Lifecycle;
 use ownership::ProfileDatabaseLock;
 use server::LeaseServer;
 use socket::DaemonSocket;
+use telemetry::{AuditLog, Telemetry};
 
 fn main() -> ExitCode {
     match run() {
@@ -48,6 +50,11 @@ fn run() -> Result<(), Box<dyn Error>> {
             .canonical_database_directory()
             .join(".telegramd-idempotency.jsonl"),
     )?;
+    let _audit_log = AuditLog::open(
+        ownership
+            .canonical_database_directory()
+            .join(".telegramd-audit.jsonl"),
+    )?;
     let socket = DaemonSocket::bind(&ownership)?;
     let mut lifecycle = Lifecycle::new(config.idle_timeout());
     lifecycle.start()?;
@@ -63,7 +70,10 @@ fn run() -> Result<(), Box<dyn Error>> {
     lifecycle.ready(std::time::Instant::now())?;
     eprintln!("telegramd: Ready");
 
-    let server = LeaseServer::new(LeaseManager::new(risk_scopes));
+    let server = LeaseServer::new(LeaseManager::with_telemetry(
+        risk_scopes,
+        Telemetry::default(),
+    ));
     lifecycle::serve_until_idle(runtime, socket, server, &mut lifecycle)?;
     eprintln!("telegramd: Closed");
     Ok(())

@@ -108,7 +108,7 @@ flowchart LR
 | P2 | Singleton daemon и shared session lifecycle | accepted |
 | P3 | Полный generated raw API и capability-таблица | accepted |
 | P4 | Stateful request-chain engine | accepted |
-| P5 | Reliability, policy, limits и observability | pending |
+| P5 | Reliability, policy, limits и observability | accepted |
 | P6 | Полный CLI и компактный agent skill | pending |
 | P7 | Domain workflows по F007–F020 | pending |
 | P8 | Optional MCP | deferred until P0–P7 accepted |
@@ -216,14 +216,14 @@ flowchart LR
 - [x] Durable idempotency journal: fingerprint + pending/succeeded/failed/uncertain; reconciliation вместо blind retry.
 - [x] Risk scopes: read, presence, send, reversible mutation, admin, destructive, financial, auth/security.
 - [x] Preview -> plan hash -> external approval для опасных операций.
-- [ ] Metrics (latency, queue, retry/flood, update lag, freshness, leases) и redacted audit.
+- [x] Metrics (latency, queue, retry/flood, update lag, freshness, leases) и redacted audit.
 
 ### Acceptance
 
-- [ ] Write timeout не создаёт дубль — зачем: дубль-сообщение или двойное удаление — видимый пользователю ущерб; ядро promise продукта.
-- [ ] Read retry не выполняется раньше разрешённого delay — зачем: игнорирование flood wait ведёт к эскалации банов от Telegram.
-- [ ] Agent не может сам сфабриковать human approval — зачем: policy gate бессмыслен, если вызывающая сторона может его пройти сама.
-- [ ] Secret scanning и telemetry tests не находят sensitive values — зачем: metrics/audit — самый частый канал непреднамеренной утечки.
+- [x] Write timeout не создаёт дубль — зачем: дубль-сообщение или двойное удаление — видимый пользователю ущерб; ядро promise продукта.
+- [x] Read retry не выполняется раньше разрешённого delay — зачем: игнорирование flood wait ведёт к эскалации банов от Telegram.
+- [x] Agent не может сам сфабриковать human approval — зачем: policy gate бессмыслен, если вызывающая сторона может его пройти сама.
+- [x] Secret scanning и telemetry tests не находят sensitive values — зачем: metrics/audit — самый частый канал непреднамеренной утечки.
 
 ## P6 — CLI и компактный agent skill
 

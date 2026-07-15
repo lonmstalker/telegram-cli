@@ -46,10 +46,12 @@
 - Третий пункт P5 закрыт: owner-only durable journal fsync-ит fingerprint `pending/succeeded/failed/uncertain`, восстанавливает interrupted dispatch как uncertain и разрешает новый begin только после terminal или reconciled `NotApplied` proof ([D-20260715-062](../decisions/decisions.md)).
 - Четвёртый пункт P5 закрыт: protocol/lease используют восемь typed risk scopes; owner ceiling default-deny ограничивает requests, а generated method risk и действующий lease строят pre-dispatch `RawPolicy` ([D-20260715-063](../decisions/decisions.md)).
 - Пятый пункт P5 закрыт: high-risk request получает exact SHA-256 plan preview и dispatch-ится только с unexpired one-shot Ed25519 capability внешнего signer; daemon имеет только public key ([D-20260715-064](../decisions/decisions.md)).
+- Шестой пункт P5 закрыт: fixed-shape snapshot покрывает latency/outcome, queue, retry/flood, update lag, freshness и leases; audit JSONL хранит только generated method/risk и closed operational fields, а payload/identifiers отсутствуют по schema ([D-20260715-065](../decisions/decisions.md)).
+- P5 accepted: timeout/restart требует reconciliation до нового write, safe-read выдерживает supplied delay, approval невозможно подделать daemon-side, secret-output и telemetry canary tests green.
 
 ## Not implemented
 
-- P5–P10: reliability/policy expansion, CLI, domain workflows, optional MCP, packaging и live acceptance.
+- P6–P10: CLI, domain workflows, optional MCP, packaging и live acceptance.
 
 ## Active boundary
 
@@ -58,4 +60,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: шестой Tasks-пункт P5 — metrics и redacted audit.
+- Следующий implementation boundary: первый Tasks-пункт P6 — CLI session/status/login/hold/release, schema, call, workflow и events/watch.

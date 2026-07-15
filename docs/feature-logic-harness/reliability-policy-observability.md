@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: safety rules; limits: none.
 - SRC002: HARNESS.md; type: file; supports: retry/policy/metrics invariants; limits: none.
-- SRC003: plans.md P5; type: file; supports: classes/gates; limits: implementation absent.
+- SRC003: plans.md P5; type: file; supports: classes/gates и accepted kernel; limits: live domain verification belongs to P10.
 - SRC004: user request; type: supplied; supports: retries/limits/metrics requirement; limits: exact budgets unspecified.
 
 ## TDLib API Coverage
@@ -63,14 +63,13 @@ Scopes: read, presence, send, reversible mutation, admin, destructive, financial
 ## Live Verification Boundary
 
 P1 реализует transport deadlines/cancellation и native secret-output canary. P5 scheduler
-теперь имеет explicit account/chat/generated-risk queue/rate budgets и bounded flood delay
-with jitter. Core retry executor допускает только generated `safe_read` и `convergent`:
-read ждёт весь supplied server delay, convergent повторяет тот же request только после
-desired-state probe. Durable journal fsync-ит fingerprint state до/после dispatch и
-восстанавливает interrupted `pending` как `uncertain`. Production values и live FLOOD_WAIT
-ещё не измерены. Lease scopes теперь closed и ограничены owner ceiling; exact-plan
-Ed25519 approval проверяется до transport. Metrics exporter и full domain fault
-injection остаются следующими P5 slices.
+имеет explicit account/chat/generated-risk queue/rate budgets и bounded flood delay with
+jitter. Core retry executor допускает только generated `safe_read` и `convergent`; durable
+journal превращает timeout/restart в `uncertain` и требует reconciliation. Typed lease
+scopes и exact-plan Ed25519 approval проверяются до transport. Fixed-shape metrics покрывают
+latency/outcome, queue, retry/flood, update lag, freshness и leases; owner-only audit schema
+не содержит payload/identifier/error fields и проверена secret-shaped canary. Production
+budgets, exporter/status surface и live Telegram fault injection принадлежат P6/P10.
 
 ## Scope
 
@@ -163,8 +162,9 @@ injection остаются следующими P5 slices.
 ## Coverage Notes
 
 - Kernel coverage: generated risk/retry admission, eight typed lease scopes with owner ceiling,
-  exact-plan Ed25519 approval, queue/rate scopes, bounded retry и durable journal implemented.
+  exact-plan Ed25519 approval, queue/rate scopes, bounded retry, durable journal, fixed metrics
+  и redacted owner-only audit implemented; P5 Acceptance passed.
 - Modeled: protected operator UI/wire delivery and domain-specific reconciliation probes.
-- Partial: production budget values, workflow reconciliation wiring and exporter.
+- Partial: production budget values, domain workflow reconciliation wiring and P6 exporter/status surface.
 - Unknown: measured production thresholds.
 - Not applicable: domain-specific data shapes.

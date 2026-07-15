@@ -9,6 +9,8 @@ use std::time::{Duration, Instant, SystemTime};
 
 use telegram_core::registry::{self, CapabilityDisposition, RiskClass};
 
+use crate::telemetry::Telemetry;
+
 const RISK_CLASSES: [RiskClass; 8] = [
     RiskClass::Read,
     RiskClass::Presence,
@@ -87,6 +89,7 @@ struct SchedulerInner {
     state: Mutex<SchedulerState>,
     changed: Condvar,
     jitter_counter: AtomicU64,
+    telemetry: Telemetry,
 }
 
 #[derive(Default)]
@@ -116,6 +119,13 @@ struct DispatchStamp {
 
 impl AccountScheduler {
     pub fn new(budgets: SchedulerBudgets) -> Result<Self, SchedulerError> {
+        Self::with_telemetry(budgets, Telemetry::default())
+    }
+
+    pub fn with_telemetry(
+        budgets: SchedulerBudgets,
+        telemetry: Telemetry,
+    ) -> Result<Self, SchedulerError> {
         if RISK_CLASSES
             .iter()
             .any(|class| !budgets.method_classes.contains_key(class))
@@ -139,6 +149,7 @@ impl AccountScheduler {
                 }),
                 changed: Condvar::new(),
                 jitter_counter: AtomicU64::new(1),
+                telemetry,
             }),
         })
     }
@@ -152,6 +163,7 @@ impl AccountScheduler {
             .get(&context.method_class)
             .ok_or(SchedulerError::MissingMethodClassBudget)?;
         if state.queue.len() >= self.inner.budgets.account.max_queued.get() {
+            self.inner.telemetry.record_queue_rejection();
             return Err(SchedulerError::QueueBudgetExceeded(QueueDimension::Account));
         }
         if context.chat_id.is_some_and(|chat_id| {
@@ -162,6 +174,7 @@ impl AccountScheduler {
                 .count()
                 >= self.inner.budgets.chat.max_queued.get()
         }) {
+            self.inner.telemetry.record_queue_rejection();
             return Err(SchedulerError::QueueBudgetExceeded(QueueDimension::Chat));
         }
         if state
@@ -171,6 +184,7 @@ impl AccountScheduler {
             .count()
             >= method_budget.max_queued.get()
         {
+            self.inner.telemetry.record_queue_rejection();
             return Err(SchedulerError::QueueBudgetExceeded(
                 QueueDimension::MethodClass,
             ));
@@ -181,6 +195,7 @@ impl AccountScheduler {
             .checked_add(1)
             .ok_or(SchedulerError::TicketExhausted)?;
         state.queue.push_back(Waiter { ticket, context });
+        self.inner.telemetry.observe_queue(state.queue.len());
         self.inner.changed.notify_all();
         Ok(QueuedOperation {
             inner: Arc::clone(&self.inner),
@@ -215,6 +230,7 @@ impl AccountScheduler {
         scope: FloodScope,
         server_delay: Duration,
     ) -> Result<BackoffDecision, SchedulerError> {
+        self.inner.telemetry.record_flood(server_delay);
         let automatic_delay = self.automatic_delay(server_delay);
         let blocked_for = automatic_delay.unwrap_or(server_delay);
         let blocked_until = Instant::now()
@@ -317,6 +333,7 @@ impl QueuedOperation {
             .position(|waiter| waiter.ticket == self.ticket)
             .expect("queued scheduler ticket disappeared");
         state.queue.remove(position);
+        self.inner.telemetry.observe_queue(state.queue.len());
         match self.context.operation {
             OperationClass::Read => state.active_reads += 1,
             OperationClass::Mutation => state.mutation_active = true,
@@ -352,6 +369,7 @@ impl Drop for QueuedOperation {
             .position(|waiter| waiter.ticket == self.ticket)
         {
             state.queue.remove(position);
+            self.inner.telemetry.observe_queue(state.queue.len());
             self.inner.changed.notify_all();
         }
     }

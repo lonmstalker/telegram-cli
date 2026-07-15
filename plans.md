@@ -233,7 +233,7 @@ flowchart LR
 - [x] CLI schema search/describe и universal `td call` поверх того же daemon protocol.
 - [x] CLI routes для всех реализованных core workflows.
 - [x] CLI login и events/watch routes поверх authorization/update broker.
-- [ ] Human output и стабильный compact JSON/JSONL; versioned error/exit-code contract.
+- [x] Human output и стабильный compact JSON/JSONL; versioned error/exit-code contract.
 - [ ] Streaming, cancellation, signal-safe lease release.
 - [ ] Secure TTY для OTP/2FA; secrets никогда не flags.
 - [ ] Agent skill: acquire -> discover -> workflow/call -> follow next_action -> release; ≤1500 tokens, без каталога API.

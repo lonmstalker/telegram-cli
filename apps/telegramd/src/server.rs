@@ -265,7 +265,11 @@ impl LeaseServer {
                         .map(telegram_core::reducer::UpdateSequence::get),
                 );
                 match result {
-                    Ok(result) => DaemonResponse::WorkflowResult { workflow, result },
+                    Ok(output) => DaemonResponse::WorkflowResult {
+                        workflow,
+                        result: output.result,
+                        complete: output.complete,
+                    },
                     Err(error) => DaemonResponse::CommandError {
                         code: workflow_error(error),
                     },
@@ -443,49 +447,48 @@ fn run_workflow(
     name: &str,
     input: Value,
     deadline: Instant,
-) -> Result<Value, WorkflowDispatchError> {
+) -> Result<WorkflowOutput, WorkflowDispatchError> {
     match name {
         "resolve_chat" => {
             let input: TargetInput = parse(input)?;
-            serialize(workflows::resolve(
-                runtime,
-                policy,
-                input.target(),
-                deadline,
-            )?)
+            let result = workflows::resolve(runtime, policy, input.target(), deadline)?;
+            let complete = matches!(result.state, workflows::ResolutionState::Chat { .. });
+            output(result, complete)
         }
         "ensure_membership" => {
             let input: MembershipInput = parse(input)?;
-            serialize(workflows::ensure_membership(
-                runtime,
-                policy,
-                input.target(),
-                deadline,
-            )?)
+            let result = workflows::ensure_membership(runtime, policy, input.target(), deadline)?;
+            let complete = result.state.complete();
+            output(result, complete)
         }
         "load_chat_list" => {
             let input: ChatListInput = parse(input)?;
-            serialize(workflows::load_chat_list(
-                runtime,
-                policy,
-                input.list.into(),
-                input.limit,
-                deadline,
-            )?)
+            output(
+                workflows::load_chat_list(
+                    runtime,
+                    policy,
+                    input.list.into(),
+                    input.limit,
+                    deadline,
+                )?,
+                true,
+            )
         }
         "inspect_chat" => {
             let input: InspectInput = parse(input)?;
-            serialize(workflows::inspect_chat(
+            let result = workflows::inspect_chat(
                 runtime,
                 policy,
                 input.target.target(),
                 input.open,
                 deadline,
-            )?)
+            )?;
+            let complete = result.complete();
+            output(result, complete)
         }
         "chat_history" => {
             let input: HistoryInput = parse(input)?;
-            serialize(workflows::chat_history(
+            let result = workflows::chat_history(
                 runtime,
                 policy,
                 HistoryQuery {
@@ -494,11 +497,13 @@ fn run_workflow(
                     page: input.page.into(),
                 },
                 deadline,
-            )?)
+            )?;
+            let complete = result.complete;
+            output(result, complete)
         }
         "search_chat_messages" => {
             let input: SearchInput = parse(input)?;
-            serialize(workflows::search_chat_messages(
+            let result = workflows::search_chat_messages(
                 runtime,
                 policy,
                 ChatSearchQuery {
@@ -507,11 +512,13 @@ fn run_workflow(
                     page: input.page.into(),
                 },
                 deadline,
-            )?)
+            )?;
+            let complete = result.complete;
+            output(result, complete)
         }
         "supergroup_members" => {
             let input: MembersInput = parse(input)?;
-            serialize(workflows::supergroup_members(
+            let result = workflows::supergroup_members(
                 runtime,
                 policy,
                 MembersQuery {
@@ -520,25 +527,31 @@ fn run_workflow(
                     page_limit: input.page_limit,
                 },
                 deadline,
-            )?)
+            )?;
+            let complete = result.complete;
+            output(result, complete)
         }
         "chat_statistics" => {
             let input: StatisticsInput = parse(input)?;
-            serialize(workflows::chat_statistics(
+            let result = workflows::chat_statistics(
                 runtime,
                 policy,
                 input.chat_id,
                 input.is_dark,
                 deadline,
-            )?)
+            )?;
+            let complete = result.complete;
+            output(result, complete)
         }
         "resync_after_gap" => {
             let _: EmptyInput = parse(input)?;
-            serialize(workflows::resync_after_gap(runtime, policy, deadline)?)
+            let result = workflows::resync_after_gap(runtime, policy, deadline)?;
+            let complete = result.complete;
+            output(result, complete)
         }
         "download_file" => {
             let input: DownloadInput = parse(input)?;
-            serialize(workflows::download_file(
+            let result = workflows::download_file(
                 runtime,
                 policy,
                 DownloadQuery {
@@ -548,29 +561,35 @@ fn run_workflow(
                     limit: input.limit,
                 },
                 deadline,
-            )?)
+            )?;
+            let complete = result.complete;
+            output(result, complete)
         }
         "upload_sticker_file" => {
             let input: UploadInput = parse(input)?;
-            serialize(workflows::upload_sticker_file(
+            let result = workflows::upload_sticker_file(
                 runtime,
                 policy,
                 input.user_id,
                 input.format.into(),
                 input.source.as_core(),
                 deadline,
-            )?)
+            )?;
+            let complete = result.complete;
+            output(result, complete)
         }
         "start_bot" => {
             let input: StartBotInput = parse(input)?;
-            serialize(workflows::start_bot(
+            let result = workflows::start_bot(
                 runtime,
                 policy,
                 input.bot_user_id,
                 input.chat_id,
                 &input.parameter,
                 deadline,
-            )?)
+            )?;
+            let complete = result.complete;
+            output(result, complete)
         }
         "open_web_app" => {
             let input: WebAppInput = parse(input)?;
@@ -588,11 +607,15 @@ fn run_workflow(
             )?;
             let require_same_origin = lease.require_same_origin();
             let receipt = lease.wait_message_sent()?;
+            let complete = receipt.complete;
             lease.close()?;
-            Ok(json!({
-                "receipt": receipt,
-                "require_same_origin": require_same_origin,
-            }))
+            output(
+                json!({
+                    "receipt": receipt,
+                    "require_same_origin": require_same_origin,
+                }),
+                complete,
+            )
         }
         _ => Err(WorkflowDispatchError::Unknown),
     }
@@ -602,8 +625,19 @@ fn parse<T: DeserializeOwned>(input: Value) -> Result<T, WorkflowDispatchError> 
     serde_json::from_value(input).map_err(|_| WorkflowDispatchError::InvalidInput)
 }
 
-fn serialize(value: impl serde::Serialize) -> Result<Value, WorkflowDispatchError> {
-    Ok(serde_json::to_value(value).expect("workflow result is serializable"))
+struct WorkflowOutput {
+    result: Value,
+    complete: bool,
+}
+
+fn output(
+    value: impl serde::Serialize,
+    complete: bool,
+) -> Result<WorkflowOutput, WorkflowDispatchError> {
+    Ok(WorkflowOutput {
+        result: serde_json::to_value(value).expect("workflow result is serializable"),
+        complete,
+    })
 }
 
 enum WorkflowDispatchError {

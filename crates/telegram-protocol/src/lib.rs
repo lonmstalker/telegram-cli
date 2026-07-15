@@ -7,6 +7,8 @@ use serde_json::Value;
 use std::fmt;
 use std::str::FromStr;
 
+pub const MACHINE_PROTOCOL_VERSION: u16 = 1;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RiskScope {
@@ -162,6 +164,7 @@ pub enum DaemonResponse {
     WorkflowResult {
         workflow: String,
         result: Value,
+        complete: bool,
     },
     Events {
         events: Vec<EventRecord>,
@@ -263,4 +266,89 @@ pub enum LeaseErrorCode {
     LeaseExpired,
     PrincipalMismatch,
     IdentifierExhausted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClientErrorCode {
+    InvalidArguments,
+    InvalidJson,
+    InvalidOutputFormat,
+    InvalidProfile,
+    SocketUnavailable,
+    UnsafeSocket,
+    TransportFailed,
+    InvalidResponse,
+    OutputFailed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MachineEnvelope {
+    version: u16,
+    #[serde(flatten)]
+    outcome: MachineOutcome,
+}
+
+impl MachineEnvelope {
+    pub fn from_response(response: DaemonResponse) -> Self {
+        let outcome = match response {
+            DaemonResponse::CommandError { code } => MachineOutcome::Error {
+                error: MachineError::Command { code },
+            },
+            DaemonResponse::Error { code } => MachineOutcome::Error {
+                error: MachineError::Lease { code },
+            },
+            response @ DaemonResponse::WorkflowResult {
+                complete: false, ..
+            }
+            | response @ DaemonResponse::Events { gap: true, .. } => {
+                MachineOutcome::Partial { data: response }
+            }
+            response => MachineOutcome::Ok { data: response },
+        };
+        Self {
+            version: MACHINE_PROTOCOL_VERSION,
+            outcome,
+        }
+    }
+
+    pub fn client_error(code: ClientErrorCode) -> Self {
+        Self {
+            version: MACHINE_PROTOCOL_VERSION,
+            outcome: MachineOutcome::Error {
+                error: MachineError::Client { code },
+            },
+        }
+    }
+
+    pub fn status(&self) -> MachineStatus {
+        match &self.outcome {
+            MachineOutcome::Ok { .. } => MachineStatus::Ok,
+            MachineOutcome::Partial { .. } => MachineStatus::Partial,
+            MachineOutcome::Error { .. } => MachineStatus::Error,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineStatus {
+    Ok,
+    Partial,
+    Error,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+enum MachineOutcome {
+    Ok { data: DaemonResponse },
+    Partial { data: DaemonResponse },
+    Error { error: MachineError },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(tag = "domain", rename_all = "snake_case")]
+pub enum MachineError {
+    Command { code: CommandErrorCode },
+    Lease { code: LeaseErrorCode },
+    Client { code: ClientErrorCode },
 }

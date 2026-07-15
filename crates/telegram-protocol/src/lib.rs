@@ -82,6 +82,7 @@ impl LeaseId {
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DaemonRequest {
     SessionStatus,
+    LoginStatus,
     SchemaVersion,
     SchemaCapabilities,
     SchemaSearch {
@@ -101,6 +102,11 @@ pub enum DaemonRequest {
         principal: String,
         workflow: String,
         input: Value,
+    },
+    EventsWatch {
+        lease_id: LeaseId,
+        principal: String,
+        after: Option<u64>,
     },
     LeaseAcquire {
         principal: String,
@@ -129,19 +135,98 @@ pub struct LeaseView {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DaemonResponse {
-    SessionStatus { active_leases: usize },
-    SchemaVersion { version: Value },
-    SchemaCapabilities { capabilities: Value },
-    SchemaSearchResults { results: Value },
-    SchemaDescription { description: Value },
-    TdResult { result: Value },
-    WorkflowList { workflows: Vec<String> },
-    WorkflowResult { workflow: String, result: Value },
-    CommandError { code: CommandErrorCode },
-    LeaseGranted { lease: LeaseView },
-    LeaseRenewed { lease: LeaseView },
-    LeaseReleased { lease_id: LeaseId },
-    Error { code: LeaseErrorCode },
+    SessionStatus {
+        active_leases: usize,
+    },
+    LoginStatus {
+        state: LoginState,
+    },
+    SchemaVersion {
+        version: Value,
+    },
+    SchemaCapabilities {
+        capabilities: Value,
+    },
+    SchemaSearchResults {
+        results: Value,
+    },
+    SchemaDescription {
+        description: Value,
+    },
+    TdResult {
+        result: Value,
+    },
+    WorkflowList {
+        workflows: Vec<String>,
+    },
+    WorkflowResult {
+        workflow: String,
+        result: Value,
+    },
+    Events {
+        events: Vec<EventRecord>,
+        next_cursor: u64,
+        gap: bool,
+    },
+    CommandError {
+        code: CommandErrorCode,
+    },
+    LeaseGranted {
+        lease: LeaseView,
+    },
+    LeaseRenewed {
+        lease: LeaseView,
+    },
+    LeaseReleased {
+        lease_id: LeaseId,
+    },
+    Error {
+        code: LeaseErrorCode,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LoginState {
+    Parameters,
+    QrCode,
+    PhoneNumber,
+    PremiumPurchase,
+    Code,
+    Password,
+    EmailAddress,
+    EmailCode,
+    Registration,
+    Ready,
+    LoggingOut,
+    Closing,
+    Closed,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventRecord {
+    pub sequence: u64,
+    pub kind: EventKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EventKind {
+    Authorization,
+    User,
+    UserFullInfo,
+    Chat,
+    BasicGroup,
+    BasicGroupFullInfo,
+    Supergroup,
+    SupergroupFullInfo,
+    File,
+    Connection,
+    MessageSend,
+    WebAppMessage,
+    Unknown,
+    Gap,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

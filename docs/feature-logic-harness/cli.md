@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: CLI-first rule; limits: none.
 - SRC002: HARNESS.md; type: file; supports: full API/parity; limits: none.
-- SRC003: plans.md P6; type: file; supports: commands/acceptance; limits: login/events pending.
+- SRC003: plans.md P6; type: file; supports: commands/acceptance; limits: output/stream/secure input pending.
 
 ## TDLib API Coverage
 
@@ -63,8 +63,9 @@ Commands display capability/policy requirements. Auth secrets use protected TTY/
 Session, schema и raw call используют private daemon JSONL protocol. Один discoverable
 `workflow list/run` route покрывает все реализованные core workflows и передаёт им
 lease-derived policy; CLI не зависит от core и не открывает DB. Hold пока выдаёт bounded
-lease без heartbeat loop; login/events, formatting и signal cleanup принадлежат следующим
-P6 slices.
+lease без heartbeat loop. Login status использует typed authorization step без challenge
+values; one-shot events route переносит только sequence/kind/cursor/gap metadata. Formatting,
+streaming, secure input и signal cleanup принадлежат следующим P6 slices.
 
 ## Scope
 
@@ -155,8 +156,8 @@ P6 slices.
 
 ## Coverage Notes
 
-- Kernel coverage: session, full generated schema/raw-call и all implemented core workflow routes implemented; remaining login/events/output/cancellation modeled.
+- Kernel coverage: session, login status, full generated schema/raw-call, all implemented core workflow routes и cursor event metadata implemented; remaining output/stream/cancellation/secure input modeled.
 - Modeled: full raw/workflow reachability contract.
-- Partial: session/schema/raw-call/workflow grammar implemented; login/events and goldens absent.
+- Partial: session/login/schema/raw-call/workflow/events grammar implemented; streaming and output goldens absent.
 - Unknown: none blocking product intent.
 - Not applicable: TDLib domain semantics owned elsewhere.

@@ -49,6 +49,7 @@ fn command(arguments: &[String], principal: String) -> Result<DaemonRequest, Box
             Ok(DaemonRequest::SessionStatus)
         }
         [status] if status == "status" => Ok(DaemonRequest::SessionStatus),
+        [login] if login == "login" => Ok(DaemonRequest::LoginStatus),
         [schema, version] if schema == "schema" && version == "version" => {
             Ok(DaemonRequest::SchemaVersion)
         }
@@ -87,6 +88,20 @@ fn command(arguments: &[String], principal: String) -> Result<DaemonRequest, Box
                 input: serde_json::from_str(input)?,
             })
         }
+        [events, watch, lease_id] if events == "events" && watch == "watch" => {
+            Ok(DaemonRequest::EventsWatch {
+                lease_id: LeaseId::new(lease_id.clone()),
+                principal,
+                after: None,
+            })
+        }
+        [events, watch, lease_id, after] if events == "events" && watch == "watch" => {
+            Ok(DaemonRequest::EventsWatch {
+                lease_id: LeaseId::new(lease_id.clone()),
+                principal,
+                after: Some(after.parse()?),
+            })
+        }
         [session, hold] if session == "session" && hold == "hold" => {
             Ok(acquire(principal, "read", DEFAULT_TTL_MS)?)
         }
@@ -102,7 +117,7 @@ fn command(arguments: &[String], principal: String) -> Result<DaemonRequest, Box
                 principal,
             })
         }
-        _ => Err("usage: telegram-cli session ... | schema ... | td call <lease_id> <json> | workflow list|run ...".into()),
+        _ => Err("usage: telegram-cli login | session ... | schema ... | td call <lease_id> <json> | workflow list|run ... | events watch <lease_id> [cursor]".into()),
     }
 }
 
@@ -182,6 +197,10 @@ mod tests {
         assert_eq!(
             command(&["status".to_owned()], "cli".to_owned()).unwrap(),
             DaemonRequest::SessionStatus
+        );
+        assert_eq!(
+            command(&["login".to_owned()], "cli".to_owned()).unwrap(),
+            DaemonRequest::LoginStatus
         );
         assert_eq!(
             command(
@@ -264,6 +283,23 @@ mod tests {
                 lease_id: LeaseId::new("lease".to_owned()),
                 principal: "cli".to_owned(),
                 request: serde_json::json!({"@type": "getMe"}),
+            }
+        );
+        assert_eq!(
+            command(
+                &[
+                    "events".to_owned(),
+                    "watch".to_owned(),
+                    "lease".to_owned(),
+                    "42".to_owned(),
+                ],
+                "cli".to_owned(),
+            )
+            .unwrap(),
+            DaemonRequest::EventsWatch {
+                lease_id: LeaseId::new("lease".to_owned()),
+                principal: "cli".to_owned(),
+                after: Some(42),
             }
         );
     }

@@ -63,17 +63,33 @@ fn run() -> Result<(), Box<dyn Error>> {
     let database_key = config.load_database_key()?;
     let backend = config.load_native()?;
     let mut runtime = lifecycle::start_runtime(backend)?;
-    lifecycle::reach_ready(&mut runtime, &config, &database_key, &ownership)?;
+    let readiness = lifecycle::reach_ready(&mut runtime, &config, &database_key, &ownership)?;
     let risk_scopes = config.risk_scopes().collect::<Vec<_>>();
+    let expected_user_id = config.expected_user_id();
     drop(database_key);
     drop(config);
-    lifecycle.ready(std::time::Instant::now())?;
-    eprintln!("telegramd: Ready");
-
-    let server = LeaseServer::new(LeaseManager::with_telemetry(
+    let mut server = LeaseServer::new(LeaseManager::with_telemetry(
         risk_scopes,
         Telemetry::default(),
     ));
+    server.start_events_at(
+        runtime
+            .state()
+            .last_sequence()
+            .map(|sequence| sequence.get()),
+    );
+    if readiness == lifecycle::AuthorizationReadiness::InteractiveRequired {
+        lifecycle::serve_until_authorized(
+            &mut runtime,
+            &socket,
+            &mut server,
+            &ownership,
+            expected_user_id,
+        )?;
+    }
+    lifecycle.ready(std::time::Instant::now())?;
+    eprintln!("telegramd: Ready");
+
     lifecycle::serve_until_idle(runtime, socket, server, &mut lifecycle)?;
     eprintln!("telegramd: Closed");
     Ok(())

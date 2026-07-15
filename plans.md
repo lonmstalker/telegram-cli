@@ -232,7 +232,7 @@ flowchart LR
 - [x] CLI session commands: status, hold и release поверх daemon protocol.
 - [x] CLI schema search/describe и universal `td call` поверх того же daemon protocol.
 - [x] CLI routes для всех реализованных core workflows.
-- [ ] CLI login и events/watch routes поверх authorization/update broker.
+- [x] CLI login и events/watch routes поверх authorization/update broker.
 - [ ] Human output и стабильный compact JSON/JSONL; versioned error/exit-code contract.
 - [ ] Streaming, cancellation, signal-safe lease release.
 - [ ] Secure TTY для OTP/2FA; secrets никогда не flags.

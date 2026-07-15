@@ -1,5 +1,6 @@
 //! Bounded JSONL lease protocol поверх private profile socket.
 
+use std::collections::VecDeque;
 use std::fmt;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -9,10 +10,13 @@ use std::time::{Duration, Instant};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
+use telegram_core::authorization::{
+    AuthorizationChallengeKind, AuthorizationMachine, AuthorizationStep,
+};
 use telegram_core::raw_api::{
     self, PolicyError, RawApiError, SchemaDescription, SchemaSearchResult,
 };
-use telegram_core::reducer::ChatList;
+use telegram_core::reducer::{AppliedUpdate, CachedUpdateKind, ChatList};
 use telegram_core::registry::{AccountKind, SymbolKind};
 use telegram_core::runtime::CoreRuntime;
 use telegram_core::workflows::{
@@ -20,13 +24,17 @@ use telegram_core::workflows::{
     InputFileSource, MembersQuery, MembershipTarget, PageOptions, StickerFormat, WebAppMode,
     WebAppRequest,
 };
-use telegram_protocol::{CommandErrorCode, DaemonRequest, DaemonResponse, LeaseErrorCode};
+use telegram_protocol::{
+    CommandErrorCode, DaemonRequest, DaemonResponse, EventKind, EventRecord, LeaseErrorCode,
+    LoginState,
+};
 
 use crate::lease::LeaseManager;
 
 const MAX_REQUEST_BYTES: u64 = 16 * 1024;
 const CLIENT_IO_TIMEOUT: Duration = Duration::from_secs(5);
 const CALL_TIMEOUT: Duration = Duration::from_secs(30);
+const EVENT_BUFFER_CAPACITY: usize = 1024;
 const WORKFLOWS: &[&str] = &[
     "resolve_chat",
     "ensure_membership",
@@ -45,11 +53,29 @@ const WORKFLOWS: &[&str] = &[
 
 pub struct LeaseServer {
     leases: LeaseManager,
+    ready: bool,
+    events: EventBuffer,
 }
 
 impl LeaseServer {
     pub fn new(leases: LeaseManager) -> Self {
-        Self { leases }
+        Self {
+            leases,
+            ready: true,
+            events: EventBuffer::new(EVENT_BUFFER_CAPACITY),
+        }
+    }
+
+    pub fn set_ready(&mut self, ready: bool) {
+        self.ready = ready;
+    }
+
+    pub fn start_events_at(&mut self, sequence: Option<u64>) {
+        self.events.start_at(sequence.unwrap_or_default());
+    }
+
+    pub fn record_event(&mut self, update: AppliedUpdate) {
+        self.events.record(update.sequence.get(), update.kind);
     }
 
     pub fn poll(
@@ -139,10 +165,23 @@ impl LeaseServer {
         runtime: Option<&mut CoreRuntime>,
         now: Instant,
     ) -> DaemonResponse {
+        if !self.ready
+            && matches!(
+                &request,
+                DaemonRequest::TdCall { .. } | DaemonRequest::WorkflowRun { .. }
+            )
+        {
+            return runtime_unavailable();
+        }
         match request {
             DaemonRequest::SessionStatus => DaemonResponse::SessionStatus {
                 active_leases: self.leases.active_count(),
             },
+            DaemonRequest::LoginStatus => {
+                runtime.map_or_else(runtime_unavailable, |runtime| DaemonResponse::LoginStatus {
+                    state: login_state(runtime),
+                })
+            }
             DaemonRequest::SchemaVersion => runtime.map_or_else(runtime_unavailable, |runtime| {
                 DaemonResponse::SchemaVersion {
                     version: serde_json::to_value(raw_api::version(runtime))
@@ -218,11 +257,36 @@ impl LeaseServer {
                     return runtime_unavailable();
                 };
                 let deadline = now.checked_add(CALL_TIMEOUT).unwrap_or(now);
-                match run_workflow(runtime, &policy, &workflow, input, deadline) {
+                let result = run_workflow(runtime, &policy, &workflow, input, deadline);
+                self.events.reconcile(
+                    runtime
+                        .state()
+                        .last_sequence()
+                        .map(telegram_core::reducer::UpdateSequence::get),
+                );
+                match result {
                     Ok(result) => DaemonResponse::WorkflowResult { workflow, result },
                     Err(error) => DaemonResponse::CommandError {
                         code: workflow_error(error),
                     },
+                }
+            }
+            DaemonRequest::EventsWatch {
+                lease_id,
+                principal,
+                after,
+            } => {
+                if let Err(code) =
+                    self.leases
+                        .raw_policy(&lease_id, &principal, AccountKind::RegularUser, now)
+                {
+                    return DaemonResponse::Error { code };
+                }
+                let (events, next_cursor, gap) = self.events.since(after);
+                DaemonResponse::Events {
+                    events,
+                    next_cursor,
+                    gap,
                 }
             }
             DaemonRequest::LeaseAcquire {
@@ -248,6 +312,128 @@ impl LeaseServer {
                 Err(code) => DaemonResponse::Error { code },
             },
         }
+    }
+}
+
+struct EventBuffer {
+    capacity: usize,
+    baseline: u64,
+    latest: u64,
+    events: VecDeque<EventRecord>,
+}
+
+impl EventBuffer {
+    fn new(capacity: usize) -> Self {
+        Self {
+            capacity,
+            baseline: 0,
+            latest: 0,
+            events: VecDeque::new(),
+        }
+    }
+
+    fn start_at(&mut self, sequence: u64) {
+        self.baseline = sequence;
+        self.latest = sequence;
+        self.events.clear();
+    }
+
+    fn record(&mut self, sequence: u64, kind: CachedUpdateKind) {
+        if sequence <= self.latest {
+            return;
+        }
+        if sequence != self.latest.saturating_add(1) {
+            self.push(EventRecord {
+                sequence,
+                kind: EventKind::Gap,
+            });
+            return;
+        }
+        self.push(EventRecord {
+            sequence,
+            kind: event_kind(kind),
+        });
+    }
+
+    fn reconcile(&mut self, sequence: Option<u64>) {
+        let Some(sequence) = sequence else {
+            return;
+        };
+        if sequence > self.latest {
+            self.push(EventRecord {
+                sequence,
+                kind: EventKind::Gap,
+            });
+        }
+    }
+
+    fn push(&mut self, event: EventRecord) {
+        self.latest = event.sequence;
+        self.events.push_back(event);
+        while self.events.len() > self.capacity {
+            if let Some(discarded) = self.events.pop_front() {
+                self.baseline = discarded.sequence;
+            }
+        }
+    }
+
+    fn since(&self, after: Option<u64>) -> (Vec<EventRecord>, u64, bool) {
+        let Some(after) = after else {
+            return (Vec::new(), self.latest, false);
+        };
+        let gap = after < self.baseline || after > self.latest;
+        let after = after.max(self.baseline);
+        let events = self
+            .events
+            .iter()
+            .copied()
+            .filter(|event| event.sequence > after)
+            .collect();
+        (events, self.latest, gap)
+    }
+}
+
+fn login_state(runtime: &CoreRuntime) -> LoginState {
+    let Some(state) = runtime.state().authorization() else {
+        return LoginState::Unknown;
+    };
+    let Ok(step) = AuthorizationMachine::default().observe_state(&state.value) else {
+        return LoginState::Unknown;
+    };
+    match step {
+        AuthorizationStep::ParametersRequired { .. } => LoginState::Parameters,
+        AuthorizationStep::Ready => LoginState::Ready,
+        AuthorizationStep::LoggingOut => LoginState::LoggingOut,
+        AuthorizationStep::Closing => LoginState::Closing,
+        AuthorizationStep::Closed => LoginState::Closed,
+        AuthorizationStep::Challenge(challenge) => match challenge.kind {
+            AuthorizationChallengeKind::PhoneNumber => LoginState::PhoneNumber,
+            AuthorizationChallengeKind::PremiumPurchase { .. } => LoginState::PremiumPurchase,
+            AuthorizationChallengeKind::EmailAddress { .. } => LoginState::EmailAddress,
+            AuthorizationChallengeKind::EmailCode { .. } => LoginState::EmailCode,
+            AuthorizationChallengeKind::AuthenticationCode(_) => LoginState::Code,
+            AuthorizationChallengeKind::OtherDeviceConfirmation { .. } => LoginState::QrCode,
+            AuthorizationChallengeKind::Registration(_) => LoginState::Registration,
+            AuthorizationChallengeKind::Password { .. } => LoginState::Password,
+        },
+    }
+}
+
+fn event_kind(kind: CachedUpdateKind) -> EventKind {
+    match kind {
+        CachedUpdateKind::Authorization => EventKind::Authorization,
+        CachedUpdateKind::User => EventKind::User,
+        CachedUpdateKind::UserFullInfo => EventKind::UserFullInfo,
+        CachedUpdateKind::Chat => EventKind::Chat,
+        CachedUpdateKind::BasicGroup => EventKind::BasicGroup,
+        CachedUpdateKind::BasicGroupFullInfo => EventKind::BasicGroupFullInfo,
+        CachedUpdateKind::Supergroup => EventKind::Supergroup,
+        CachedUpdateKind::SupergroupFullInfo => EventKind::SupergroupFullInfo,
+        CachedUpdateKind::File => EventKind::File,
+        CachedUpdateKind::Connection => EventKind::Connection,
+        CachedUpdateKind::MessageSend => EventKind::MessageSend,
+        CachedUpdateKind::WebAppMessage => EventKind::WebAppMessage,
+        CachedUpdateKind::Unknown => EventKind::Unknown,
     }
 }
 
@@ -863,6 +1049,37 @@ mod tests {
         drop(socket);
         drop(ownership);
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn event_cursor_reports_retention_and_unobserved_updates() {
+        let mut events = EventBuffer::new(2);
+        events.start_at(10);
+        assert_eq!(events.since(None), (Vec::new(), 10, false));
+
+        events.record(11, CachedUpdateKind::User);
+        events.record(12, CachedUpdateKind::Chat);
+        events.record(13, CachedUpdateKind::File);
+        assert_eq!(
+            events.since(Some(10)),
+            (
+                vec![
+                    EventRecord {
+                        sequence: 12,
+                        kind: EventKind::Chat,
+                    },
+                    EventRecord {
+                        sequence: 13,
+                        kind: EventKind::File,
+                    },
+                ],
+                13,
+                true,
+            )
+        );
+
+        events.reconcile(Some(15));
+        assert_eq!(events.events.back().unwrap().kind, EventKind::Gap);
     }
 
     fn exchange(

@@ -101,7 +101,7 @@ flowchart LR
 | Phase | Результат | Status |
 |---|---|---|
 | P0 | Контракт, repository skeleton и pinned schema | accepted |
-| P1 | Core transport, authorization и ordered updates | in_progress — transport/auth/key provider готовы, далее ordered reducer |
+| P1 | Core transport, authorization и ordered updates | in_progress — reducer/caches готовы, далее lossless unknown updates |
 | P2 | Singleton daemon и shared session lifecycle | pending |
 | P3 | Полный generated raw API и capability-таблица | pending |
 | P4 | Stateful request-chain engine | pending |
@@ -137,7 +137,7 @@ flowchart LR
 - [x] Прямой TDJSON transport, один receive loop и `@extra` correlation.
 - [x] Полная authorization state machine: QR/phone/code/2FA/email/device/registration branches.
 - [x] Database encryption key из file descriptor/file secret/OS keychain; wrong key fail-closed.
-- [ ] Ordered reducer и caches для auth, user, chat, basic/supergroup, file, connection и message send state.
+- [x] Ordered reducer и caches для auth, user, chat, basic/supergroup, file, connection и message send state.
 - [ ] Неизвестные updates сохраняются raw, без потери.
 - [ ] Deadlines, cancellation, startup `getCurrentState`, runtime version handshake.
 

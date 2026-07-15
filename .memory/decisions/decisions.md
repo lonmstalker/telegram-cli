@@ -60,3 +60,9 @@ Active append-only decision records. Изменение решения офор�
 - Core принимает database key только как owned file descriptor, strict owner-owned `0600` regular file без symlink traversal или OS keychain reference; raw bytes и временный Base64 encoder buffer живут в zeroizing storage, а request type redacted и не логируется.
 - Missing/empty key запрещён до `setTdlibParameters`: pinned TDLib иначе подставляет internal default key. `bytes` кодируются Base64 по pinned ClientJson codec, а не как plain JSON string.
 - TDLib error 401 latch-ит parameters generation: authorization machine не принимает phone/QR state до явной повторной подачи protected key. Profile выбирает source reference; default backend остаётся packaging decision, DB ownership — только у будущего daemon.
+
+## [2026-07-15] accepted | D-20260715-040 | Один transport-order sequence для core caches
+
+- `StateReducer` принимает updates непосредственно из ordered `TdJsonEvent` stream; один monotonic sequence штампует outcome и изменённую cache entry. Unmatched responses/fatal events в update order не входят.
+- Core caches сохраняют raw TDJSON objects и применяют только exact schema field patches. Partial user/chat update без гарантированного base entity fail-closed; message-send terminal state не регрессирует.
+- Unknown constructor уже занимает место в sequence, но raw persistence намеренно остаётся отдельным следующим Tasks-пунктом. Gap/resync и freshness не подменяются обычным sequence и остаются своим owner phases.

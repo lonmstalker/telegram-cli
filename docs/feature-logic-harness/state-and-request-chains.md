@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: complete/partial rule; limits: none.
 - SRC002: HARNESS.md; type: file; supports: update/cache invariants; limits: none.
-- SRC003: plans.md P4; type: file; supports: chain acceptance; limits: implementation absent.
+- SRC003: `plans.md` P1/P4 и `telegram-core::reducer`; type: file/code; supports: ordered transport-to-cache reducer and versioned core caches; limits: unknown raw preservation, gap/resync and workflow engine absent.
 - SRC004: official TDLib getting-started/schema; type: supplied; supports: ordered updates/loadChats/history semantics; limits: product envelope is local design.
 
 ## TDLib API Coverage
@@ -45,7 +45,7 @@ Each workflow declares method-specific terminal conditions. Short page, cached f
 
 ## Cache and Update Semantics
 
-One receiver applies updates in order to User/Chat/Group/File/Message/Auth caches. Lag emits gap, marks affected views partial and triggers bounded resync.
+One receiver applies updates in order to versioned User/Chat/Group/File/Message/Auth/Connection caches. Реализованный reducer выдаёт monotonic sequence в transport order; unknown raw preservation и lag/gap handling остаются следующими boundaries.
 
 ## Retry and Reconciliation
 
@@ -61,7 +61,7 @@ Graph checks rights/capability fields before protected steps and returns forbidd
 
 ## Live Verification Boundary
 
-Previous tg-analytics flows demonstrate resolver dependence; this project has not yet implemented or live-tested the generalized engine.
+Pure core tests подтверждают transport-order sequence, representative caches и terminal message-send state. Unknown raw persistence, generalized workflow engine и live reducer path ещё не реализованы.
 
 ## Scope
 
@@ -155,6 +155,5 @@ Previous tg-analytics flows demonstrate resolver dependence; this project has no
 
 - Kernel coverage: state/paging/gap/concurrency modeled.
 - Modeled: generic engine and result semantics.
-- Partial: domain completion rules live in F007–F020 drafts.
-- Unknown: implementation data structures.
+- Partial: ordered core caches реализованы; domain completion rules остаются в F007–F020 drafts, unknown raw, gap/resync, paging и workflow execution отсутствуют.
 - Not applicable: account secret entry.

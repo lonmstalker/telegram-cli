@@ -13,6 +13,7 @@
 - [TDJSON transport contract](../../docs/tdjson-transport.md)
 - [Authorization state machine contract](../../docs/authorization-state-machine.md)
 - [Database encryption key contract](../../docs/database-encryption-key.md)
+- [Ordered state reducer contract](../../docs/ordered-state-reducer.md)
 - [Current project state](project-state.md)
 
 ## Memory streams
@@ -34,7 +35,7 @@
 
 ## Current records
 
-- Implementation: P1 in_progress — transport/auth/key provider закрыты, следующий пункт ordered reducer/caches; см. [project-state.md](project-state.md).
+- Implementation: P1 in_progress — ordered reducer/caches закрыты, следующий пункт lossless unknown updates; см. [project-state.md](project-state.md).
 - Открытые проблемы: [P-20260715-001](../problems/problems.md) (gateway key wiring). Linux artifact закрыт в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -42,6 +43,7 @@
 - TDJSON transport: [D-20260715-037](../decisions/decisions.md), [W-20260715-042](../logs/work.md), [`docs/tdjson-transport.md`](../../docs/tdjson-transport.md).
 - Authorization machine: [D-20260715-038](../decisions/decisions.md), [W-20260715-043](../logs/work.md), [`docs/authorization-state-machine.md`](../../docs/authorization-state-machine.md).
 - Database key provider: [D-20260715-039](../decisions/decisions.md), [W-20260715-044](../logs/work.md), [`docs/database-encryption-key.md`](../../docs/database-encryption-key.md).
+- Ordered reducer: [D-20260715-040](../decisions/decisions.md), [W-20260715-045](../logs/work.md), [`docs/ordered-state-reducer.md`](../../docs/ordered-state-reducer.md).
 
 ## Operating rules
 

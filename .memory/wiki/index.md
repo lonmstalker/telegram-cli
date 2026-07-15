@@ -22,13 +22,15 @@
 - [Bootstrap source digest](../raw/2026-07-15-project-bootstrap.md)
 - [TDLib 1.8.66 schema pin digest](../raw/2026-07-15-tdlib-1.8.66-schema-pin.md)
 - [TDLib macOS arm64 reviewed rebuild](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — current artifact truth
+- [TDLib Linux x86_64 native build](../raw/2026-07-15-tdlib-1.8.66-native-linux-x86_64.md) — current artifact truth
 - [Schema parser/inventory digest](../raw/2026-07-15-tdlib-schema-parser-inventory.md)
 
 ## Current records
 
-- Implementation: P0 in_progress — остались Linux x86_64 target и выборочный перенос из `tg-analytics`; см. [project-state.md](project-state.md).
-- Открытые проблемы: [P-20260715-001](../problems/problems.md) (gateway key wiring), [P-20260715-003](../problems/problems.md) (Linux artifact).
+- Implementation: P0 in_progress — остался выборочный перенос из `tg-analytics`; см. [project-state.md](project-state.md).
+- Открытые проблемы: [P-20260715-001](../problems/problems.md) (gateway key wiring). Linux artifact закрыт в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
+- Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
 
 ## Operating rules
 

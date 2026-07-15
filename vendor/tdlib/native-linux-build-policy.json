@@ -1,0 +1,68 @@
+{
+  "format_version": 1,
+  "source_contract_sha256": "c680308c26290de3033250f522b301b98aabff6a37976416409587bcf0690541",
+  "builder": {
+    "platform": "linux/amd64",
+    "base_image": "debian:12-slim@sha256:63a496b5d3b99214b39f5ed70eb71a61e590a77979c79cbee4faf991f8c0783e",
+    "image_tag": "telegram-cli-tdlib-linux-builder:9cee1f42a109",
+    "image_id": "sha256:9cee1f42a1090e063c0cbf3328ddd291257dbd956af7b4786d926ce4d94ce080",
+    "packages": {
+      "binutils": "2.40-2",
+      "ca-certificates": "20230311+deb12u1",
+      "cmake": "3.25.1-1",
+      "file": "1:5.44-3",
+      "g++": "4:12.2.0-3",
+      "git": "1:2.39.5-0+deb12u3",
+      "gperf": "3.1-1",
+      "libssl-dev:amd64": "3.0.20-1~deb12u2",
+      "make": "4.3-4.1",
+      "pkg-config:amd64": "1.8.1-1",
+      "python3": "3.11.2-1+b1",
+      "zlib1g-dev:amd64": "1:1.2.13.dfsg-1"
+    }
+  },
+  "limits": {
+    "cpus": 4,
+    "memory_bytes": 6442450944,
+    "pids": 128,
+    "configure_seconds": 900,
+    "build_seconds": 5400,
+    "artifact_bytes": 67108864,
+    "build_tree_bytes": 4294967296,
+    "source_archive_bytes": 8388608,
+    "source_archive_members": 50000,
+    "source_archive_member_bytes": 16777216,
+    "source_archive_path_bytes": 512,
+    "source_archive_path_depth": 32,
+    "extracted_source_bytes": 268435456
+  },
+  "target": {
+    "triple": "x86_64-unknown-linux-gnu",
+    "cmake_generator": "Unix Makefiles",
+    "cmake_target": "tdjson",
+    "artifact_basename": "libtdjson.so.1.8.66",
+    "artifact_cache_directory": "target/tdlib-native/x86_64-unknown-linux-gnu/by-sha256",
+    "cmake_defines": [
+      "BUILD_TESTING=OFF",
+      "CCACHE_FOUND=CCACHE_FOUND-NOTFOUND",
+      "CMAKE_BUILD_TYPE=Release",
+      "CMAKE_FIND_USE_PACKAGE_REGISTRY=OFF",
+      "CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF",
+      "CMAKE_SKIP_RPATH=TRUE",
+      "MEMPROF=OFF",
+      "OPENSSL_USE_STATIC_LIBS=TRUE",
+      "TD_ENABLE_DOTNET=OFF",
+      "TD_ENABLE_JNI=OFF",
+      "TD_ENABLE_LTO=OFF",
+      "TD_INSTALL_SHARED_LIBRARIES=ON",
+      "TD_INSTALL_STATIC_LIBRARIES=OFF"
+    ],
+    "dynamic_dependencies": [
+      "libz.so.1",
+      "libstdc++.so.6",
+      "libm.so.6",
+      "libc.so.6",
+      "ld-linux-x86-64.so.2"
+    ]
+  }
+}

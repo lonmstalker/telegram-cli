@@ -22,7 +22,7 @@ source_of_truth: true
 - Cargo workspace из шести пакетов; границы защищены `scripts/check-workspace-boundaries.py`.
 - Pinned schema: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`, 1010 functions; gate `scripts/check-tdlib-pin.py`.
 - Strict schema parser и deterministic inventory в `crates/telegram-core/src/schema.rs`.
-- macOS arm64 `tdjson` artifact с provenance; gate `scripts/check-tdlib-native-pin.py`.
+- macOS arm64 и Linux x86_64 `tdjson` artifacts с provenance; gate `scripts/check-tdlib-native-pin.py`.
 - Ручное capability-ревью 74 методов сохранено в `docs/capability-notes.md`; documentation-recognizer engine удалён как переусложнение (см. git history).
 - Существующая зашифрованная TDLib-сессия ранее достигала Ready; database key получен, `.env.local` contract настроен.
 - Источник reusable решений: `tg-analytics/crates/telegram-tdlib` и `telegram-agent-gateway`; перенос выборочный, без копирования analytics-оркестрации.
@@ -99,7 +99,7 @@ flowchart LR
 
 | Phase | Результат | Status |
 |---|---|---|
-| P0 | Контракт, repository skeleton и pinned schema | in_progress — остались Linux target и перенос из tg-analytics |
+| P0 | Контракт, repository skeleton и pinned schema | in_progress — остался перенос из tg-analytics |
 | P1 | Core transport, authorization и ordered updates | pending |
 | P2 | Singleton daemon и shared session lifecycle | pending |
 | P3 | Полный generated raw API и capability-таблица | pending |
@@ -119,13 +119,13 @@ flowchart LR
 - [x] Exact TDLib commit/native build; `td_api.tl` + SHA-256 под gate.
 - [x] Schema parser и deterministic inventory.
 - [x] Ручное capability-ревью первых семейств; результаты в `docs/capability-notes.md`. Продолжение ревью — по потребности в P3+, пачками, без выделенных задач.
-- [ ] Определить supported targets: закрепить Linux x86_64 native artifact (macOS arm64 уже есть).
+- [x] Определить supported targets: закрепить Linux x86_64 native artifact (macOS arm64 уже есть).
 - [ ] Перенести только доказанно reusable части `tg-analytics`; не переносить NATS/Postgres/analytics orchestration.
 
 ### Acceptance
 
 - [x] CI обнаруживает любое schema/native drift — зачем: всё остальное (registry, policy, codec) строится на неизменности snapshot; один сломанный hash-gate дешевле тысяч defensive-тестов.
-- [ ] Оба target (macOS arm64, Linux x86_64) имеют pinned artifact с provenance — зачем: сервер деплоится на Linux; без этого P9 не начать.
+- [x] Оба target (macOS arm64, Linux x86_64) имеют pinned artifact с provenance — зачем: сервер деплоится на Linux; без этого P9 не начать.
 - [x] Planning IDs (F001–F022) отсутствуют в executable code — зачем: номера документации не должны становиться runtime-таксономией; это уже приводило к удалению 20k строк.
 - [ ] Account/session model принят до начала runtime — зачем: смена модели после P2 означает переписывание daemon.
 

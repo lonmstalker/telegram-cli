@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Проверяет exact native TDLib policy/provenance и опционально local dylib."""
+"""Проверяет exact native TDLib provenance для всех supported targets."""
 
 from __future__ import annotations
 
@@ -25,6 +25,14 @@ from tdlib_native import (
     shared_artifact_lock,
     sha256_file,
     validate_policy_contract,
+)
+from tdlib_linux_native import (
+    LINUX_PROVENANCE_PATH,
+    inspect_linux_artifact,
+    linux_artifact_cache_path,
+    linux_local_artifact_errors,
+    linux_provenance_errors,
+    load_linux_contracts,
 )
 
 
@@ -108,6 +116,31 @@ def negative_control_errors(
     return errors
 
 
+def linux_negative_control_errors(
+    policy: dict[str, object],
+    source: dict[str, object],
+    provenance: dict[str, object],
+) -> list[str]:
+    errors: list[str] = []
+    mutations = (
+        ("artifact hash", ("artifact", "sha256"), "0" * 64),
+        (
+            "dynamic dependency",
+            ("verification", "dynamic_dependencies", 0),
+            "libssl.so.3",
+        ),
+    )
+    for label, path, value in mutations:
+        candidate = copy.deepcopy(provenance)
+        cursor: object = candidate
+        for field in path[:-1]:
+            cursor = cursor[field]  # type: ignore[index]
+        cursor[path[-1]] = value  # type: ignore[index]
+        if not linux_provenance_errors(candidate, policy, source):
+            errors.append(f"negative control: Linux {label} mutation not detected")
+    return errors
+
+
 def main() -> int:
     arguments = parse_arguments()
     policy, schema_manifest = load_exact_contracts()
@@ -118,29 +151,49 @@ def main() -> int:
     )
     errors = provenance_errors(provenance, policy)
     errors.extend(negative_control_errors(policy, schema_manifest, provenance))
+    linux_policy, linux_source = load_linux_contracts()
+    linux_provenance = read_json_bounded(
+        LINUX_PROVENANCE_PATH, MAX_PROVENANCE_BYTES, "Linux native provenance"
+    )
+    errors.extend(
+        linux_provenance_errors(linux_provenance, linux_policy, linux_source)
+    )
+    errors.extend(
+        linux_negative_control_errors(
+            linux_policy, linux_source, linux_provenance
+        )
+    )
     if errors:
         raise NativeBuildError("; ".join(errors))
 
-    digest = provenance["artifact"]["sha256"]
+    macos_digest = provenance["artifact"]["sha256"]
+    linux_digest = linux_provenance["artifact"]["sha256"]
     if arguments.require_local_artifact:
         with shared_artifact_lock():
-            artifact = artifact_cache_path(policy, digest)
+            artifact = artifact_cache_path(policy, macos_digest)
             inspection = inspect_artifact(artifact, policy)
             errors = local_artifact_errors(provenance, inspection)
+            linux_artifact = linux_artifact_cache_path(linux_policy, linux_digest)
+            linux_inspection = inspect_linux_artifact(
+                linux_artifact, linux_policy, linux_source
+            )
+            errors.extend(
+                linux_local_artifact_errors(linux_provenance, linux_inspection)
+            )
         if errors:
             raise NativeBuildError("; ".join(errors))
         print(
             "tdlib native pin: ok "
-            f"(mode=artifact-verified, version={policy['source']['version']}, "
-            f"target={policy['target']['triple']}, sha256={digest}, "
-            "negative_controls=17)"
+            f"(mode=artifact-verified, version={policy['source']['version']}, targets=2, "
+            f"macos_sha256={macos_digest}, linux_sha256={linux_digest}, "
+            "negative_controls=19)"
         )
     else:
         print(
             "tdlib native pin: ok "
-            f"(mode=provenance-only, version={policy['source']['version']}, "
-            f"target={policy['target']['triple']}, sha256={digest}, "
-            "negative_controls=17)"
+            f"(mode=provenance-only, version={policy['source']['version']}, targets=2, "
+            f"macos_sha256={macos_digest}, linux_sha256={linux_digest}, "
+            "negative_controls=19)"
         )
     return 0
 

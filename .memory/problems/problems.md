@@ -14,3 +14,9 @@ Active append-only problem lifecycle. Status changes добавляются но
 ## [2026-07-15] open | P-20260715-003 | Linux x86_64 native artifact не закреплён
 
 - Закреплён только macOS arm64 `tdjson`. Linux x86_64 artifact с provenance — открытая задача P0; без него не начинается P9.
+
+## [2026-07-15] resolved | P-20260715-003 | Linux x86_64 native artifact закреплён
+
+- TDLib `1.8.66` собран exact pinned builder для `x86_64-unknown-linux-gnu`; artifact SHA-256 `e90ca3c25ad034b7227df918816c227de2b9aef92539c994a3bd41c42d68161b`, provenance — `vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.json`.
+- `python3 scripts/check-tdlib-native-pin.py --require-local-artifact` проверяет оба supported target, Linux ELF identity, SONAME, dependencies, TDJSON exports, runtime version/commit и отсутствие DB-файлов в no-client smoke.
+- Bit-for-bit reproducibility остаётся незаявленной границей, но не является acceptance-критерием P0.

@@ -1,6 +1,6 @@
 # Полнота TDLib API
 
-Статус: exact schema snapshot, strict Rust parser/inventory и macOS arm64 native artifact закреплены; результаты ручного capability-ревью сохранены в [`capability-notes.md`](capability-notes.md). Linux artifact, полная capability/risk/retry таблица, generated raw registry/codec/router и runtime implementation ещё не созданы.
+Статус: exact schema snapshot, strict Rust parser/inventory и native artifacts для macOS arm64 и Linux x86_64 закреплены; результаты ручного capability-ревью сохранены в [`capability-notes.md`](capability-notes.md). Полная capability/risk/retry таблица, generated raw registry/codec/router и runtime implementation ещё не созданы.
 
 ## Проверенный upstream baseline
 
@@ -14,9 +14,11 @@
 - Strict parser/inventory: [`crates/telegram-core/src/schema.rs`](../crates/telegram-core/src/schema.rs); gate: `cargo test --locked --offline -p telegram-core --lib --jobs 2`.
 - Reviewed capability contracts: [`capability-notes.md`](capability-notes.md) — вход для будущей capability-таблицы P3.
 - Planning boundary: `python3 scripts/check-planning-boundary.py` запрещает переносить номера из `HARNESS.md` в runtime code и machine-readable contracts.
-- macOS arm64 native provenance: [`vendor/tdlib/native-builds/aarch64-apple-darwin.json`](../vendor/tdlib/native-builds/aarch64-apple-darwin.json); artifact gate: `python3 scripts/check-tdlib-native-pin.py --require-local-artifact`.
+- macOS arm64 native provenance: [`vendor/tdlib/native-builds/aarch64-apple-darwin.json`](../vendor/tdlib/native-builds/aarch64-apple-darwin.json).
+- Linux x86_64 native provenance: [`vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.json`](../vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.json); exact builder recipe: [`vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.Dockerfile`](../vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.Dockerfile).
+- Общий provenance gate: `python3 scripts/check-tdlib-native-pin.py`; проверка обоих локальных artifacts: `python3 scripts/check-tdlib-native-pin.py --require-local-artifact`.
 
-Exact schema pin принят в `D-20260715-003`, strict parser — в `D-20260715-006`. Текущий macOS arm64 artifact и crash ownership доказаны correction checkpoint `W-20260715-008`; Linux x86_64 artifact и bit-for-bit reproducibility остаются открытыми. Удаление numeric feature taxonomy из исполняемой архитектуры принято в `D-20260715-017`.
+Exact schema pin принят в `D-20260715-003`, strict parser — в `D-20260715-006`. Текущий macOS arm64 artifact и crash ownership доказаны correction checkpoint `W-20260715-008`; Linux x86_64 artifact закреплён в `W-20260715-040`. Для обоих artifacts bit-for-bit reproducibility не заявлена. Удаление numeric feature taxonomy из исполняемой архитектуры принято в `D-20260715-017`.
 
 ## Граница planning inventory и исполняемой архитектуры
 

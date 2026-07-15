@@ -22,12 +22,12 @@ use telegram_core::method_capability::{
     MAX_CLAUSES_PER_METHOD, MAX_PARAMETER_NOTICES_PER_METHOD, MAX_SYNCHRONOUS_VALUES_PER_METHOD,
     MessageCapability, MessageIdRef, MessageIdsRef, MessageSubjectRef, ParameterCapabilityNotice,
     ParameterGate, ParameterStringValue, RequirementAlternatives, ResolvedChatKind,
-    ResolvedGroupCallKind, RuntimeBooleanOption, RuntimeRequirement, SupergroupFullInfoProperty,
-    SynchronousCapability,
+    ResolvedGroupCallKind, RuntimeBooleanOption, RuntimeRequirement, SupergroupFlag,
+    SupergroupFlagCondition, SupergroupFullInfoProperty, SynchronousCapability,
 };
 use telegram_core::schema::{Definition, DefinitionKind, Parameter, Schema};
 
-const FORMAT_VERSION: u32 = 7;
+const FORMAT_VERSION: u32 = 8;
 const MAX_SCHEMA_BYTES: usize = 2 * 1024 * 1024;
 const MAX_CAPABILITY_POLICY_BYTES: usize = 4 * 1024 * 1024;
 const MAX_OUTPUT_BYTES: usize = 4 * 1024 * 1024;
@@ -62,6 +62,7 @@ pub fn generate(
     validate_chat_type_vocabulary(&schema)?;
     validate_message_properties_vocabulary(&schema)?;
     validate_group_call_vocabulary(&schema)?;
+    validate_supergroup_vocabulary(&schema)?;
     validate_supergroup_full_info_vocabulary(&schema)?;
     validate_runtime_boolean_option_vocabulary(&schema)?;
 
@@ -362,6 +363,18 @@ fn parse_runtime_requirement(
             let condition = ChatKindCondition::try_new(target, kind)
                 .map_err(CapabilityGenerationError::from_model_value)?;
             Ok(RuntimeRequirement::ChatKind(condition))
+        }
+        RuntimeRequirementDto::SupergroupFlag {
+            target_argument,
+            flag,
+            value,
+        } => {
+            let target = parse_chat_target(method, target_argument)?;
+            let flag = SupergroupFlag::try_from(flag.as_str())
+                .map_err(CapabilityGenerationError::from_model_value)?;
+            Ok(RuntimeRequirement::SupergroupFlag(
+                SupergroupFlagCondition::new(target, flag, value),
+            ))
         }
         RuntimeRequirementDto::ChatAdministrator { target_argument } => {
             Ok(RuntimeRequirement::ChatAdministrator {
@@ -920,6 +933,41 @@ fn validate_group_call_vocabulary(schema: &Schema) -> Result<(), CapabilityGener
     Ok(())
 }
 
+fn validate_supergroup_vocabulary(schema: &Schema) -> Result<(), CapabilityGenerationError> {
+    const SUPERGROUP: &str = "supergroup id:int53 usernames:usernames date:int32 status:ChatMemberStatus member_count:int32 boost_level:int32 has_automatic_translation:Bool has_linked_chat:Bool has_location:Bool sign_messages:Bool show_message_sender:Bool join_to_send_messages:Bool join_by_request:Bool is_slow_mode_enabled:Bool is_channel:Bool is_broadcast_group:Bool is_forum:Bool is_direct_messages_group:Bool is_administered_direct_messages_group:Bool verification_status:verificationStatus has_direct_messages_group:Bool has_forum_tabs:Bool restriction_info:restrictionInfo paid_message_star_count:int53 active_story_state:ActiveStoryState = Supergroup;";
+    const UPDATE_SUPERGROUP: &str = "updateSupergroup supergroup:supergroup = Update;";
+
+    let constructors = schema
+        .definitions()
+        .iter()
+        .filter(|definition| {
+            definition.kind() == DefinitionKind::Constructor
+                && definition.result().name() == "Supergroup"
+        })
+        .collect::<Vec<_>>();
+    if !matches!(constructors.as_slice(), [constructor] if constructor.canonical_signature() == SUPERGROUP)
+    {
+        return Err(CapabilityGenerationError::new(
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "schema Supergroup constructor differs from the exact pinned shape",
+        ));
+    }
+
+    let updates = schema
+        .definitions()
+        .iter()
+        .filter(|definition| definition.name() == "updateSupergroup")
+        .collect::<Vec<_>>();
+    if !matches!(updates.as_slice(), [update] if update.canonical_signature() == UPDATE_SUPERGROUP)
+    {
+        return Err(CapabilityGenerationError::new(
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "schema updateSupergroup differs from the exact pinned signature",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_supergroup_full_info_vocabulary(
     schema: &Schema,
 ) -> Result<(), CapabilityGenerationError> {
@@ -1415,25 +1463,7 @@ fn documented_runtime_requirements(
             }
         })?
     } else if let Some(contract) = chat_setting_contract {
-        let target = documented_chat_target(method)?;
-        chat_kind_clauses(
-            &target,
-            contract.supported_chat_kinds(),
-            |target| match contract.required_right() {
-                chat_settings::RequiredRight::Administrator(right) => {
-                    RuntimeRequirement::ChatAdministratorRight {
-                        target: target.clone(),
-                        right,
-                    }
-                }
-                chat_settings::RequiredRight::Member(right) => {
-                    RuntimeRequirement::ChatMemberRight {
-                        target: target.clone(),
-                        right,
-                    }
-                }
-            },
-        )?
+        documented_chat_setting_clauses(method, contract)?
     } else {
         let Some(contract) = runtime_contract else {
             return Err(unsupported_runtime_documentation(
@@ -1603,6 +1633,19 @@ fn reviewed_chat_setting_contract(
             "reviewed chat-setting source text drifted or disappeared",
         ));
     }
+    if let Some(source_text) = contract.target_source_text() {
+        let target = documented_chat_target(method)?;
+        if !signal_source_has_exact_text(
+            method,
+            &RuntimeSignalSource::Argument(target.argument().clone()),
+            source_text,
+        ) {
+            return Err(unsupported_runtime_documentation(
+                method,
+                "reviewed chat-setting target source text drifted or disappeared",
+            ));
+        }
+    }
     Ok(Some(contract))
 }
 
@@ -1620,6 +1663,48 @@ fn chat_setting_consumed_signal_keys(
         .map(|family| RuntimeSignalKey {
             source: RuntimeSignalSource::Description,
             family,
+        })
+        .collect()
+}
+
+fn documented_chat_setting_clauses(
+    method: &Definition,
+    contract: &chat_settings::ChatSettingContract,
+) -> Result<Vec<Vec<RuntimeRequirement>>, CapabilityGenerationError> {
+    let target = documented_chat_target(method)?;
+    contract
+        .supported_chat_kinds()
+        .iter()
+        .copied()
+        .map(|kind| {
+            let mut clause = vec![documented_chat_kind(&target, kind)?];
+            clause.extend(
+                contract
+                    .required_supergroup_flags()
+                    .iter()
+                    .map(|&(flag, value)| {
+                        RuntimeRequirement::SupergroupFlag(SupergroupFlagCondition::new(
+                            target.clone(),
+                            flag,
+                            value,
+                        ))
+                    }),
+            );
+            clause.push(match contract.required_right() {
+                chat_settings::RequiredRight::Administrator(right) => {
+                    RuntimeRequirement::ChatAdministratorRight {
+                        target: target.clone(),
+                        right,
+                    }
+                }
+                chat_settings::RequiredRight::Member(right) => {
+                    RuntimeRequirement::ChatMemberRight {
+                        target: target.clone(),
+                        right,
+                    }
+                }
+            });
+            Ok(clause)
         })
         .collect()
 }
@@ -3481,6 +3566,11 @@ enum RuntimeRequirementDto {
         target_argument: String,
         value: String,
     },
+    SupergroupFlag {
+        target_argument: String,
+        flag: String,
+        value: bool,
+    },
     ChatAdministrator {
         target_argument: String,
     },
@@ -3745,6 +3835,11 @@ enum CanonicalRuntimeRequirement {
         target: CanonicalChatTarget,
         value: &'static str,
     },
+    SupergroupFlag {
+        target: CanonicalChatTarget,
+        flag: &'static str,
+        value: bool,
+    },
     ChatAdministrator {
         target: CanonicalChatTarget,
     },
@@ -3801,6 +3896,11 @@ impl CanonicalRuntimeRequirement {
             RuntimeRequirement::ChatKind(condition) => Self::ChatKind {
                 target: CanonicalChatTarget::from_domain(condition.target()),
                 value: condition.kind().as_str(),
+            },
+            RuntimeRequirement::SupergroupFlag(condition) => Self::SupergroupFlag {
+                target: CanonicalChatTarget::from_domain(condition.target()),
+                flag: condition.flag().as_str(),
+                value: condition.value(),
             },
             RuntimeRequirement::ChatAdministrator { target } => Self::ChatAdministrator {
                 target: CanonicalChatTarget::from_domain(target),

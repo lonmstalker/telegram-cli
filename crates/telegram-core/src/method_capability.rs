@@ -125,6 +125,21 @@ string_enum!(
 );
 
 string_enum!(
+    /// Bool-флаг exact `supergroup` snapshot, используемый как subtype fact.
+    ///
+    /// Это не произвольное поле: closed vocabulary содержит только флаги,
+    /// необходимые reviewed contracts. Condition хранит ожидаемое значение,
+    /// поэтому корректно представляет и обязательный `false`.
+    SupergroupFlag,
+    2,
+    "supergroup flag",
+    {
+        IsBroadcastGroup => "is_broadcast_group",
+        IsDirectMessagesGroup => "is_direct_messages_group",
+    }
+);
+
+string_enum!(
     /// Exact pinned TDLib authorization-state inventory.
     ///
     /// `WaitTdlibParameters` также представляет созданный client до вызова
@@ -691,6 +706,36 @@ impl ChatKindCondition {
     }
 }
 
+/// Условие на Bool-флаг resolved `supergroup` snapshot.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct SupergroupFlagCondition {
+    target: ChatTargetRef,
+    flag: SupergroupFlag,
+    value: bool,
+}
+
+impl SupergroupFlagCondition {
+    pub fn new(target: ChatTargetRef, flag: SupergroupFlag, value: bool) -> Self {
+        Self {
+            target,
+            flag,
+            value,
+        }
+    }
+
+    pub fn target(&self) -> &ChatTargetRef {
+        &self.target
+    }
+
+    pub fn flag(&self) -> SupergroupFlag {
+        self.flag
+    }
+
+    pub fn value(&self) -> bool {
+        self.value
+    }
+}
+
 /// Exact `forum_topic_id` argument role.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ForumTopicRef(ArgumentRef);
@@ -847,6 +892,7 @@ impl SynchronousStringValues {
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum RuntimeRequirement {
     ChatKind(ChatKindCondition),
+    SupergroupFlag(SupergroupFlagCondition),
     ChatAdministrator {
         target: ChatTargetRef,
     },
@@ -898,6 +944,7 @@ impl RuntimeRequirement {
     pub fn argument_refs(&self) -> Vec<&ArgumentRef> {
         match self {
             Self::ChatKind(condition) => vec![condition.target().argument()],
+            Self::SupergroupFlag(condition) => vec![condition.target().argument()],
             Self::ChatAdministrator { target }
             | Self::ChatAdministratorRight { target, .. }
             | Self::ChatMemberRight { target, .. }
@@ -1016,6 +1063,48 @@ impl RequirementAlternatives {
                 return Err(CapabilityModelError::new(
                     CapabilityModelErrorKind::ContradictoryClause,
                     "runtime requirement clause assigns multiple kinds to one target",
+                ));
+            }
+            let contradictory_supergroup_flag =
+                clause.iter().enumerate().any(|(left_index, left)| {
+                    let RuntimeRequirement::SupergroupFlag(left) = left else {
+                        return false;
+                    };
+                    clause.iter().skip(left_index + 1).any(|right| {
+                        matches!(
+                            right,
+                            RuntimeRequirement::SupergroupFlag(right)
+                                if left.target() == right.target()
+                                    && left.flag() == right.flag()
+                                    && left.value() != right.value()
+                        )
+                    })
+                });
+            if contradictory_supergroup_flag {
+                return Err(CapabilityModelError::new(
+                    CapabilityModelErrorKind::ContradictoryClause,
+                    "runtime requirement clause assigns multiple values to one supergroup flag",
+                ));
+            }
+            let flag_on_non_supergroup_kind = clause.iter().any(|requirement| {
+                let RuntimeRequirement::ChatKind(kind) = requirement else {
+                    return false;
+                };
+                !matches!(
+                    kind.kind(),
+                    ResolvedChatKind::Supergroup | ResolvedChatKind::Channel
+                ) && clause.iter().any(|candidate| {
+                    matches!(
+                        candidate,
+                        RuntimeRequirement::SupergroupFlag(flag)
+                            if kind.target() == flag.target()
+                    )
+                })
+            });
+            if flag_on_non_supergroup_kind {
+                return Err(CapabilityModelError::new(
+                    CapabilityModelErrorKind::ContradictoryClause,
+                    "runtime requirement clause applies a supergroup flag to a non-supergroup chat kind",
                 ));
             }
         }

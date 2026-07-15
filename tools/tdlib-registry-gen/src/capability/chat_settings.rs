@@ -1,4 +1,12 @@
-use telegram_core::method_capability::{ChatAdministratorRight, ChatMemberRight, ResolvedChatKind};
+use telegram_core::method_capability::{
+    ChatAdministratorRight, ChatMemberRight, ResolvedChatKind, SupergroupFlag,
+};
+
+const NO_FLAGS: &[(SupergroupFlag, bool)] = &[];
+const ORDINARY_SUPERGROUP_FLAGS: &[(SupergroupFlag, bool)] = &[
+    (SupergroupFlag::IsBroadcastGroup, false),
+    (SupergroupFlag::IsDirectMessagesGroup, false),
+];
 
 const GROUPS_AND_CHANNELS: &[ResolvedChatKind] = &[
     ResolvedChatKind::BasicGroup,
@@ -17,6 +25,8 @@ const CONTRACTS: &[ChatSettingContract] = &[
         supported_chat_kinds: GROUPS_AND_CHANNELS,
         required_right: RequiredRight::Member(ChatMemberRight::CanChangeInfo),
         regular_user_only: false,
+        required_supergroup_flags: NO_FLAGS,
+        target_source_text: None,
     },
     ChatSettingContract {
         method: "setChatPermissions",
@@ -25,6 +35,8 @@ const CONTRACTS: &[ChatSettingContract] = &[
         supported_chat_kinds: GROUPS,
         required_right: RequiredRight::Administrator(ChatAdministratorRight::CanRestrictMembers),
         regular_user_only: false,
+        required_supergroup_flags: NO_FLAGS,
+        target_source_text: None,
     },
     ChatSettingContract {
         method: "setChatSlowModeDelay",
@@ -33,6 +45,8 @@ const CONTRACTS: &[ChatSettingContract] = &[
         supported_chat_kinds: SUPERGROUP,
         required_right: RequiredRight::Administrator(ChatAdministratorRight::CanRestrictMembers),
         regular_user_only: true,
+        required_supergroup_flags: NO_FLAGS,
+        target_source_text: None,
     },
     ChatSettingContract {
         method: "setSupergroupMainProfileTab",
@@ -41,6 +55,8 @@ const CONTRACTS: &[ChatSettingContract] = &[
         supported_chat_kinds: CHANNEL,
         required_right: RequiredRight::Administrator(ChatAdministratorRight::CanChangeInfo),
         regular_user_only: true,
+        required_supergroup_flags: NO_FLAGS,
+        target_source_text: None,
     },
     ChatSettingContract {
         method: "setSupergroupUnrestrictBoostCount",
@@ -49,6 +65,8 @@ const CONTRACTS: &[ChatSettingContract] = &[
         supported_chat_kinds: SUPERGROUP,
         required_right: RequiredRight::Administrator(ChatAdministratorRight::CanRestrictMembers),
         regular_user_only: false,
+        required_supergroup_flags: NO_FLAGS,
+        target_source_text: None,
     },
     ChatSettingContract {
         method: "toggleSupergroupIsAllHistoryAvailable",
@@ -57,6 +75,8 @@ const CONTRACTS: &[ChatSettingContract] = &[
         supported_chat_kinds: SUPERGROUP,
         required_right: RequiredRight::Member(ChatMemberRight::CanChangeInfo),
         regular_user_only: true,
+        required_supergroup_flags: NO_FLAGS,
+        target_source_text: None,
     },
     ChatSettingContract {
         method: "toggleSupergroupSignMessages",
@@ -65,6 +85,18 @@ const CONTRACTS: &[ChatSettingContract] = &[
         supported_chat_kinds: CHANNEL,
         required_right: RequiredRight::Member(ChatMemberRight::CanChangeInfo),
         regular_user_only: true,
+        required_supergroup_flags: NO_FLAGS,
+        target_source_text: None,
+    },
+    ChatSettingContract {
+        method: "toggleSupergroupJoinToSendMessages",
+        canonical_signature: "toggleSupergroupJoinToSendMessages supergroup_id:int53 join_to_send_messages:Bool = Ok;",
+        source_text: "toggles whether joining is mandatory to send messages to a discussion supergroup; requires can_restrict_members administrator right",
+        supported_chat_kinds: SUPERGROUP,
+        required_right: RequiredRight::Administrator(ChatAdministratorRight::CanRestrictMembers),
+        regular_user_only: true,
+        required_supergroup_flags: ORDINARY_SUPERGROUP_FLAGS,
+        target_source_text: Some("identifier of the supergroup that isn't a broadcast group"),
     },
 ];
 
@@ -85,6 +117,8 @@ pub(super) struct ChatSettingContract {
     supported_chat_kinds: &'static [ResolvedChatKind],
     required_right: RequiredRight,
     regular_user_only: bool,
+    required_supergroup_flags: &'static [(SupergroupFlag, bool)],
+    target_source_text: Option<&'static str>,
 }
 
 impl ChatSettingContract {
@@ -106,5 +140,13 @@ impl ChatSettingContract {
 
     pub(super) const fn regular_user_only(&self) -> bool {
         self.regular_user_only
+    }
+
+    pub(super) const fn required_supergroup_flags(&self) -> &'static [(SupergroupFlag, bool)] {
+        self.required_supergroup_flags
+    }
+
+    pub(super) const fn target_source_text(&self) -> Option<&'static str> {
+        self.target_source_text
     }
 }

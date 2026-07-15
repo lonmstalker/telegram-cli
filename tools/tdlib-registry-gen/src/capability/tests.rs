@@ -6,7 +6,7 @@ use telegram_core::method_capability::{
     DcEnvironment, ForumTopicRef, GroupCallMessageCapability, GroupCallMessageSubjectRef,
     GroupCallProperty, MessageCapability, MessageSubjectRef, RequirementAlternatives,
     ResolvedChatKind, ResolvedGroupCallKind, RuntimeBooleanOption, RuntimeRequirement,
-    SupergroupFullInfoProperty, SynchronousCapability,
+    SupergroupFlag, SupergroupFlagCondition, SupergroupFullInfoProperty, SynchronousCapability,
 };
 use telegram_core::schema::Schema;
 
@@ -21,7 +21,7 @@ use super::{
     validate_documented_method_constraints, validate_documented_parameter_notices,
     validate_documented_runtime_requirements, validate_group_call_vocabulary,
     validate_message_properties_vocabulary, validate_runtime_boolean_option_vocabulary,
-    validate_supergroup_full_info_vocabulary,
+    validate_supergroup_full_info_vocabulary, validate_supergroup_vocabulary,
 };
 
 type PolicyMutation = Box<dyn Fn(&mut Value)>;
@@ -71,12 +71,19 @@ chatInviteLink = ChatInviteLink;
 botCommands = BotCommands;
 botVerification = BotVerification;
 profileTabTest = ProfileTab;
+usernames = Usernames;
+chatMemberStatusTest = ChatMemberStatus;
+verificationStatus = VerificationStatus;
+restrictionInfo = RestrictionInfo;
+activeStoryState = ActiveStoryState;
 chatStatisticsTest = ChatStatistics;
 newChatPrivacySettings = NewChatPrivacySettings;
+supergroup id:int53 usernames:usernames date:int32 status:ChatMemberStatus member_count:int32 boost_level:int32 has_automatic_translation:Bool has_linked_chat:Bool has_location:Bool sign_messages:Bool show_message_sender:Bool join_to_send_messages:Bool join_by_request:Bool is_slow_mode_enabled:Bool is_channel:Bool is_broadcast_group:Bool is_forum:Bool is_direct_messages_group:Bool is_administered_direct_messages_group:Bool verification_status:verificationStatus has_direct_messages_group:Bool has_forum_tabs:Bool restriction_info:restrictionInfo paid_message_star_count:int53 active_story_state:ActiveStoryState = Supergroup;
 supergroupFullInfo photo:chatPhoto community_id:int53 description:string member_count:int32 administrator_count:int32 restricted_count:int32 banned_count:int32 linked_chat_id:int53 direct_messages_chat_id:int53 slow_mode_delay:int32 slow_mode_delay_expires_in:double can_enable_paid_messages:Bool can_enable_paid_reaction:Bool can_get_members:Bool has_hidden_members:Bool can_hide_members:Bool can_set_sticker_set:Bool can_set_location:Bool can_get_statistics:Bool can_get_revenue_statistics:Bool can_get_star_revenue_statistics:Bool can_send_gift:Bool can_toggle_aggressive_anti_spam:Bool is_all_history_available:Bool can_have_sponsored_messages:Bool has_aggressive_anti_spam_enabled:Bool has_paid_media_allowed:Bool has_pinned_stories:Bool gift_count:int32 my_boost_count:int32 unrestrict_boost_count:int32 outgoing_paid_message_star_count:int53 sticker_set_id:int64 custom_emoji_sticker_set_id:int64 location:chatLocation invite_link:chatInviteLink guard_bot_user_id:int53 bot_commands:vector<botCommands> bot_verification:botVerification main_profile_tab:ProfileTab upgraded_from_basic_group_id:int53 upgraded_from_max_message_id:int53 = SupergroupFullInfo;
 updateGroupCall group_call:groupCall = Update;
 updateNewGroupCallMessage group_call_id:int32 message:groupCallMessage = Update;
 updateGroupCallMessagesDeleted group_call_id:int32 message_ids:vector<int32> = Update;
+updateSupergroup supergroup:supergroup = Update;
 updateSupergroupFullInfo supergroup_id:int53 supergroup_full_info:supergroupFullInfo = Update;
 updateOption name:string value:OptionValue = Update;
 
@@ -1156,8 +1163,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            65,
-            "7f251ea70bf74151d6c7d88cbd61fd8ff9480f7174de17cc59970db531b47cda".to_owned()
+            66,
+            "502aa34506879a1c37f8fbbb1e3e0dea0617a344e75158c430e386a1faa51fb5".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -1173,8 +1180,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            68,
-            "6db6e9c9b3912a99885be768645aab25950ba156fc5b4984c8d144bf436c5430".to_owned()
+            69,
+            "f85d132a7d4e1bfe5a2997ddd29bb1cac41c2c985f16eab1f8c4a54d0d0be731".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -1183,12 +1190,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        125,
+        124,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "ff2f1639bd2947b460ebac2d7a733e71556619db8804ebe49f7410e73cd13af6",
+        "437c17ed2ccb09f23aa7eba6b04223e0b05a97ae55493d280fa18f28fe7ce796",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -1265,7 +1272,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "9bc6e056433a91a35e95a6278852286817e68266b41f9b53eb1ebbc41aa012dc"
+        "49a6419cd0ddaca17dfd856d54c1eb2ec4120a176b583641d572e4dd99aac051"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -1333,6 +1340,63 @@ fn parses_schema_bound_chat_kind_atoms() {
                         && condition.target().argument().as_str() == "chat_id"
             )
     ));
+}
+
+#[test]
+fn parses_schema_bound_supergroup_flag_atoms() {
+    let schema = Schema::parse(SCHEMA).expect("fixture schema");
+    let dto: RuntimeRequirementsDto = serde_json::from_value(json!({
+        "kind": "any_of",
+        "clauses": [{"all_of": [{
+            "kind": "supergroup_flag",
+            "target_argument": "chat_id",
+            "flag": "is_direct_messages_group",
+            "value": false
+        }]}]
+    }))
+    .expect("closed supergroup-flag DTO");
+    let requirements = parse_runtime_requirements(dto, find_method(&schema, "unpinChatMessage"))
+        .expect("schema-bound supergroup flag atom");
+    assert!(matches!(
+        requirements.clauses(),
+        [clause]
+            if matches!(
+                clause.as_slice(),
+                [RuntimeRequirement::SupergroupFlag(condition)]
+                    if condition.target().argument().as_str() == "chat_id"
+                        && condition.flag() == SupergroupFlag::IsDirectMessagesGroup
+                        && !condition.value()
+            )
+    ));
+    assert_eq!(
+        serde_json::to_value(super::CanonicalRuntimeRequirement::from_domain(
+            &requirements.clauses()[0][0],
+        ))
+        .expect("canonical supergroup flag"),
+        json!({
+            "kind": "supergroup_flag",
+            "target": {"kind": "chat_id", "argument": "chat_id"},
+            "flag": "is_direct_messages_group",
+            "value": false
+        })
+    );
+
+    let unknown: RuntimeRequirementsDto = serde_json::from_value(json!({
+        "kind": "any_of",
+        "clauses": [{"all_of": [{
+            "kind": "supergroup_flag",
+            "target_argument": "chat_id",
+            "flag": "is_channel",
+            "value": false
+        }]}]
+    }))
+    .expect("syntactically valid unknown flag DTO");
+    assert_eq!(
+        parse_runtime_requirements(unknown, find_method(&schema, "unpinChatMessage"))
+            .expect_err("flag vocabulary must stay closed")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
 }
 
 #[test]
@@ -1888,6 +1952,39 @@ fn requires_exact_supergroup_full_info_schema_vocabulary() {
     assert_eq!(
         validate_supergroup_full_info_vocabulary(&moved_to_methods)
             .expect_err("full-info ingress must remain an update constructor")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
+fn requires_exact_supergroup_schema_vocabulary() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    validate_supergroup_vocabulary(&schema).expect("exact supergroup vocabulary");
+
+    let renamed_flag = pinned.replacen(
+        "is_direct_messages_group:Bool is_administered_direct_messages_group:Bool",
+        "is_direct_message_group:Bool is_administered_direct_messages_group:Bool",
+        1,
+    );
+    let renamed_flag = Schema::parse(&renamed_flag).expect("valid renamed flag schema");
+    assert_eq!(
+        validate_supergroup_vocabulary(&renamed_flag)
+            .expect_err("renamed supergroup flag must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let update_drift = pinned.replacen(
+        "updateSupergroup supergroup:supergroup = Update;",
+        "updateSupergroup value:supergroup = Update;",
+        1,
+    );
+    let update_drift = Schema::parse(&update_drift).expect("valid update drift schema");
+    assert_eq!(
+        validate_supergroup_vocabulary(&update_drift)
+            .expect_err("updateSupergroup drift must fail closed")
             .kind(),
         CapabilityGenerationErrorKind::SchemaDrift
     );
@@ -3599,6 +3696,7 @@ fn pinned_supergroup_setting_right_contracts_are_exact() {
     let safe = contracts
         .iter()
         .map(|(method, ..)| *method)
+        .chain(["toggleSupergroupJoinToSendMessages"])
         .collect::<std::collections::BTreeSet<_>>();
     let prior = ["setSupergroupStickerSet"]
         .into_iter()
@@ -3607,7 +3705,6 @@ fn pinned_supergroup_setting_right_contracts_are_exact() {
         "setSupergroupCustomEmojiStickerSet",
         "toggleSupergroupHasAutomaticTranslation",
         "toggleSupergroupJoinByRequest",
-        "toggleSupergroupJoinToSendMessages",
     ]
     .into_iter()
     .collect::<std::collections::BTreeSet<_>>();
@@ -3758,6 +3855,131 @@ fn pinned_supergroup_setting_right_contracts_are_exact() {
         .kind(),
         CapabilityGenerationErrorKind::SchemaDrift
     );
+}
+
+#[test]
+fn ordinary_supergroup_setting_requires_exact_false_flags() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let method = find_method(&schema, "toggleSupergroupJoinToSendMessages");
+    assert_eq!(
+        method.canonical_signature(),
+        "toggleSupergroupJoinToSendMessages supergroup_id:int53 join_to_send_messages:Bool = Ok;"
+    );
+    assert_eq!(
+        normalized_text(&super::method_description(method)),
+        "toggles whether joining is mandatory to send messages to a discussion supergroup; requires can_restrict_members administrator right"
+    );
+    let target = ChatTargetRef::try_from("supergroup_id").expect("supergroup target");
+    assert!(super::signal_source_has_exact_text(
+        method,
+        &RuntimeSignalSource::Argument(target.argument().clone()),
+        "identifier of the supergroup that isn't a broadcast group"
+    ));
+    let expected = RequirementAlternatives::try_new(vec![vec![
+        RuntimeRequirement::ChatKind(
+            ChatKindCondition::try_new(target.clone(), ResolvedChatKind::Supergroup)
+                .expect("ordinary supergroup kind"),
+        ),
+        RuntimeRequirement::SupergroupFlag(SupergroupFlagCondition::new(
+            target.clone(),
+            SupergroupFlag::IsBroadcastGroup,
+            false,
+        )),
+        RuntimeRequirement::SupergroupFlag(SupergroupFlagCondition::new(
+            target.clone(),
+            SupergroupFlag::IsDirectMessagesGroup,
+            false,
+        )),
+        RuntimeRequirement::ChatAdministratorRight {
+            target,
+            right: ChatAdministratorRight::CanRestrictMembers,
+        },
+    ]])
+    .expect("ordinary-supergroup setting alternatives");
+    assert_eq!(
+        documented_runtime_requirements(method)
+            .expect("reviewed ordinary-supergroup documentation")
+            .expect("ordinary-supergroup contract"),
+        expected
+    );
+    let descriptor_for = |requirements| {
+        CapabilityDescriptor::try_new(
+            SynchronousCapability::Never,
+            vec![AccountKind::RegularUser],
+            vec![AuthorizationState::Ready],
+            Vec::new(),
+            ApplicationRequirement::Any,
+            vec![DcEnvironment::Production, DcEnvironment::Test],
+            requirements,
+            Vec::new(),
+        )
+        .expect("ordinary-supergroup setting descriptor")
+    };
+    let descriptor = descriptor_for(expected.clone());
+    validate_documented_method_constraints(method, &descriptor).expect("regular-user contract");
+    validate_documented_runtime_requirements(method, &descriptor).expect("runtime contract");
+
+    let mut missing_flag_clause = expected.clauses()[0].clone();
+    missing_flag_clause.remove(1);
+    let missing_flag = descriptor_for(
+        RequirementAlternatives::try_new(vec![missing_flag_clause])
+            .expect("missing-flag alternative remains structurally valid"),
+    );
+    assert_eq!(
+        validate_documented_runtime_requirements(method, &missing_flag)
+            .expect_err("missing ordinary-supergroup flag must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let mut inverted_flag_clause = expected.clauses()[0].clone();
+    inverted_flag_clause[1] = RuntimeRequirement::SupergroupFlag(SupergroupFlagCondition::new(
+        ChatTargetRef::try_from("supergroup_id").expect("supergroup target"),
+        SupergroupFlag::IsBroadcastGroup,
+        true,
+    ));
+    let inverted_flag = descriptor_for(
+        RequirementAlternatives::try_new(vec![inverted_flag_clause])
+            .expect("inverted-flag alternative remains structurally valid"),
+    );
+    assert_eq!(
+        validate_documented_runtime_requirements(method, &inverted_flag)
+            .expect_err("inverted ordinary-supergroup flag must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let parameter_drift = pinned.replacen(
+        "Identifier of the supergroup that isn't a broadcast group",
+        "Identifier of an ordinary supergroup",
+        1,
+    );
+    let parameter_drift = Schema::parse(&parameter_drift).expect("valid target-source drift");
+    assert_eq!(
+        documented_runtime_requirements(find_method(
+            &parameter_drift,
+            "toggleSupergroupJoinToSendMessages"
+        ))
+        .expect_err("target-source drift must fail closed")
+        .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
+fn chat_member_invites_remain_deferred_without_invocation_partition() {
+    let schema =
+        Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
+    for method_name in ["addChatMember", "addChatMembers"] {
+        assert_eq!(
+            documented_runtime_requirements(find_method(&schema, method_name))
+                .expect_err("self/cardinality-dependent invite must remain deferred")
+                .kind(),
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "{method_name}"
+        );
+    }
 }
 
 #[test]
@@ -4061,37 +4283,6 @@ fn pinned_conditional_chat_kind_contracts_are_exact() {
                 administrator(&chat_target, ChatAdministratorRight::CanEditMessages),
             ],
         ],
-    );
-}
-
-#[test]
-fn add_chat_member_stays_deferred_until_account_and_supergroup_subtype_are_typed() {
-    let schema =
-        Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
-    let method = find_method(&schema, "addChatMember");
-
-    assert_eq!(
-        method.canonical_signature(),
-        "addChatMember chat_id:int53 user_id:int53 forward_limit:int32 = FailedToAddMembers;"
-    );
-    assert_eq!(
-        normalized_text(&super::method_description(method)),
-        "adds a new member to a chat; requires can_invite_users member right. members can't be added to private or secret chats. returns information about members that weren't added"
-    );
-    assert_eq!(
-        documented_runtime_requirements(method)
-            .expect_err(
-                "the current model can't express regular-user and direct-messages-group gates"
-            )
-            .kind(),
-        CapabilityGenerationErrorKind::SchemaDrift
-    );
-    assert!(
-        documented_runtime_signal_dispositions(method)
-            .expect("signal dispositions")
-            .into_iter()
-            .all(|(_, disposition)| disposition
-                == RuntimeSignalDisposition::Deferred(DeferredSignalLane::UnclassifiedDescription))
     );
 }
 
@@ -4922,6 +5113,7 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
         "reportSupergroupSpam",
         "banGroupCallParticipants",
         "setNewChatPrivacySettings",
+        "toggleSupergroupJoinToSendMessages",
     ] {
         let error =
             validate_documented_runtime_requirements(find_method(&schema, method), &unrestricted)
@@ -4934,6 +5126,7 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
         "editForumTopic",
         "deleteForumTopic",
         "addChatMember",
+        "addChatMembers",
         "setChatMemberStatus",
         "getSupergroupMembers",
         "canPostStory",

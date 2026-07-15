@@ -12,7 +12,8 @@ use super::{
     MAX_PARAMETER_NOTICES_PER_METHOD, MAX_SYNCHRONOUS_VALUES_PER_METHOD, MessageCapability,
     MessageIdRef, MessageIdsRef, MessageSubjectRef, ParameterCapabilityNotice, ParameterGate,
     ParameterStringValue, RequirementAlternatives, ResolvedChatKind, ResolvedGroupCallKind,
-    RuntimeBooleanOption, RuntimeRequirement, SupergroupFullInfoProperty, SynchronousCapability,
+    RuntimeBooleanOption, RuntimeRequirement, SupergroupFlag, SupergroupFlagCondition,
+    SupergroupFullInfoProperty, SynchronousCapability,
 };
 
 #[test]
@@ -22,6 +23,7 @@ fn closed_capability_vocabularies_are_complete_and_canonical() {
     assert_eq!(ChatAdministratorRight::ALL.len(), 16);
     assert_eq!(ChatMemberRight::ALL.len(), 16);
     assert_eq!(BusinessBotRight::ALL.len(), 14);
+    assert_eq!(SupergroupFlag::ALL.len(), 2);
 
     for account in AccountKind::ALL {
         assert_eq!(AccountKind::try_from(account.as_str()), Ok(account));
@@ -32,6 +34,77 @@ fn closed_capability_vocabularies_are_complete_and_canonical() {
     }
     assert!(AccountKind::try_from("unknown").is_err());
     assert!(AuthorizationState::try_from("ready").is_err());
+}
+
+#[test]
+fn supergroup_flags_are_closed_target_scoped_boolean_conditions() {
+    let schema = Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl"))
+        .expect("pinned schema parses");
+    let fields = schema_fields(&schema, "supergroup");
+    assert_eq!(
+        enum_values(SupergroupFlag::ALL),
+        BTreeSet::from(["is_broadcast_group", "is_direct_messages_group"])
+    );
+    assert!(
+        SupergroupFlag::ALL
+            .iter()
+            .all(|flag| fields.contains(flag.as_str()))
+    );
+    assert!(SupergroupFlag::try_from("is_channel").is_err());
+
+    let target = ChatTargetRef::try_from("chat_id").expect("chat target");
+    let not_direct_messages =
+        SupergroupFlagCondition::new(target.clone(), SupergroupFlag::IsDirectMessagesGroup, false);
+    assert_eq!(not_direct_messages.target(), &target);
+    assert_eq!(
+        not_direct_messages.flag(),
+        SupergroupFlag::IsDirectMessagesGroup
+    );
+    assert!(!not_direct_messages.value());
+    assert_eq!(
+        RuntimeRequirement::SupergroupFlag(not_direct_messages.clone())
+            .argument_refs()
+            .into_iter()
+            .map(ArgumentRef::as_str)
+            .collect::<Vec<_>>(),
+        ["chat_id"]
+    );
+
+    RequirementAlternatives::try_new(vec![vec![
+        RuntimeRequirement::ChatKind(
+            ChatKindCondition::try_new(target.clone(), ResolvedChatKind::Supergroup)
+                .expect("supergroup kind"),
+        ),
+        RuntimeRequirement::SupergroupFlag(not_direct_messages.clone()),
+    ]])
+    .expect("supergroup kind and flag are compatible");
+
+    let contradictory_value = RequirementAlternatives::try_new(vec![vec![
+        RuntimeRequirement::SupergroupFlag(not_direct_messages.clone()),
+        RuntimeRequirement::SupergroupFlag(SupergroupFlagCondition::new(
+            target.clone(),
+            SupergroupFlag::IsDirectMessagesGroup,
+            true,
+        )),
+    ]])
+    .expect_err("one target flag can't be both true and false");
+    assert_eq!(
+        contradictory_value.kind(),
+        CapabilityModelErrorKind::ContradictoryClause
+    );
+
+    let incompatible_kind = RequirementAlternatives::try_new(vec![vec![
+        RuntimeRequirement::ChatKind(
+            ChatKindCondition::try_new(target, ResolvedChatKind::BasicGroup)
+                .expect("basic-group kind"),
+        ),
+        RuntimeRequirement::SupergroupFlag(not_direct_messages),
+    ]])
+    .expect_err("a basic group has no supergroup snapshot");
+    assert_eq!(
+        incompatible_kind.kind(),
+        CapabilityModelErrorKind::ContradictoryClause
+    );
 }
 
 #[test]
@@ -766,6 +839,7 @@ impl_capability_value!(
     GroupCallProperty,
     GroupCallMessageCapability,
     ResolvedGroupCallKind,
+    SupergroupFlag,
     SupergroupFullInfoProperty,
     RuntimeBooleanOption,
 );

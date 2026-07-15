@@ -2,21 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] open update | P-20260715-005 | ChatBoost link vocabulary уменьшила open set до 155 methods
-
-- Evidence: [exact lexical digest](../raw/2026-07-15-tdlib-chat-boost-link-non-gate.md); один `ChatBoostReference` key terminally classified без capability claim.
-- Transition: `getChatBoostLinkInfo` выходит из open set; terminal complete set 38, open-set SHA-256 `4ed02dd1adbb3c87c61b4f6fccc009e331670c22fa7ac0c406e782d917ef9c1b`.
-- Status: open; 155 methods остаются deferred. Next: typed group-call/object-field families.
-- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md).
-
-## [2026-07-15] open update | P-20260715-005 | GroupCall family уменьшила open set до 143 methods
-
-- Evidence: [GroupCall capability digest](../raw/2026-07-15-tdlib-group-call-capabilities.md); schema-derived family exhaustive разделена на 12 complete и 2 argument-dependent methods, 38 keys consumed, 1 setting-semantics key terminally non-gate, 6 keys сохранены deferred.
-- Transition: exact kind/property/cardinality DNF terminally disposition 12 methods. Supported typed set теперь 47, terminal complete set 50, open-set SHA-256 `a6e5b3c9d53a657e7ee3f9f4f5ed4bad7043292418b08849273d406f513b3a12`.
-- Status: open; zero-open gate не достигнут, 143 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
-- Next check: отдельными reviewed tasks закрывать full-info/option/admin/object-field source families; runtime evaluator отдельно обязан fail closed на stale/unknown group-call-message evidence.
-- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-014](../decisions/decisions.md).
-
 ## [2026-07-15] open update | P-20260715-005 | SupergroupFullInfo family уменьшила open set до 138 methods
 
 - Evidence: [SupergroupFullInfo capability digest](../raw/2026-07-15-tdlib-supergroup-full-info-capabilities.md); schema-derived family exhaustive разделена на 5 complete и 7 mixed methods, 12 keys consumed, 2 cross-token false positives terminally non-gate, 18 keys сохранены deferred.
@@ -142,3 +127,19 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Status: open; zero-open gate не достигнут, 125 methods дают `SchemaDrift` и не считаются capability coverage.
 - Next check: закрывать exact source families только после dispatcher/deeper-handler evidence; subtype/account-sensitive methods fail closed.
 - Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-022](../decisions/decisions.md).
+
+## [2026-07-15] resolved update | P-20260715-009 | Reviewer сохраняет singular membership contract deferred
+
+- Evidence: [supergroup subtype capability digest](../raw/2026-07-15-tdlib-supergroup-flag-capabilities.md); independent reviewer подтвердил, что self-join обходит `can_invite_users`, а non-self path требует right.
+- Resolution: false-positive correction остаётся в силе; ни singular, ни size-one plural path не возвращены в supported set без typed self/non-self/cardinality invocation partition.
+- Status: resolved как устранённый overclaim; missing singular capability остаётся частью [P-20260715-005](../problems/problems.md), а не новым ложным contract.
+- Related decision: [D-20260715-023](../decisions/decisions.md).
+
+## [2026-07-15] open update | P-20260715-005 | Ordinary-supergroup subtype contract уменьшил open set до 124 methods
+
+- Evidence: [supergroup subtype capability digest](../raw/2026-07-15-tdlib-supergroup-flag-capabilities.md); exact supported set 66, terminal set 69, open-set SHA-256 `437c17ed2ccb09f23aa7eba6b04223e0b05a97ae55493d280fa18f28fe7ce796`.
+- Transition: один method получает exact account/kind/subtype/right contract; оба self/cardinality-dependent invite methods остаются deferred; capability format становится `8`.
+- Status: open; zero-open gate не достигнут, 124 methods дают `SchemaDrift` и не считаются capability coverage.
+- Next check: продолжать reviewed source-family tasks; runtime subtype evidence обязано быть current-session, target/account/DC-bound и fail closed на gap/staleness.
+- Archive link map после ротации: [D-20260715-012](../decisions/archive/2026-07-15--2026-07-15-011.md).
+- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/archive/2026-07-15--2026-07-15-011.md), [D-20260715-023](../decisions/decisions.md).

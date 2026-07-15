@@ -1459,15 +1459,6 @@ fn documented_runtime_requirements(
                     }
                 })?
             }
-            ReviewedRuntimeContract::MemberRightInKinds { right, kinds } => {
-                let target = documented_chat_target(method)?;
-                chat_kind_clauses(&target, kinds, |target| {
-                    RuntimeRequirement::ChatMemberRight {
-                        target: target.clone(),
-                        right,
-                    }
-                })?
-            }
             ReviewedRuntimeContract::OwnerInKind(kind) => {
                 let target = documented_chat_target(method)?;
                 vec![vec![
@@ -1663,10 +1654,6 @@ enum ReviewedRuntimeContract {
         right: ChatAdministratorRight,
         kinds: &'static [ResolvedChatKind],
     },
-    MemberRightInKinds {
-        right: ChatMemberRight,
-        kinds: &'static [ResolvedChatKind],
-    },
     OwnerInKind(ResolvedChatKind),
     AdministratorOrTopicCreator {
         right: ChatAdministratorRight,
@@ -1682,10 +1669,6 @@ impl ReviewedRuntimeContract {
             Self::AdministratorInKinds(_) => &[RuntimeSignalFamily::RequiresAdministrator],
             Self::AdministratorRightInKinds { .. } | Self::AdministratorOrTopicCreator { .. } => &[
                 RuntimeSignalFamily::AdministratorRightPhrase,
-                RuntimeSignalFamily::RequiresRightPhrase,
-            ],
-            Self::MemberRightInKinds { .. } => &[
-                RuntimeSignalFamily::MemberRightPhrase,
                 RuntimeSignalFamily::RequiresRightPhrase,
             ],
             Self::OwnerInKind(_) => &[RuntimeSignalFamily::RequiresOwnerPrivileges],
@@ -1719,17 +1702,6 @@ fn reviewed_runtime_contract(method: &str, description: &str) -> Option<Reviewed
         ) => Some(Contract::AdministratorRightInKinds {
             right: ChatAdministratorRight::CanDeleteMessages,
             kinds: &[ResolvedChatKind::Supergroup],
-        }),
-        (
-            "addChatMember",
-            "adds a new member to a chat; requires can_invite_users member right. members can't be added to private or secret chats. returns information about members that weren't added",
-        ) => Some(Contract::MemberRightInKinds {
-            right: ChatMemberRight::CanInviteUsers,
-            kinds: &[
-                ResolvedChatKind::BasicGroup,
-                ResolvedChatKind::Supergroup,
-                ResolvedChatKind::Channel,
-            ],
         }),
         (
             "upgradeBasicGroupChatToSupergroupChat",

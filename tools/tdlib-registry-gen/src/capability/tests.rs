@@ -1156,8 +1156,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            66,
-            "5fb3e7ba71f07968df7ca1cfdfca57cd4f1a9de2bf0db92b0491f009cd5a35a5".to_owned()
+            65,
+            "7f251ea70bf74151d6c7d88cbd61fd8ff9480f7174de17cc59970db531b47cda".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -1173,8 +1173,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            69,
-            "7d4e40331eb9eee73e899613e280a70f29dfa4dd3b418b9809bb5c836f6a1161".to_owned()
+            68,
+            "6db6e9c9b3912a99885be768645aab25950ba156fc5b4984c8d144bf436c5430".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -1183,12 +1183,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        124,
+        125,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "9286c8f2797606f47f5d136bdfdc0c80d7eb09ab650acaa6676520340880d04c",
+        "ff2f1639bd2947b460ebac2d7a733e71556619db8804ebe49f7410e73cd13af6",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -1265,7 +1265,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "3df0178c4e3c15b7d19a6189a456f874fdeed802aa118e563e619f8354f5e3e1"
+        "9bc6e056433a91a35e95a6278852286817e68266b41f9b53eb1ebbc41aa012dc"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -4011,22 +4011,6 @@ fn pinned_conditional_chat_kind_contracts_are_exact() {
         ]],
     );
     assert_contract(
-        "addChatMember",
-        [
-            ResolvedChatKind::BasicGroup,
-            ResolvedChatKind::Supergroup,
-            ResolvedChatKind::Channel,
-        ]
-        .into_iter()
-        .map(|value| {
-            vec![
-                kind(&chat_target, value),
-                member(&chat_target, ChatMemberRight::CanInviteUsers),
-            ]
-        })
-        .collect(),
-    );
-    assert_contract(
         "upgradeBasicGroupChatToSupergroupChat",
         vec![vec![
             kind(&chat_target, ResolvedChatKind::BasicGroup),
@@ -4077,6 +4061,37 @@ fn pinned_conditional_chat_kind_contracts_are_exact() {
                 administrator(&chat_target, ChatAdministratorRight::CanEditMessages),
             ],
         ],
+    );
+}
+
+#[test]
+fn add_chat_member_stays_deferred_until_account_and_supergroup_subtype_are_typed() {
+    let schema =
+        Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
+    let method = find_method(&schema, "addChatMember");
+
+    assert_eq!(
+        method.canonical_signature(),
+        "addChatMember chat_id:int53 user_id:int53 forward_limit:int32 = FailedToAddMembers;"
+    );
+    assert_eq!(
+        normalized_text(&super::method_description(method)),
+        "adds a new member to a chat; requires can_invite_users member right. members can't be added to private or secret chats. returns information about members that weren't added"
+    );
+    assert_eq!(
+        documented_runtime_requirements(method)
+            .expect_err(
+                "the current model can't express regular-user and direct-messages-group gates"
+            )
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+    assert!(
+        documented_runtime_signal_dispositions(method)
+            .expect("signal dispositions")
+            .into_iter()
+            .all(|(_, disposition)| disposition
+                == RuntimeSignalDisposition::Deferred(DeferredSignalLane::UnclassifiedDescription))
     );
 }
 
@@ -4900,7 +4915,6 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
 
     for method in [
         "deleteChatMessagesBySender",
-        "addChatMember",
         "toggleForumTopicIsClosed",
         "upgradeBasicGroupChatToSupergroupChat",
         "setSupergroupStickerSet",
@@ -4919,6 +4933,7 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
         "createForumTopic",
         "editForumTopic",
         "deleteForumTopic",
+        "addChatMember",
         "setChatMemberStatus",
         "getSupergroupMembers",
         "canPostStory",

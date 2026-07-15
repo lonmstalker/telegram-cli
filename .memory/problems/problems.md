@@ -2,30 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] open update | P-20260715-005 | Exact open set уменьшен до 187 methods
-
-- Evidence: [ChatKind capability digest](../raw/2026-07-15-tdlib-chat-kind-capability.md); exact 193-method signal set не изменился, supported set вырос до 6 с SHA-256 `ea3222...99a9`, open set теперь 187 с SHA-256 `beea6c...3c03`.
-- Transition: `unpinChatMessage` получил complete typed disposition через five-branch `ChatKind` DNF и больше не входит в open set. Остальные 187 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
-- Status: open; zero-open gate не достигнут.
-- Next check: добавить exact per-signal disposition artifact и следующую closed source family (`MessageProperties`/object-field facts), не смешивая runtime capability с prerequisite/retry/lexical lanes.
-- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-011](../decisions/decisions.md).
-
-## [2026-07-15] open update | P-20260715-005 | Per-signal oracle принят, exact open set уменьшен до 185 methods
-
-- Evidence: [per-signal disposition digest](../raw/2026-07-15-tdlib-runtime-signal-dispositions.md); exact 193-method scan развёрнут в 208 sources и 398 keys. Terminal complete set содержит 8 methods; open-set SHA-256 `b4b68de...009c8`.
-- Transition: exact `getChatBoostFeatures` и `getChatBoostLevelFeatures` lexical vocabulary признана non-gate; explicit consumed-key equality теперь не допускает partial completion. Остальные 185 methods остаются deferred и дают `SchemaDrift`.
-- Status: open; zero-open gate не достигнут.
-- Next check: добавить exact `MessageProperties` schema vocabulary и typed quantified message facts без premature consumption mixed contracts.
-- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md).
-
-## [2026-07-15] open update | P-20260715-005 | MessageProperties family уменьшила open set до 156 methods
-
-- Evidence: [MessageProperties capability digest](../raw/2026-07-15-tdlib-message-properties-capabilities.md); schema-derived family exhaustive разделена на 29 complete и 4 deferred methods, 59 keys consumed, 11 mixed keys сохранены deferred.
-- Transition: exact ordered vocabulary, source text, identifier space и `One/Each` cardinality terminally disposition 29 methods. Terminal complete set теперь 37; open-set SHA-256 `e3ce3e31e2f024513cb1f04e5d4f116b05e31eca6483302532da1395197b8e54`.
-- Status: open; zero-open gate не достигнут, 156 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
-- Next check: отдельными reviewed tasks закрывать group-call/full-info/option/admin/object-field source families, сохраняя prerequisite/retry и mixed invocation lanes раздельными.
-- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-013](../decisions/decisions.md).
-
 ## [2026-07-15] open update | P-20260715-005 | ChatBoost link vocabulary уменьшила open set до 155 methods
 
 - Evidence: [exact lexical digest](../raw/2026-07-15-tdlib-chat-boost-link-non-gate.md); один `ChatBoostReference` key terminally classified без capability claim.
@@ -143,3 +119,26 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Next check: отдельными reviewed tasks закрывать следующие exact semantic families; runtime evaluator обязан fail closed на stale/unknown/account-mismatched right evidence.
 - Archive link map после ротации: [P-20260715-004 resolved и correction](archive/2026-07-15--2026-07-15-004.md).
 - Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-021](../decisions/decisions.md).
+
+## [2026-07-15] open | P-20260715-009 | addChatMember contract терял account и direct-messages-group gates
+
+- Evidence: [addChatMember correction digest](../raw/2026-07-15-tdlib-add-chat-member-overclaim-correction.md); pinned `Requests.cpp` выполняет `CHECK_IS_USER`, а channel participant path отклоняет `is_monoforum`, отражённый как `supergroup.is_direct_messages_group`.
+- Impact: bot account или direct-messages supergroup могли получить ложный supported verdict по broad kind/member-right DNF.
+- Status: open at discovery; current model не содержит required subtype condition.
+- Next check: удалить incomplete contract до commit либо добавить exact closed subtype evidence и account constraint.
+- Related decisions: [D-20260715-022](../decisions/decisions.md).
+
+## [2026-07-15] resolved | P-20260715-009 | addChatMember возвращён в deferred
+
+- Evidence: `MemberRightInKinds` и единственный contract удалены; exact regression требует `SchemaDrift`, signal dispositions deferred, independent reviewer дал `APPROVED`.
+- Resolution: false-positive path закрыт без speculative subtype abstraction.
+- Status: resolved for current implementation; future complete contract требует regular-user и direct-messages-group evidence.
+- Related decisions: [D-20260715-022](../decisions/decisions.md).
+
+## [2026-07-15] open correction | P-20260715-005 | addChatMember correction увеличила open set до 125 methods
+
+- Corrects: preceding 124-method current state, где incomplete `addChatMember` считался complete.
+- Evidence: [addChatMember correction digest](../raw/2026-07-15-tdlib-add-chat-member-overclaim-correction.md); supported 65, terminal 68, open-set SHA-256 `ff2f1639bd2947b460ebac2d7a733e71556619db8804ebe49f7410e73cd13af6`.
+- Status: open; zero-open gate не достигнут, 125 methods дают `SchemaDrift` и не считаются capability coverage.
+- Next check: закрывать exact source families только после dispatcher/deeper-handler evidence; subtype/account-sensitive methods fail closed.
+- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-022](../decisions/decisions.md).

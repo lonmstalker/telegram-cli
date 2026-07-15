@@ -3,6 +3,8 @@
 //! This module classifies static requirements. It never claims that a runtime
 //! account currently satisfies them and it does not grant policy permission.
 
+mod supergroup_usernames;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt::{self, Write};
@@ -1206,6 +1208,7 @@ fn validate_documented_method_constraints(
     let group_call_contract = reviewed_group_call_contract(method)?;
     let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
     let boolean_option_contract = reviewed_runtime_boolean_option_contract(method)?;
+    let supergroup_username_contract = reviewed_supergroup_username_contract(method)?;
     let ready = descriptor.ready_accounts();
     let entitlements = descriptor.current_account_entitlements();
     let dcs = descriptor.dc_environments();
@@ -1241,7 +1244,8 @@ fn validate_documented_method_constraints(
         Some(ReviewedRuntimeContract::OwnerInKind(_))
     ) || group_call_contract.is_some()
         || supergroup_full_info_contract.is_some()
-        || boolean_option_contract.is_some_and(|contract| contract.regular_user_only);
+        || boolean_option_contract.is_some_and(|contract| contract.regular_user_only)
+        || supergroup_username_contract.is_some();
     let expected_ready = if bot_only || runtime_bot_only {
         vec![AccountKind::Bot]
     } else if regular_only || runtime_regular_only || !expected_entitlements.is_empty() {
@@ -1300,12 +1304,14 @@ fn documented_runtime_requirements(
     let group_call_contract = reviewed_group_call_contract(method)?;
     let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
     let boolean_option_contract = reviewed_runtime_boolean_option_contract(method)?;
+    let supergroup_username_contract = reviewed_supergroup_username_contract(method)?;
     let reviewed_family_count = [
         runtime_contract.is_some(),
         message_contract.is_some(),
         group_call_contract.is_some(),
         supergroup_full_info_contract.is_some(),
         boolean_option_contract.is_some(),
+        supergroup_username_contract.is_some(),
     ]
     .into_iter()
     .filter(|present| *present)
@@ -1360,6 +1366,9 @@ fn documented_runtime_requirements(
     if let Some(contract) = boolean_option_contract {
         expected_consumed.extend(contract.consumed_signal_keys());
     }
+    if supergroup_username_contract.is_some() {
+        expected_consumed.extend(supergroup_username_consumed_signal_keys());
+    }
     if consumed != expected_consumed {
         return Err(unsupported_runtime_documentation(
             method,
@@ -1376,6 +1385,13 @@ fn documented_runtime_requirements(
         vec![vec![RuntimeRequirement::BooleanOptionEnabled {
             option: contract.option,
         }]]
+    } else if let Some(contract) = supergroup_username_contract {
+        let target = documented_chat_target(method)?;
+        chat_kind_clauses(&target, contract.supported_chat_kinds(), |target| {
+            RuntimeRequirement::ChatOwner {
+                target: target.clone(),
+            }
+        })?
     } else {
         let Some(contract) = runtime_contract else {
             return Err(unsupported_runtime_documentation(
@@ -1477,6 +1493,43 @@ fn documented_runtime_requirements(
         }
     };
     exact_runtime_alternatives(clauses).map(Some)
+}
+
+fn reviewed_supergroup_username_contract(
+    method: &Definition,
+) -> Result<
+    Option<&'static supergroup_usernames::SupergroupUsernameContract>,
+    CapabilityGenerationError,
+> {
+    let Some(contract) = supergroup_usernames::reviewed_contract(method.name()) else {
+        return Ok(None);
+    };
+    if method.canonical_signature() != contract.canonical_signature() {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed supergroup-username signature drifted",
+        ));
+    }
+    if !signal_source_has_exact_text(
+        method,
+        &RuntimeSignalSource::Description,
+        contract.source_text(),
+    ) {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed supergroup-username source text drifted or disappeared",
+        ));
+    }
+    Ok(Some(contract))
+}
+
+fn supergroup_username_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
+    [RuntimeSignalKey {
+        source: RuntimeSignalSource::Description,
+        family: RuntimeSignalFamily::RequiresOwnerPrivileges,
+    }]
+    .into_iter()
+    .collect()
 }
 
 #[derive(Clone, Copy)]
@@ -2727,6 +2780,9 @@ fn documented_runtime_signal_dispositions(
     if let Some(contract) = reviewed_runtime_boolean_option_contract(method)? {
         consumed.extend(contract.consumed_signal_keys());
     }
+    if reviewed_supergroup_username_contract(method)?.is_some() {
+        consumed.extend(supergroup_username_consumed_signal_keys());
+    }
     runtime_signal_dispositions_with_consumed(method, &consumed)
 }
 
@@ -3230,6 +3286,10 @@ fn engine_source_sha256() -> String {
     let mut hasher = Sha256::new();
     for (path, bytes) in [
         ("capability.rs", include_bytes!("capability.rs").as_slice()),
+        (
+            "capability/supergroup_usernames.rs",
+            include_bytes!("capability/supergroup_usernames.rs").as_slice(),
+        ),
         (
             "telegram-core/method_capability.rs",
             include_bytes!("../../../crates/telegram-core/src/method_capability.rs").as_slice(),

@@ -136,3 +136,11 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Status: resolved; seven negative controls покрывают matcher, real discovery, root/script formats и file/root symlink fail-closed.
 - Remaining boundary: documentation IDs остаются навигацией; full registry/runtime всё ещё open и не заявляется.
 - Related decisions: [D-20260715-017](../decisions/decisions.md).
+
+## [2026-07-15] open update | P-20260715-005 | Username owner family уменьшила open set до 133 methods
+
+- Evidence: [supergroup username owner digest](../raw/2026-07-15-tdlib-supergroup-username-owner-capabilities.md); exact owner-signal family исчерпывающе разделена на 4 new complete, 1 prior complete и 13 mixed/deferred methods.
+- Transition: четыре username-management methods получают exact `ChatKind AND ChatOwner` DNF. Supported typed set теперь 57, terminal complete set 60, open-set SHA-256 `cd2b13cc68f18956f113592b505ec4469c564e3f7ce4298e7e4093b172e5a914`.
+- Status: open; zero-open gate не достигнут, 133 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
+- Next check: отдельными reviewed tasks закрывать следующие exact semantic families; runtime evaluator обязан fail closed на stale/unknown owner evidence.
+- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-018](../decisions/decisions.md).

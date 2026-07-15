@@ -488,6 +488,85 @@ fn public_generation_enforces_and_serializes_runtime_boolean_option_contracts() 
 }
 
 #[test]
+fn public_generation_enforces_supergroup_username_owner_contract() {
+    let marker = "//@description Uses a feature; for Telegram Premium users only";
+    let schema = SCHEMA.replacen(
+        marker,
+        concat!(
+            "//@description Changes the editable username of a supergroup or channel, requires owner privileges in the supergroup or channel\n",
+            "//@supergroup_id Identifier of the supergroup or channel\n",
+            "//@username New value of the username\n",
+            "setSupergroupUsername supergroup_id:int53 username:string = Ok;\n\n",
+            "//@description Uses a feature; for Telegram Premium users only"
+        ),
+        1,
+    );
+    assert_ne!(schema, SCHEMA, "username fixture insertion");
+    let fixture = Fixture::new(&schema);
+    let exact_requirement = json!({
+        "kind": "any_of",
+        "clauses": [
+            {"all_of": [
+                chat_kind("supergroup_id", "supergroup"),
+                {"kind": "chat_owner", "target_argument": "supergroup_id"}
+            ]},
+            {"all_of": [
+                chat_kind("supergroup_id", "channel"),
+                {"kind": "chat_owner", "target_argument": "supergroup_id"}
+            ]}
+        ]
+    });
+    let mut policy = fixture.capability_value();
+    let row = method_row_mut(&mut policy, "setSupergroupUsername");
+    row["ready_accounts"] = json!(["regular_user"]);
+    row["runtime_requirements"] = exact_requirement;
+
+    let mut missing_owner = policy.clone();
+    method_row_mut(&mut missing_owner, "setSupergroupUsername")["runtime_requirements"]["clauses"]
+        [1]["all_of"]
+        .as_array_mut()
+        .expect("channel clause")
+        .pop();
+    assert_policy_error(
+        &fixture,
+        missing_owner,
+        CapabilityGenerationErrorKind::InvalidPolicy,
+    );
+
+    let mut bot_policy = policy.clone();
+    method_row_mut(&mut bot_policy, "setSupergroupUsername")["ready_accounts"] = json!(["bot"]);
+    assert_policy_error(
+        &fixture,
+        bot_policy,
+        CapabilityGenerationErrorKind::InvalidPolicy,
+    );
+
+    let artifact: Value = serde_json::from_slice(
+        &fixture
+            .generate_value(&policy)
+            .expect("username capability generation"),
+    )
+    .expect("canonical artifact");
+    let target = || json!({"kind": "supergroup_id", "argument": "supergroup_id"});
+    assert_eq!(
+        method_row(&artifact, "setSupergroupUsername")["runtime_requirements"],
+        json!({
+            "kind": "any_of",
+            "clauses": [
+                {"all_of": [
+                    {"kind": "chat_kind", "target": target(), "value": "supergroup"},
+                    {"kind": "chat_owner", "target": target()}
+                ]},
+                {"all_of": [
+                    {"kind": "chat_kind", "target": target(), "value": "channel"},
+                    {"kind": "chat_owner", "target": target()}
+                ]}
+            ]
+        })
+    );
+}
+
+#[test]
 fn public_generation_keeps_group_call_message_universal_cardinality() {
     let marker = "//@description Uses a feature; for Telegram Premium users only";
     let schema = SCHEMA.replacen(
@@ -821,8 +900,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            53,
-            "28c3996aea8c326235460012c8bbadf95aa3ce78d051ab4b0000f6f2a9058dd4".to_owned()
+            57,
+            "4454d9ff7d0b979f60cd10639507cd73fab248f9bcdcaf77226ed473e868b7e8".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -838,8 +917,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            56,
-            "0d6710cf033722a06ecb2509644662db04f7dd4f8609effc56126fa208cbd4ba".to_owned()
+            60,
+            "d8f9eaddb7ed7ba9441036790e556f65fa7a0790fafd95d2f4b19f59f66ac28b".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -848,12 +927,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        137,
+        133,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "c05b282773cfd9ecaa1e8ab0c24a0ad08d7589a1fbf05a08901fe355db6c959e",
+        "cd2b13cc68f18956f113592b505ec4469c564e3f7ce4298e7e4093b172e5a914",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -930,7 +1009,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "a6a47059f166850f6dfb6a22e867bd69f7999d4b8d371d67f11115b267495ad9"
+        "0569da65720ced780c8643389ab908b2cfd4798ea69319eb6a05085ee59f94e5"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -2838,6 +2917,203 @@ fn pinned_runtime_boolean_option_capability_contracts_are_exact() {
     assert_eq!(
         documented_runtime_requirements(find_method(&wrong_signature, "setNewChatPrivacySettings"))
             .expect_err("option contract signature drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
+fn pinned_supergroup_username_owner_contracts_are_exact() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let contracts = [
+        (
+            "disableAllSupergroupUsernames",
+            "disableAllSupergroupUsernames supergroup_id:int53 = Ok;",
+            "disables all active non-editable usernames of a supergroup or channel, requires owner privileges in the supergroup or channel",
+        ),
+        (
+            "reorderSupergroupActiveUsernames",
+            "reorderSupergroupActiveUsernames supergroup_id:int53 usernames:vector<string> = Ok;",
+            "changes order of active usernames of a supergroup or channel, requires owner privileges in the supergroup or channel",
+        ),
+        (
+            "setSupergroupUsername",
+            "setSupergroupUsername supergroup_id:int53 username:string = Ok;",
+            "changes the editable username of a supergroup or channel, requires owner privileges in the supergroup or channel",
+        ),
+        (
+            "toggleSupergroupUsernameIsActive",
+            "toggleSupergroupUsernameIsActive supergroup_id:int53 username:string is_active:Bool = Ok;",
+            "changes active state for a username of a supergroup or channel, requires owner privileges in the supergroup or channel. the editable username can't be disabled. may return an error with a message \"usernames_active_too_much\" if the maximum number of active usernames has been reached",
+        ),
+    ];
+    let safe = contracts
+        .iter()
+        .map(|(method, _, _)| *method)
+        .collect::<std::collections::BTreeSet<_>>();
+    let deferred = [
+        "getChatInviteLinkCounts",
+        "getChatOwnerAfterLeaving",
+        "getChatRevenueWithdrawalUrl",
+        "getUpgradedGiftWithdrawalUrl",
+        "replaceLiveStoryRtmpUrl",
+        "replaceVideoChatRtmpUrl",
+        "sellGift",
+        "setChatDirectMessagesGroup",
+        "toggleChatHasProtectedContent",
+        "toggleSupergroupCanHaveSponsoredMessages",
+        "toggleSupergroupIsBroadcastGroup",
+        "toggleSupergroupIsForum",
+        "transferChatOwnership",
+    ]
+    .into_iter()
+    .collect::<std::collections::BTreeSet<_>>();
+    let hash_rows = |mut rows: Vec<String>| {
+        rows.sort_unstable();
+        let mut payload = rows.join("\n");
+        payload.push('\n');
+        sha256_hex(payload.as_bytes())
+    };
+    assert!(safe.is_disjoint(&deferred));
+    assert_eq!(
+        hash_rows(safe.iter().map(ToString::to_string).collect()),
+        "b093777061da4be0622087c24d81db5116ff19c06d2028d228d369adf916d185"
+    );
+    assert_eq!(
+        hash_rows(deferred.iter().map(ToString::to_string).collect()),
+        "f94f95c9e369c9e00b48492827522039251657a4a64ae9f33332d843449d461e"
+    );
+
+    let derived = schema
+        .methods()
+        .iter()
+        .filter_map(|method| {
+            documented_runtime_signal_dispositions(method)
+                .unwrap_or_else(|error| panic!("{}: {error}", method.name()))
+                .iter()
+                .any(|(key, _)| key.family() == RuntimeSignalFamily::RequiresOwnerPrivileges)
+                .then_some(method.name())
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut expected_family = safe
+        .union(&deferred)
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    expected_family.insert("upgradeBasicGroupChatToSupergroupChat");
+    assert_eq!(
+        expected_family, derived,
+        "owner-signal partition must be exhaustive"
+    );
+
+    let target = ChatTargetRef::try_from("supergroup_id").expect("supergroup target");
+    let expected = RequirementAlternatives::try_new(
+        [ResolvedChatKind::Supergroup, ResolvedChatKind::Channel]
+            .into_iter()
+            .map(|value| {
+                vec![
+                    RuntimeRequirement::ChatKind(
+                        ChatKindCondition::try_new(target.clone(), value).expect("chat kind"),
+                    ),
+                    RuntimeRequirement::ChatOwner {
+                        target: target.clone(),
+                    },
+                ]
+            })
+            .collect(),
+    )
+    .expect("owner alternatives");
+    let mut consumed_rows = Vec::new();
+    for (method_name, signature, source) in contracts {
+        let method = find_method(&schema, method_name);
+        assert_eq!(method.canonical_signature(), signature, "{method_name}");
+        assert_eq!(
+            normalized_text(&super::method_description(method)),
+            source,
+            "{method_name} source"
+        );
+        assert_eq!(
+            documented_runtime_requirements(method)
+                .expect("reviewed owner documentation")
+                .expect("owner contract"),
+            expected,
+            "{method_name}"
+        );
+        let dispositions =
+            documented_runtime_signal_dispositions(method).expect("owner dispositions");
+        assert!(matches!(
+            dispositions.as_slice(),
+            [(key, RuntimeSignalDisposition::ConsumedByRuntimeRequirements)]
+                if key.source() == &RuntimeSignalSource::Description
+                    && key.family() == RuntimeSignalFamily::RequiresOwnerPrivileges
+        ));
+        consumed_rows.push(format!(
+            "{method_name}\tdescription\trequires_owner_privileges"
+        ));
+    }
+    assert_eq!(
+        hash_rows(consumed_rows),
+        "65656db662de8295423d199a06c785503c86c5d51f591aaa2321731f64dbc566"
+    );
+
+    for method_name in deferred {
+        let method = find_method(&schema, method_name);
+        assert_eq!(
+            documented_runtime_requirements(method)
+                .expect_err("mixed owner method must remain open")
+                .kind(),
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "{method_name}"
+        );
+        assert!(
+            documented_runtime_signal_dispositions(method)
+                .unwrap_or_else(|error| panic!("{method_name}: {error}"))
+                .iter()
+                .any(|(key, disposition)| {
+                    key.family() == RuntimeSignalFamily::RequiresOwnerPrivileges
+                        && matches!(disposition, RuntimeSignalDisposition::Deferred(_))
+                }),
+            "{method_name} owner key must stay deferred"
+        );
+    }
+
+    let source = "Changes the editable username of a supergroup or channel, requires owner privileges in the supergroup or channel";
+    let source_drift = pinned.replacen(
+        source,
+        "Changes the editable username of a supergroup or channel, requires exact owner privileges in the supergroup or channel",
+        1,
+    );
+    let source_drift = Schema::parse(&source_drift).expect("valid source drift schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&source_drift, "setSupergroupUsername"))
+            .expect_err("owner source drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let signature_drift = pinned.replacen(
+        "setSupergroupUsername supergroup_id:int53 username:string = Ok;",
+        "setSupergroupUsername supergroup_id:int32 username:string = Ok;",
+        1,
+    );
+    let signature_drift = Schema::parse(&signature_drift).expect("valid signature drift schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&signature_drift, "setSupergroupUsername"))
+            .expect_err("owner signature drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let additional_signal = pinned.replacen(
+        "@username New value of the username. Use an empty string to remove the username. The username can't be completely removed if there is another active or disabled username",
+        "@username New value of the username; requires owner privileges. Use an empty string to remove the username. The username can't be completely removed if there is another active or disabled username",
+        1,
+    );
+    let additional_signal =
+        Schema::parse(&additional_signal).expect("valid additional owner-signal schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&additional_signal, "setSupergroupUsername"))
+            .expect_err("unconsumed owner argument signal must fail closed")
             .kind(),
         CapabilityGenerationErrorKind::SchemaDrift
     );

@@ -6,6 +6,9 @@ pub mod authorization;
 #[cfg(unix)]
 #[allow(unsafe_code)]
 pub mod database_key;
+#[cfg(unix)]
+#[allow(unsafe_code)]
+pub mod idempotency;
 pub mod raw_api;
 pub mod reducer;
 pub mod registry;

@@ -6,6 +6,8 @@ use std::io;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use telegram_core::idempotency::IdempotencyJournal;
+
 pub mod config;
 pub mod identity;
 pub mod lease;
@@ -36,6 +38,11 @@ fn run() -> Result<(), Box<dyn Error>> {
     let (profile, database_directory) = profile_config()?;
     let ownership = ProfileDatabaseLock::acquire(profile, database_directory)?;
     let config = DaemonConfig::from_environment(&ownership)?;
+    let _idempotency_journal = IdempotencyJournal::open(
+        ownership
+            .canonical_database_directory()
+            .join(".telegramd-idempotency.jsonl"),
+    )?;
     let socket = DaemonSocket::bind(&ownership)?;
     let mut lifecycle = Lifecycle::new(config.idle_timeout());
     lifecycle.start()?;

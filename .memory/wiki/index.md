@@ -46,7 +46,7 @@
 
 ## Current records
 
-- Implementation: P0–P4 accepted; P5 budgets и bounded retry закрыты, следующий — durable idempotency journal; см. [project-state.md](project-state.md).
+- Implementation: P0–P4 accepted; P5 budgets/retry/idempotency закрыты, следующий — risk scopes; см. [project-state.md](project-state.md).
 - Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -76,6 +76,7 @@
 - Update gap/resync и P4 Acceptance: [D-20260715-059](../decisions/decisions.md), [W-20260715-064](../logs/work.md), [`docs/update-gap-resync.md`](../../docs/update-gap-resync.md).
 - Scheduler budgets/flood backoff: [D-20260715-060](../decisions/decisions.md), [W-20260715-065](../logs/work.md), [`docs/daemon-scheduler.md`](../../docs/daemon-scheduler.md).
 - Safe-read/convergent retry: [D-20260715-061](../decisions/decisions.md), [W-20260715-066](../logs/work.md), [`retry.rs`](../../crates/telegram-core/src/retry.rs).
+- Durable idempotency journal: [D-20260715-062](../decisions/decisions.md), [W-20260715-067](../logs/work.md), [`docs/idempotency-journal.md`](../../docs/idempotency-journal.md).
 
 ## Operating rules
 

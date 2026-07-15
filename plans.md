@@ -213,7 +213,7 @@ flowchart LR
 
 - [x] Per-account, per-chat и method-class queue/rate budgets; bounded backoff с jitter, respect flood delay.
 - [x] Retry только для safe reads и convergent desired-state operations.
-- [ ] Durable idempotency journal: fingerprint + pending/succeeded/failed/uncertain; reconciliation вместо blind retry.
+- [x] Durable idempotency journal: fingerprint + pending/succeeded/failed/uncertain; reconciliation вместо blind retry.
 - [ ] Risk scopes: read, presence, send, reversible mutation, admin, destructive, financial, auth/security.
 - [ ] Preview -> plan hash -> external approval для опасных операций.
 - [ ] Metrics (latency, queue, retry/flood, update lag, freshness, leases) и redacted audit.

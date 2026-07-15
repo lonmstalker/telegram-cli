@@ -43,6 +43,7 @@
 - P4 accepted: prerequisite resolution, method-specific pagination terminal rules, scoped open/close и send terminal update waits подтверждены behavior tests.
 - Первый пункт P5 закрыт: один account scheduler применяет explicit account/chat/generated-risk queue/rate budgets и flood blocks с bounded jitter; unreviewed methods fail before queue ([D-20260715-060](../decisions/decisions.md)).
 - Второй пункт P5 закрыт: core retry executor допускает только generated `safe_read` и `convergent`; read ждёт supplied delay, convergent перед повтором того же request проверяет desired state, а uncertain outcome не повторяется ([D-20260715-061](../decisions/decisions.md)).
+- Третий пункт P5 закрыт: owner-only durable journal fsync-ит fingerprint `pending/succeeded/failed/uncertain`, восстанавливает interrupted dispatch как uncertain и разрешает новый begin только после terminal или reconciled `NotApplied` proof ([D-20260715-062](../decisions/decisions.md)).
 
 ## Not implemented
 
@@ -55,4 +56,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: третий Tasks-пункт P5 — durable idempotency journal и reconciliation вместо blind retry.
+- Следующий implementation boundary: четвёртый Tasks-пункт P5 — risk scopes от read до auth/security.

@@ -51,7 +51,9 @@ Work entry содержит цель, sources, actions, verification, ссылк
 
 - Active journal ограничен 16 000 Unicode-символов и 1 000 строк.
 - Ротируй только целые старейшие entries; сохраняй минимум одну свежую entry active.
+- Rotation tool rebases local Markdown links из active directory в `archive/` до checksum и проверяет, что archived targets существуют.
 - Не редактируй и не удаляй archive shards и существующие строки archive index.
+- `--repair-latest-uncommitted-links` разрешён только для последнего untracked shard и одной final index row, отсутствующей в `HEAD`; tracked immutable shard tool обязан отклонить.
 - Проверяй контракт командой `python3 scripts/rotate-wiki-journal.py --all --check`.
 
 ## Safety

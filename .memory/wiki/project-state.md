@@ -42,6 +42,7 @@
 - Седьмой пункт P4 и Acceptance закрыты: explicit update gap блокирует state-dependent workflows, policy-gated `getCurrentState` atomically заменяет reducer и только тогда очищает marker ([D-20260715-059](../decisions/decisions.md)).
 - P4 accepted: prerequisite resolution, method-specific pagination terminal rules, scoped open/close и send terminal update waits подтверждены behavior tests.
 - Первый пункт P5 закрыт: один account scheduler применяет explicit account/chat/generated-risk queue/rate budgets и flood blocks с bounded jitter; unreviewed methods fail before queue ([D-20260715-060](../decisions/decisions.md)).
+- Второй пункт P5 закрыт: core retry executor допускает только generated `safe_read` и `convergent`; read ждёт supplied delay, convergent перед повтором того же request проверяет desired state, а uncertain outcome не повторяется ([D-20260715-061](../decisions/decisions.md)).
 
 ## Not implemented
 
@@ -54,4 +55,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: второй Tasks-пункт P5 — retry только для safe reads и convergent desired-state operations.
+- Следующий implementation boundary: третий Tasks-пункт P5 — durable idempotency journal и reconciliation вместо blind retry.

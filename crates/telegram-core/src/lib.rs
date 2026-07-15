@@ -9,6 +9,7 @@ pub mod database_key;
 pub mod raw_api;
 pub mod reducer;
 pub mod registry;
+pub mod retry;
 pub mod runtime;
 pub mod schema;
 pub mod transport;

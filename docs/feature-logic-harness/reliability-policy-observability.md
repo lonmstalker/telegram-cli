@@ -64,8 +64,10 @@ Scopes: read, presence, send, reversible mutation, admin, destructive, financial
 
 P1 реализует transport deadlines/cancellation и native secret-output canary. P5 scheduler
 теперь имеет explicit account/chat/generated-risk queue/rate budgets и bounded flood delay
-with jitter; production values и live FLOOD_WAIT ещё не измерены. Retry execution,
-idempotency, approval, metrics exporter и fault injection остаются следующими P5 slices.
+with jitter. Core retry executor допускает только generated `safe_read` и `convergent`:
+read ждёт весь supplied server delay, convergent повторяет тот же request только после
+desired-state probe. Production values и live FLOOD_WAIT ещё не измерены. Idempotency,
+approval, metrics exporter и fault injection остаются следующими P5 slices.
 
 ## Scope
 
@@ -143,7 +145,7 @@ idempotency, approval, metrics exporter и fault injection остаются сл
 ## Scenario Cells
 
 - SC001 - Flooded read
-  - Dimensions: D001, D002; Workflow/entity anchor: retry; Scenario: read returns delay; Expected behavior: bounded wait then retry; Related contracts: C001; Related invariants: I002; Why this matters: safe resilience; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: retry; Scenario: read returns delay; Expected behavior: bounded wait then retry; Related contracts: C001; Related invariants: I002; Why this matters: safe resilience; Status: implemented in core executor with synthetic delay.
 - SC002 - Send timeout
   - Dimensions: D001, D002; Workflow/entity anchor: reconciliation; Scenario: no terminal send update before deadline; Expected behavior: uncertain, probe, no blind resend; Related contracts: C002; Related invariants: I002; Why this matters: prevents duplicates; Status: modeled.
 
@@ -157,9 +159,9 @@ idempotency, approval, metrics exporter и fault injection остаются сл
 
 ## Coverage Notes
 
-- Kernel coverage: generated risk admission, queue/rate scopes и flood backoff implemented;
-  retry/outcome/telemetry remain modeled.
+- Kernel coverage: generated risk/retry admission, queue/rate scopes, flood backoff и bounded
+  safe-read/convergent retry implemented; durable outcome journal/telemetry remain modeled.
 - Modeled: policy and reconciliation contract.
-- Partial: production budget values, retry executor, reconciliation and exporter.
+- Partial: production budget values, durable reconciliation and exporter.
 - Unknown: measured production thresholds.
 - Not applicable: domain-specific data shapes.

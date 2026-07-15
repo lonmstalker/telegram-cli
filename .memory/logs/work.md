@@ -114,3 +114,11 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Flood scope block не короче server delay; bounded jitter не превышает configured automatic maximum, а слишком длинный delay отключает automatic retry вместо truncation.
 - Tests покрывают независимые rate dimensions, каждую queue dimension, generated classification/default-deny, FIFO/cancellation и flood bounds. Contract: [D-20260715-060](../decisions/decisions.md), [`docs/daemon-scheduler.md`](../../docs/daemon-scheduler.md).
 - Следующий Tasks-пункт P5: retry только для safe reads и convergent desired-state operations.
+
+## [2026-07-15] completed | W-20260715-066 | Retry ограничен safe reads и exact desired state
+
+- Закрыт второй Tasks-пункт P5: один `telegram_core::retry` executor читает `RetryClass` из generated capability data и fail-closed отклоняет `reconcile`, `never`, unknown и default-deny methods до dispatch.
+- Safe read выполняет bounded retry только после полного supplied delay. Convergent operation получает один immutable request, перед повтором обязательно probes desired state и не повторяется при unknown/uncertain outcome.
+- Tests доказывают minimum delay, same-request identity, probe-before-repeat, reconciliation success и отсутствие attempt для запрещённых classes. Contract: [D-20260715-061](../decisions/decisions.md), [`retry.rs`](../../crates/telegram-core/src/retry.rs).
+- Verification перед коммитом: обязательные workspace tests, Clippy, все `scripts/check-*.py` и wiki rotation gate.
+- Следующий Tasks-пункт P5: durable idempotency journal с reconciliation вместо blind retry.

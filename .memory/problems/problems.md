@@ -2,22 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] open update | P-20260715-005 | Runtime boolean option family уменьшила open set до 137 methods
-
-- Evidence: [runtime boolean option digest](../raw/2026-07-15-tdlib-runtime-boolean-options.md); exact family разделена на one complete method-level gate и two mixed deferred methods. Один key consumed, семь mixed keys сохранены deferred.
-- Transition: `setNewChatPrivacySettings` получает exact typed option requirement. Supported typed set теперь 53, terminal complete set 56, open-set SHA-256 `c05b282773cfd9ecaa1e8ab0c24a0ad08d7589a1fbf05a08901fe355db6c959e`.
-- Status: open; zero-open gate не достигнут, 137 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
-- Next check: отдельными reviewed tasks закрывать admin/object-field/mixed source families; runtime evaluator отдельно обязан fail closed на wrong-typed, missing или generation-stale option evidence.
-- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-016](../decisions/decisions.md).
-
-## [2026-07-15] open | P-20260715-006 | Planning taxonomy загрязнила core и generated contracts
-
-- Evidence: `telegram_core::FeatureId`, owner generator/CLI, 1010-row policy/artifact и capability owner field existed through `W-20260715-020`; user correction rejected this architecture.
-- Impact: executable model depended on arbitrary plan numbering, duplicated schema identity and added 20k lines without product runtime semantics.
-- Status: open at correction start; W021 owner work stopped before commit.
-- Next check: remove all runtime taxonomy surfaces, add fail-closed repository gate and independent review.
-- Related decisions: superseded `D-20260715-007`/`D-20260715-008`.
-
 ## [2026-07-15] resolved | P-20260715-006 | Runtime contracts отвязаны от planning inventory
 
 - Evidence: [planning-taxonomy removal correction](../raw/2026-07-15-planning-taxonomy-removal.md), green `python3 scripts/check-planning-boundary.py`, 69 Rust tests, Clippy and repeat implementation audit.
@@ -143,3 +127,32 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Status: open; zero-open gate не достигнут, 123 methods дают `SchemaDrift` и не считаются capability coverage.
 - Next check: продолжать exact source-family tasks; runtime role evidence обязано быть current-session, target/account-bound и fail closed на gap/staleness.
 - Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/archive/2026-07-15--2026-07-15-011.md), [D-20260715-024](../decisions/decisions.md).
+
+## [2026-07-15] open | P-20260715-010 | unpinChatMessage contract пропускал deeper-handler branches
+
+- Evidence: [unpinChatMessage correction digest](../raw/2026-07-15-tdlib-unpin-chat-message-overclaim-correction.md); pinned `DialogManager::can_pin_messages` запрещает secret chat, conditional по account для basic group и отделяет monoforum.
+- Impact: old DNF мог дать false-positive для secret chat и bot/basic-group, а также ложно требовать ordinary right в monoforum.
+- Status: open at discovery; real method ошибочно считался terminally dispositioned.
+- Next check: удалить incomplete row до commit и закрепить pinned deferred regression.
+- Related decision: [D-20260715-025](../decisions/decisions.md).
+
+## [2026-07-15] resolved | P-20260715-010 | unpinChatMessage возвращён в deferred
+
+- Evidence: real reviewed row удалён; pinned regression требует `SchemaDrift`; generic fixture переименован и не входит в pinned corpus; independent reviewer дал `APPROVED`.
+- Resolution: false-positive coverage устранён без speculative grammar и hidden policy narrowing.
+- Status: resolved for current implementation; missing complete capability остаётся частью [P-20260715-005](../problems/problems.md).
+- Related decision: [D-20260715-025](../decisions/decisions.md).
+
+## [2026-07-15] open correction | P-20260715-005 | unpinChatMessage correction увеличила open set до 124 methods
+
+- Corrects: preceding 123-method current state, где incomplete `unpinChatMessage` считался complete.
+- Evidence: [unpinChatMessage correction digest](../raw/2026-07-15-tdlib-unpin-chat-message-overclaim-correction.md); supported 66, terminal 69, open-set SHA-256 `ffd5fe2eed81664bc9e2d07d80582faf5a19531c553c36e92fd5096cfe759fb1`.
+- Status: open; zero-open gate не достигнут, 124 methods дают `SchemaDrift` и не считаются capability coverage.
+- Next check: добавлять complete rows только после dispatcher/deeper-handler review и exact invocation/account/kind partition.
+- Related decisions: [D-20260715-010](../decisions/archive/2026-07-15--2026-07-15-009.md), [D-20260715-012](../decisions/archive/2026-07-15--2026-07-15-011.md), [D-20260715-025](../decisions/decisions.md).
+
+## [2026-07-15] archive link map | P-20260715-005 | Rotated historical decision target
+
+- Immutable source entry: [runtime boolean option update](archive/2026-07-15--2026-07-15-008.md).
+- Canonical decision target after rotation: [D-20260715-010](../decisions/archive/2026-07-15--2026-07-15-009.md). The archived relative link remains historical and is not rewritten.
+- Status: no change; latest open boundary remains 124 methods in the preceding correction entry.

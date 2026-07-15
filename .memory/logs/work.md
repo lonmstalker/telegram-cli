@@ -2,13 +2,6 @@
 
 Active append-only checkpoints. Решения и проблемы хранятся отдельно и здесь только упоминаются по ID.
 
-## [2026-07-15] review | W-20260715-022 | Independent Rust review accepted
-
-- Scope: exact username contract module, generator integration, exhaustive owner-family tests и negative controls; docs/wiki были вне reviewer scope.
-- Result: `APPROVED`, findings отсутствуют. Ревьюер независимо подтвердил exact method/signature/source binding, `(supergroup AND owner) OR (channel AND owner)` DNF, 4 complete/13 deferred partition плюс prior complete method, bot rejection, schema/source/additional-signal fail-closed и inclusion module в engine hash.
-- Verification: reviewer повторил 48 generator и 71 workspace tests, Clippy/fmt, planning/workspace/schema/native/diff gates с `jobs=2`; `target` 150 MiB, project processes `0`.
-- Boundary: verdict относится только к W022 code scope и не закрывает [P-20260715-005](../problems/problems.md), runtime evaluator или live acceptance.
-
 ## [2026-07-15] work | W-20260715-023 | Exact chat invite-link creation semantics
 
 - Цель: закрыть homogeneous create/replace invite-link prerequisite, не поглощая creator/input-dependent own/other-link branches.
@@ -111,3 +104,21 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Final verification: 59 generator + 24 core = 83 tests, Clippy `-D warnings`, fmt, planning/workspace/schema/native/skeleton/process/rotation/diff gates green с `jobs=2`.
 - Archive link map после ротации: [W-20260715-021](archive/2026-07-15--2026-07-15-019.md) и historical [P-20260715-005 SupergroupFullInfo update](../problems/archive/2026-07-15--2026-07-15-007.md).
 - Boundary: verdicts относятся только к static W028 slice и не закрывают 123-method open set, runtime freshness, full corpus, P1–P10 или live acceptance.
+
+## [2026-07-15] correction | W-20260715-029 | unpinChatMessage false-positive coverage removed
+
+- Цель: устранить incomplete description-only contract до следующего capability expansion.
+- Sources: [unpinChatMessage correction digest](../raw/2026-07-15-tdlib-unpin-chat-message-overclaim-correction.md), pinned schema/Requests/MessagesManager/DialogManager, [D-20260715-025](../decisions/decisions.md) и [P-20260715-010](../problems/problems.md).
+- Red: pinned regression ожидал deferred `SchemaDrift`, но получил old five-branch DNF с secret-chat alternative.
+- Green/refactor: real row и positive pinned assertion удалены; generic conditional-right fixture переименован в `requireSyntheticConditionalPinRight`; real recognizer regression требует `SchemaDrift`.
+- Result: supported 66, terminal 69, open 124; format — `8`; semantic disposition SHA-256 `15f4aba2...53fa2`. Planning/task IDs в executable code отсутствуют.
+- Verification: 60 generator + 24 core = 84 workspace tests, Clippy `-D warnings`, fmt, planning/workspace/schema/native/skeleton/process/diff gates green с `jobs=2`.
+- Review: independent reviewer дал `APPROVED`, findings отсутствуют; source branches, synthetic/pinned boundary, exact oracles и no-planning-ID gate подтверждены.
+- Problems: [P-20260715-010](../problems/problems.md) resolved как removed overclaim; [P-20260715-005](../problems/problems.md) open at 124.
+- Boundary: correction не реализует missing account/subtype/message evaluator; full corpus, P1–P10 и live acceptance не закрыты.
+
+## [2026-07-15] review | W-20260715-029 | Evidence accepted
+
+- Verdict: separate docs/wiki review — `APPROVED`; D025 canonical link и immutable-shard P005 link map исправлены, findings закрыты.
+- Verification: 84/84 tests, exact 66/69/124 oracles, shard SHA/counts, rotation и diff green; active journals ниже limits.
+- Boundary: verdict не закрывает runtime/full-corpus/live acceptance.

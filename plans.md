@@ -76,7 +76,7 @@ flowchart LR
 
 | Phase | Результат | Status |
 |---|---|---|
-| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-028 |
+| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-029 |
 | P1 | Core transport, authorization и ordered updates | pending |
 | P2 | Singleton daemon и shared session lifecycle | pending |
 | P3 | Полный generated raw API | pending |
@@ -112,7 +112,7 @@ flowchart LR
   - [x] Exact real-schema capability-signal baseline и all-tag authorization evidence.
   - [x] Closed `ChatKind` predicate и exact conditional DNF для первой reviewed source family.
   - [x] Exact per-signal oracle, quantified `MessageProperties`, typed `GroupCall`, `SupergroupFullInfo` и runtime boolean option predicates.
-- [ ] Closed typed dispositions для 123 распознанных, но ещё unsupported runtime-signal methods.
+- [ ] Closed typed dispositions для 124 распознанных, но ещё unsupported runtime-signal methods.
   - [x] Exact `SupergroupFullInfo` schema/property family: 5 complete typed DNF, 7 mixed methods deferred.
   - [x] Exact `OptionGate` family: `setNewChatPrivacySettings` complete, `postStory` и withdrawal mixed semantics deferred.
   - [x] Exact supergroup/channel username owner family: 4 complete `ChatKind AND ChatOwner` DNF, 13 mixed owner methods deferred.
@@ -122,6 +122,7 @@ flowchart LR
   - [x] Correction: неполный `addChatMember` contract удалён; regular-user и direct-messages-group gates снова fail closed до появления точного subtype predicate.
   - [x] Exact schema-bound ordinary-supergroup subtype: `toggleSupergroupJoinToSendMessages` закрыт через regular-user scope, rights и Boolean facts; оба invite methods остаются deferred из-за self/cardinality partition.
   - [x] Exact chat event log contract: `getChatEventLog` требует regular user и `supergroup|channel AND administrator`; source/signature/account/additional-signal drift fail closed.
+  - [x] Correction: description-only `unpinChatMessage` DNF удалён; secret-chat rejection, bot/basic-group appointed-admin guard, monoforum и message-state branches сохраняют method deferred.
   - [ ] Reviewed canonical capability policy/artifact для всех 1010 methods.
 - [ ] Определить supported targets: macOS arm64 и Linux x86_64 минимум.
 - [ ] Перенести только доказанно reusable части `tg-analytics`; не переносить NATS/Postgres/analytics orchestration.
@@ -159,6 +160,7 @@ flowchart LR
 - `W-20260715-026`: correction возвращает `addChatMember` в deferred: pinned `Requests.cpp` требует regular user, а channel path запрещает `is_monoforum`, соответствующий `supergroup.is_direct_messages_group`. Broad `basic_group|supergroup|channel + can_invite_users` DNF и использовавшийся только ею `MemberRightInKinds` удалены. Supported typed set — 65, terminal complete — 68, open set — 125 с SHA-256 `ff2f1639...13af6`; semantic disposition SHA-256 `9bc6e056...012dc`. 78 workspace tests, Clippy/fmt/planning/workspace/schema/diff gates green с `jobs=2`; independent Rust review — `APPROVED`. Решение `D-20260715-022`; `P-20260715-009` resolved, `P-20260715-005` остаётся open.
 - `W-20260715-027`: closed `SupergroupFlag` vocabulary pin-ит только `is_broadcast_group` и `is_direct_messages_group` через exact ordered `supergroup`/`updateSupergroup` schema. `toggleSupergroupJoinToSendMessages` требует regular user, broad supergroup kind, оба subtype flags `false` и administrator `can_restrict_members`. Reviewer P2 сохранил оба `addChatMember*` methods в deferred: singular self-join обходит invite right, а plural size-one basic-group path делегирует в тот же self/non-self flow. Missing/inverted flags, bot policy, source/signature/update drift и non-supergroup combinations fail closed. Capability format — `8`; supported typed set — 66, terminal complete — 69, open set — 124 с SHA-256 `437c17ed...7ce796`; semantic disposition SHA-256 `49a6419c...aac051`. 82 workspace tests, Clippy/fmt и planning/workspace/schema/native/skeleton/process/rotation/diff gates green с `jobs=2`; target 151 MiB, leftovers 0, final independent code review — `APPROVED`. Решение `D-20260715-023`; `P-20260715-009` остаётся resolved, `P-20260715-005` остаётся open.
 - `W-20260715-028`: semantic module `capability/chat_event_logs.rs` закрепляет exact `getChatEventLog` signature/source и две DNF-ветки `supergroup|channel AND ChatAdministrator`. Pinned `Requests.cpp` доказывает regular-user-only scope, `DialogEventLog.cpp` — channel-dialog kind и current administrator check. Bot-enabled policy, source/signature drift и extra argument signal fail closed. Capability format остаётся `8`; supported typed set — 67, terminal complete — 70, open set — 123 с SHA-256 `a142adc3...72b10`; semantic disposition SHA-256 `1059126b...f1414`. 83 workspace tests, Clippy/fmt/planning/workspace/schema/native/skeleton/diff gates green с `jobs=2`; independent code review — `APPROVED`. Решение `D-20260715-024`; `P-20260715-005` остаётся open.
+- `W-20260715-029`: correction возвращает `unpinChatMessage` в deferred: pinned handler запрещает secret chat, добавляет bot/basic-group appointed-admin guard, отдельно обрабатывает monoforum и проверяет concrete message/write access. Inaccurate real-method fixture переименован в explicit synthetic method. Supported typed set — 66, terminal — 69, open — 124 с SHA-256 `ffd5fe2e...59fb1`; semantic disposition SHA-256 `15f4aba2...53fa2`. 84 workspace tests, Clippy/fmt/planning/workspace/schema/native/skeleton/process/diff gates green с `jobs=2`; independent code review — `APPROVED`. Решение `D-20260715-025`; `P-20260715-010` resolved как removed overclaim, `P-20260715-005` open at 124.
 
 ## P1 — Core transport, authorization и ordered state
 

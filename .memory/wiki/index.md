@@ -43,10 +43,11 @@
 - [TDLib addChatMember overclaim correction](../raw/2026-07-15-tdlib-add-chat-member-overclaim-correction.md) — hidden regular-user/direct-messages-group gates возвращают incomplete contract в deferred и 125-method open set.
 - [TDLib supergroup subtype capability semantics](../raw/2026-07-15-tdlib-supergroup-flag-capabilities.md) — closed Boolean flags закрывают ordinary-setting contract, сохраняя оба self/cardinality-dependent invite flows deferred; open set 124.
 - [TDLib chat event log capability semantics](../raw/2026-07-15-tdlib-chat-event-log-capability.md) — exact regular-user, supergroup/channel и administrator contract; open set 123.
+- [TDLib unpinChatMessage overclaim correction](../raw/2026-07-15-tdlib-unpin-chat-message-overclaim-correction.md) — hidden account/subtype/message branches возвращают incomplete real-method DNF в deferred; open set 124.
 
 ## Current records
 
-- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option/username-owner/invite-link/chat-setting/supergroup-subtype/chat-event-log semantics, planning-taxonomy correction и macOS native pin закрыты через `W-20260715-028`; 123 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
+- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option/username-owner/invite-link/chat-setting/supergroup-subtype/chat-event-log semantics, planning-taxonomy/unpin corrections и macOS native pin закрыты через `W-20260715-029`; 124 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
 - Native pin: [reviewed rebuild correction](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — exact source/schema и crash-safe macOS arm64 artifact закреплены; Linux/reproducibility остаются open.
 - Decision: [D-20260715-001](../decisions/archive/2026-07-15--2026-07-15-001.md) — раздельная memory model, rotation и secret boundary.
 - Decision: [D-20260715-002](../decisions/archive/2026-07-15--2026-07-15-002.md) — публичный GitHub remote принят как canonical `origin`.
@@ -57,14 +58,14 @@
 - Superseded decision: [D-20260715-007](../decisions/archive/2026-07-15--2026-07-15-006.md) — historical owner-classification design; superseded by `D-20260715-017`.
 - Superseded decision: [D-20260715-008](../decisions/archive/2026-07-15--2026-07-15-007.md) — historical exact owner mapping; superseded by `D-20260715-017`.
 - Decision: [D-20260715-009](../decisions/archive/2026-07-15--2026-07-15-008.md) — static capability requirements имеют closed bounded model; распознанные unsupported gate signals и лишнее policy-сужение fail closed, runtime truth остаётся отдельным слоем.
-- Decision: [D-20260715-010](../decisions/decisions.md) — capability grammar закрывается малыми reviewed source-family tasks по exact open set; full artifact требует zero-open gate.
+- Decision: [D-20260715-010](../decisions/archive/2026-07-15--2026-07-15-009.md) — capability grammar закрывается малыми reviewed source-family tasks по exact open set; full artifact требует zero-open gate.
 - Decision: [D-20260715-011](../decisions/archive/2026-07-15--2026-07-15-010.md) — chat kind является closed typed evidence; channel — refinement `chatTypeSupergroup.is_channel`, не отдельный constructor.
 - Decision: [D-20260715-012](../decisions/decisions.md) — method complete только при terminal disposition каждого exact signal key.
 - Decision: [D-20260715-013](../decisions/decisions.md) — message-property capability требует exact source, identifier space и scalar/universal cardinality; mixed invocation semantics остаются deferred.
 - Decision: [D-20260715-014](../decisions/decisions.md) — group-call capability требует explicit kind/property/cardinality; setting semantics и stale runtime evidence не считаются caller capability.
 - Decision: [D-20260715-015](../decisions/archive/2026-07-15--2026-07-15-016.md) — supergroup full-info property является static typed evidence; stale/missing snapshot остаётся отдельной fail-closed runtime boundary.
 - Decision: [D-20260715-016](../decisions/archive/2026-07-15--2026-07-15-018.md) — runtime boolean option является generation-bound typed evidence, а не Premium entitlement.
-- Decision: [D-20260715-017](../decisions/decisions.md) — numeric feature inventory остаётся только документацией; executable architecture keyed by semantic modules и exact TDLib schema identity.
+- Decision: [D-20260715-017](../decisions/archive/2026-07-15--2026-07-15-019.md) — numeric feature inventory остаётся только документацией; executable architecture keyed by semantic modules и exact TDLib schema identity.
 - Decision: [D-20260715-018](../decisions/decisions.md) — username-management prerequisite требует explicit supergroup/channel kind и current owner evidence.
 - Decision: [D-20260715-019](../decisions/decisions.md) — invite-link creation требует explicit chat kind и current administrator `can_invite_users` evidence.
 - Decision: [D-20260715-020](../decisions/decisions.md) — supergroup setting сохраняет exact kind, administrator/member right и account boundary; ordinary-only refinement остаётся deferred.
@@ -72,9 +73,10 @@
 - Decision: [D-20260715-022](../decisions/decisions.md) — membership contract остаётся deferred, если pinned handler добавляет account или supergroup-subtype gate, отсутствующий в static DNF.
 - Decision: [D-20260715-023](../decisions/decisions.md) — supergroup subtype выражается closed schema-bound Boolean fact; static prerequisite требует отдельной generation-bound runtime freshness.
 - Decision: [D-20260715-024](../decisions/decisions.md) — chat event log требует explicit regular-user, supergroup/channel и current administrator evidence.
+- Decision: [D-20260715-025](../decisions/decisions.md) — `unpinChatMessage` остаётся deferred, пока grammar не выражает account/subtype/message branches deeper handler.
 - Open problem: [P-20260715-001](../problems/problems.md) — database key ещё не подключён к штатному gateway.
 - Open problem: [P-20260715-003](../problems/problems.md) — Linux x86_64 native artifact ещё не закреплён.
-- Open problem: [P-20260715-005](../problems/problems.md) — 123 pinned runtime-signal methods ещё не имеют typed disposition.
+- Open problem: [P-20260715-005](../problems/problems.md) — 124 pinned runtime-signal methods ещё не имеют typed disposition.
 
 ## Operating rules
 

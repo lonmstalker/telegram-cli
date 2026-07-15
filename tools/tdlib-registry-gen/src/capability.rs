@@ -1531,7 +1531,7 @@ fn documented_runtime_requirements(
                     ],
                 ]
             }
-            ReviewedRuntimeContract::ConditionalUnpin => {
+            ReviewedRuntimeContract::ConditionalPinRight => {
                 let target = documented_chat_target(method)?;
                 vec![
                     vec![documented_chat_kind(&target, ResolvedChatKind::Private)?],
@@ -1793,7 +1793,7 @@ enum ReviewedRuntimeContract {
         right: ChatAdministratorRight,
         kind: ResolvedChatKind,
     },
-    ConditionalUnpin,
+    ConditionalPinRight,
     BusinessConnectionEnabledAndRight(BusinessBotRight),
 }
 
@@ -1806,7 +1806,7 @@ impl ReviewedRuntimeContract {
                 RuntimeSignalFamily::RequiresRightPhrase,
             ],
             Self::OwnerInKind(_) => &[RuntimeSignalFamily::RequiresOwnerPrivileges],
-            Self::ConditionalUnpin => &[
+            Self::ConditionalPinRight => &[
                 RuntimeSignalFamily::AdministratorRightPhrase,
                 RuntimeSignalFamily::MemberRightPhrase,
                 RuntimeSignalFamily::RequiresRightPhrase,
@@ -1862,9 +1862,9 @@ fn reviewed_runtime_contract(method: &str, description: &str) -> Option<Reviewed
             kind: ResolvedChatKind::Supergroup,
         }),
         (
-            "unpinChatMessage",
+            "requireSyntheticConditionalPinRight",
             "removes a pinned message from a chat; requires can_pin_messages member right if the chat is a basic group or supergroup, or can_edit_messages administrator right if the chat is a channel",
-        ) => Some(Contract::ConditionalUnpin),
+        ) => Some(Contract::ConditionalPinRight),
         (
             "sendBusinessMessage",
             "sends on behalf of a business account; for bots only; requires an enabled business connection with can_reply right",

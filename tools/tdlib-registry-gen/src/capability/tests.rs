@@ -120,7 +120,7 @@ submitStorePayment = Ok;
 testNetworkRequest = Ok;
 
 //@description Removes a pinned message from a chat; requires can_pin_messages member right if the chat is a basic group or supergroup, or can_edit_messages administrator right if the chat is a channel @chat_id Chat identifier @message_id Message identifier @reason Diagnostic fixture
-unpinChatMessage chat_id:int53 message_id:int53 reason:string = Ok;
+requireSyntheticConditionalPinRight chat_id:int53 message_id:int53 reason:string = Ok;
 
 //@description Toggles whether a topic is closed in a forum supergroup chat; requires can_manage_topics administrator right in the supergroup unless the user is creator of the topic @chat_id Chat identifier @forum_topic_id Forum topic identifier @other_topic_id Unrelated same-type identifier @is_closed New closed state
 toggleForumTopicIsClosed chat_id:int53 forum_topic_id:int32 other_topic_id:int32 is_closed:Bool = Ok;
@@ -181,7 +181,7 @@ fn canonical_generation_is_pure_and_independent_of_policy_order() {
 
     let configure = method_row(&artifact, "configureGatedValues");
     assert_eq!(configure["parameter_notices"].as_array().unwrap().len(), 7);
-    let unpin = method_row(&artifact, "unpinChatMessage");
+    let unpin = method_row(&artifact, "requireSyntheticConditionalPinRight");
     assert_eq!(unpin["runtime_requirements"]["kind"], "any_of");
     let unpin_clauses = unpin["runtime_requirements"]["clauses"]
         .as_array()
@@ -1163,8 +1163,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            67,
-            "354bd086523c04cb6ac2f8f35f92b770cdc67c16a36bc7f44be16445979572db".to_owned()
+            66,
+            "38b1a2788216e889db327c13e26995db8f28f155862b6b993042689af536bb24".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -1180,8 +1180,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            70,
-            "9de489e0204801f32ba0d644def028f8519de0946e560b1875bf4742182829bf".to_owned()
+            69,
+            "75ecdb99e460dd373f11f4eafc7eb85b0d8d874d5e182c17a9f4f9dbaa3d6554".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -1190,12 +1190,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        123,
+        124,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "a142adc309d4c392ae78f34437eb0568b23b4e69d0a576db335bab659b572b10",
+        "ffd5fe2eed81664bc9e2d07d80582faf5a19531c553c36e92fd5096cfe759fb1",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -1272,7 +1272,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "1059126baece82a1200222e92f3ad4166191f629b5f9979b39c907a9f35f1414"
+        "15f4aba28980b7e0b14b0a0e90636aeab7d5bdc4115a7c732b5403da07253fa2"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -1328,8 +1328,11 @@ fn parses_schema_bound_chat_kind_atoms() {
         }]}]
     }))
     .expect("closed chat-kind DTO");
-    let requirements = parse_runtime_requirements(dto, find_method(&schema, "unpinChatMessage"))
-        .expect("schema-bound chat-kind atom");
+    let requirements = parse_runtime_requirements(
+        dto,
+        find_method(&schema, "requireSyntheticConditionalPinRight"),
+    )
+    .expect("schema-bound chat-kind atom");
     assert!(matches!(
         requirements.clauses(),
         [clause]
@@ -1355,8 +1358,11 @@ fn parses_schema_bound_supergroup_flag_atoms() {
         }]}]
     }))
     .expect("closed supergroup-flag DTO");
-    let requirements = parse_runtime_requirements(dto, find_method(&schema, "unpinChatMessage"))
-        .expect("schema-bound supergroup flag atom");
+    let requirements = parse_runtime_requirements(
+        dto,
+        find_method(&schema, "requireSyntheticConditionalPinRight"),
+    )
+    .expect("schema-bound supergroup flag atom");
     assert!(matches!(
         requirements.clauses(),
         [clause]
@@ -1392,9 +1398,12 @@ fn parses_schema_bound_supergroup_flag_atoms() {
     }))
     .expect("syntactically valid unknown flag DTO");
     assert_eq!(
-        parse_runtime_requirements(unknown, find_method(&schema, "unpinChatMessage"))
-            .expect_err("flag vocabulary must stay closed")
-            .kind(),
+        parse_runtime_requirements(
+            unknown,
+            find_method(&schema, "requireSyntheticConditionalPinRight"),
+        )
+        .expect_err("flag vocabulary must stay closed")
+        .kind(),
         CapabilityGenerationErrorKind::InvalidPolicy
     );
 }
@@ -4320,6 +4329,31 @@ fn pinned_chat_setting_right_contracts_are_exact() {
 }
 
 #[test]
+fn pinned_unpin_chat_message_remains_deferred_without_account_and_subtype_partition() {
+    let schema =
+        Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
+    let method = find_method(&schema, "unpinChatMessage");
+    assert_eq!(
+        method.canonical_signature(),
+        "unpinChatMessage chat_id:int53 message_id:int53 = Ok;"
+    );
+    assert_eq!(
+        normalized_text(&super::method_description(method)),
+        "removes a pinned message from a chat; requires can_pin_messages member right if the chat is a basic group or supergroup, or can_edit_messages administrator right if the chat is a channel"
+    );
+
+    let error = documented_runtime_requirements(method)
+        .expect_err("account- and subtype-dependent unpin contract must remain deferred");
+    assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
+    assert!(
+        error
+            .to_string()
+            .contains("at least one runtime signal still needs a typed disposition"),
+        "{error}"
+    );
+}
+
+#[test]
 fn pinned_conditional_chat_kind_contracts_are_exact() {
     let schema =
         Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
@@ -4329,10 +4363,6 @@ fn pinned_conditional_chat_kind_contracts_are_exact() {
         RuntimeRequirement::ChatKind(
             ChatKindCondition::try_new(target.clone(), value).expect("chat kind"),
         )
-    };
-    let member = |target: &ChatTargetRef, right| RuntimeRequirement::ChatMemberRight {
-        target: target.clone(),
-        right,
     };
     let administrator =
         |target: &ChatTargetRef, right| RuntimeRequirement::ChatAdministratorRight {
@@ -4390,37 +4420,21 @@ fn pinned_conditional_chat_kind_contracts_are_exact() {
             ],
         ],
     );
-    assert_contract(
-        "unpinChatMessage",
-        vec![
-            vec![kind(&chat_target, ResolvedChatKind::Private)],
-            vec![kind(&chat_target, ResolvedChatKind::Secret)],
-            vec![
-                kind(&chat_target, ResolvedChatKind::BasicGroup),
-                member(&chat_target, ChatMemberRight::CanPinMessages),
-            ],
-            vec![
-                kind(&chat_target, ResolvedChatKind::Supergroup),
-                member(&chat_target, ChatMemberRight::CanPinMessages),
-            ],
-            vec![
-                kind(&chat_target, ResolvedChatKind::Channel),
-                administrator(&chat_target, ChatAdministratorRight::CanEditMessages),
-            ],
-        ],
-    );
 }
 
 #[test]
 fn reviewed_contract_stays_open_when_an_argument_signal_is_deferred() {
     let schema = Schema::parse(&SCHEMA.replace(
-        "@message_id Message identifier @reason Diagnostic fixture\nunpinChatMessage",
-        "@message_id Message identifier @reason Requires messageProperties.can_be_edited\nunpinChatMessage",
+        "@message_id Message identifier @reason Diagnostic fixture\nrequireSyntheticConditionalPinRight",
+        "@message_id Message identifier @reason Requires messageProperties.can_be_edited\nrequireSyntheticConditionalPinRight",
     ))
     .expect("fixture schema with an additional argument signal");
 
-    let error = documented_runtime_requirements(find_method(&schema, "unpinChatMessage"))
-        .expect_err("an exact description must not hide a deferred argument signal");
+    let error = documented_runtime_requirements(find_method(
+        &schema,
+        "requireSyntheticConditionalPinRight",
+    ))
+    .expect_err("an exact description must not hide a deferred argument signal");
     assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
     assert!(
         error
@@ -4482,24 +4496,26 @@ fn reviewed_contract_consumes_only_its_explicit_description_families() {
 fn runtime_signal_sources_must_be_unique_schema_arguments() {
     let assert_schema_drift = |schema: String, expected: &str| {
         let schema = Schema::parse(&schema).expect("signal-source fixture schema");
-        let error =
-            documented_runtime_signal_dispositions(find_method(&schema, "unpinChatMessage"))
-                .expect_err("invalid signal source must fail closed");
+        let error = documented_runtime_signal_dispositions(find_method(
+            &schema,
+            "requireSyntheticConditionalPinRight",
+        ))
+        .expect_err("invalid signal source must fail closed");
         assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
         assert!(error.to_string().contains(expected), "{error}");
     };
 
     assert_schema_drift(
         SCHEMA.replace(
-            "@reason Diagnostic fixture\nunpinChatMessage",
-            "@reason messageProperties.can_be_edited @reason groupCall.can_be_managed\nunpinChatMessage",
+            "@reason Diagnostic fixture\nrequireSyntheticConditionalPinRight",
+            "@reason messageProperties.can_be_edited @reason groupCall.can_be_managed\nrequireSyntheticConditionalPinRight",
         ),
         "runtime signal source tag is duplicated",
     );
     assert_schema_drift(
         SCHEMA.replace(
-            "@reason Diagnostic fixture\nunpinChatMessage",
-            "@unknown messageProperties.can_be_edited @reason Diagnostic fixture\nunpinChatMessage",
+            "@reason Diagnostic fixture\nrequireSyntheticConditionalPinRight",
+            "@unknown messageProperties.can_be_edited @reason Diagnostic fixture\nrequireSyntheticConditionalPinRight",
         ),
         "runtime signal belongs to neither @description nor a method argument",
     );
@@ -4776,7 +4792,8 @@ fn validates_runtime_alternatives_rights_and_argument_types() {
     ];
     for (name, requirements) in cases {
         let mut policy = fixture.capability_value();
-        method_row_mut(&mut policy, "unpinChatMessage")["runtime_requirements"] = requirements;
+        method_row_mut(&mut policy, "requireSyntheticConditionalPinRight")["runtime_requirements"] =
+            requirements;
         let error = expect_generation_error(&fixture, &policy, name);
         assert_eq!(
             error.kind(),
@@ -4846,7 +4863,7 @@ fn validates_runtime_alternatives_rights_and_argument_types() {
 fn rejects_omitted_documented_runtime_requirements() {
     let fixture = Fixture::new(SCHEMA);
     for method in [
-        "unpinChatMessage",
+        "requireSyntheticConditionalPinRight",
         "toggleForumTopicIsClosed",
         "setSupergroupStickerSet",
         "requireSyntheticSupergroupAdministrator",
@@ -4935,7 +4952,7 @@ fn validates_parameter_notices_and_all_orthogonal_gate_axes() {
     );
 
     let mut undocumented = fixture.capability_value();
-    method_row_mut(&mut undocumented, "unpinChatMessage")["parameter_notices"] = json!([{
+    method_row_mut(&mut undocumented, "requireSyntheticConditionalPinRight")["parameter_notices"] = json!([{
         "parameter": "reason",
         "gate": {"kind": "account", "value": "bot"}
     }]);
@@ -5049,8 +5066,8 @@ fn rejects_unknown_fields_and_oversized_inputs_before_work() {
         |policy: &mut Value| policy["priority"] = json!(1),
         |policy: &mut Value| method_row_mut(policy, "getChat")["priority"] = json!(1),
         |policy: &mut Value| {
-            method_row_mut(policy, "unpinChatMessage")["runtime_requirements"]["clauses"][0]["all_of"]
-                [0]["probe"] = json!(true)
+            method_row_mut(policy, "requireSyntheticConditionalPinRight")["runtime_requirements"]
+                ["clauses"][0]["all_of"][0]["probe"] = json!(true)
         },
         |policy: &mut Value| {
             method_row_mut(policy, "configureGatedValues")["parameter_notices"][0]["gate"]["unexpected"] =
@@ -5086,7 +5103,7 @@ fn rejects_unknown_fields_and_oversized_inputs_before_work() {
 
     let atom = json!({"kind": "chat_owner", "target_argument": "chat_id"});
     let mut atom_cap = fixture.capability_value();
-    method_row_mut(&mut atom_cap, "unpinChatMessage")["runtime_requirements"] = json!({
+    method_row_mut(&mut atom_cap, "requireSyntheticConditionalPinRight")["runtime_requirements"] = json!({
         "kind": "any_of", "clauses": [{"all_of": vec![atom.clone(); 33]}]
     });
     assert_policy_error(
@@ -5096,7 +5113,7 @@ fn rejects_unknown_fields_and_oversized_inputs_before_work() {
     );
 
     let mut clause_cap = fixture.capability_value();
-    method_row_mut(&mut clause_cap, "unpinChatMessage")["runtime_requirements"] = json!({
+    method_row_mut(&mut clause_cap, "requireSyntheticConditionalPinRight")["runtime_requirements"] = json!({
         "kind": "any_of", "clauses": vec![json!({"all_of": [atom]}); 17]
     });
     assert_policy_error(
@@ -5234,7 +5251,6 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
         "toggleForumTopicIsClosed",
         "upgradeBasicGroupChatToSupergroupChat",
         "setSupergroupStickerSet",
-        "unpinChatMessage",
         "reportSupergroupSpam",
         "banGroupCallParticipants",
         "setNewChatPrivacySettings",
@@ -5253,6 +5269,7 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
         "deleteForumTopic",
         "addChatMember",
         "addChatMembers",
+        "unpinChatMessage",
         "setChatMemberStatus",
         "getSupergroupMembers",
         "canPostStory",
@@ -5464,7 +5481,7 @@ fn capability_row(method: &telegram_core::schema::Definition) -> Value {
             row["application"] = json!("official");
         }
         "testNetworkRequest" => row["dc_environments"] = json!(["test"]),
-        "unpinChatMessage" => {
+        "requireSyntheticConditionalPinRight" => {
             row["runtime_requirements"] = json!({
                 "kind": "any_of",
                 "clauses": [

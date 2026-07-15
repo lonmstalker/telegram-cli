@@ -36,11 +36,12 @@
 - P0.5b12 исправляет существовавший `addChatMember` overclaim: dispatcher допускает только regular user, а `is_direct_messages_group` target запрещён deeper handler. Неполный generic contract удалён; current open set — 125, capability format остаётся `7`.
 - P0.5b13 добавляет closed schema-bound `SupergroupFlag` для `is_broadcast_group`/`is_direct_messages_group` и exact ordinary-supergroup contract для `toggleSupergroupJoinToSendMessages`. Оба invite methods остаются deferred по reviewer correction из-за self/cardinality branches. Open set — 124, capability format — `8`.
 - P0.5b14 закрепляет exact `getChatEventLog` semantic module: regular user и две DNF-ветки `supergroup|channel AND administrator`. Source/signature/account/additional-signal drift fail closed; open set — 123, capability format остаётся `8`; independent review — Approved.
+- P0.5b15 correction удаляет incomplete `unpinChatMessage` DNF: deeper handler запрещает secret chat, conditional по account для basic group, отделяет monoforum и проверяет concrete message/write access. Real method deferred; open set — 124, format — `8`; independent review — Approved.
 - Planning boundary gate с семью negative controls запрещает `FeatureId`, numeric planning IDs и owner-manifest taxonomy в runtime/tooling/machine contracts; real discovery проверяет scripts/all root machine files, file/root symlink fail closed.
 
 ## Not implemented
 
-- Linux x86_64 TDLib artifact, typed dispositions для 123 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
+- Linux x86_64 TDLib artifact, typed dispositions для 124 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
 - Stateful request-chain engine, retry/reconciliation, policy, metrics и agent skill остаются планом.
 
 ## Active boundary
@@ -87,6 +88,7 @@
 - [TDLib addChatMember overclaim correction](../raw/2026-07-15-tdlib-add-chat-member-overclaim-correction.md)
 - [TDLib supergroup subtype capability digest](../raw/2026-07-15-tdlib-supergroup-flag-capabilities.md)
 - [TDLib chat event log capability digest](../raw/2026-07-15-tdlib-chat-event-log-capability.md)
+- [TDLib unpinChatMessage overclaim correction](../raw/2026-07-15-tdlib-unpin-chat-message-overclaim-correction.md)
 - [TDLib getChatBoostLinkInfo lexical non-gate digest](../raw/2026-07-15-tdlib-chat-boost-link-non-gate.md)
 - [D-20260715-009](../decisions/archive/2026-07-15--2026-07-15-008.md)
 - [W-20260715-012](../logs/archive/2026-07-15--2026-07-15-011.md)
@@ -104,7 +106,7 @@
 - [D-20260715-016](../decisions/archive/2026-07-15--2026-07-15-018.md)
 - [W-20260715-020](../logs/archive/2026-07-15--2026-07-15-018.md)
 - [Planning-taxonomy removal correction](../raw/2026-07-15-planning-taxonomy-removal.md)
-- [D-20260715-017](../decisions/decisions.md)
+- [D-20260715-017](../decisions/archive/2026-07-15--2026-07-15-019.md)
 - [W-20260715-021](../logs/archive/2026-07-15--2026-07-15-019.md)
 - [D-20260715-018](../decisions/decisions.md)
 - [W-20260715-022](../logs/archive/2026-07-15--2026-07-15-020.md)
@@ -119,3 +121,5 @@
 - [W-20260715-027](../logs/work.md)
 - [D-20260715-024](../decisions/decisions.md)
 - [W-20260715-028](../logs/work.md)
+- [D-20260715-025](../decisions/decisions.md)
+- [W-20260715-029](../logs/work.md)

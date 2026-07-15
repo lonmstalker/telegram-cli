@@ -1032,4 +1032,6 @@ impl fmt::Display for GenerationError {
 impl Error for GenerationError {}
 
 #[cfg(test)]
+mod corpus_tests;
+#[cfg(test)]
 mod tests;

@@ -1,0 +1,5094 @@
+{
+  "format_version": 1,
+  "schema_sha256": "10a00b48d557d00c0daa231a8dad38a9d0c99de78360a1e4b0b7579b28188f31",
+  "rules": [
+    {
+      "feature_id": "F001",
+      "any": [
+        {
+          "kind": "exact",
+          "value": "close"
+        },
+        {
+          "kind": "exact",
+          "value": "destroy"
+        },
+        {
+          "kind": "exact",
+          "value": "logOut"
+        }
+      ],
+      "expected": {
+        "method_count": 3,
+        "method_set_sha256": "7d77443f1cc8d85b3ab18d244574db60932f68d706f07481083cbfa5a730e5d6"
+      },
+      "positive_examples": [
+        "close",
+        "destroy",
+        "logOut"
+      ],
+      "negative_examples": [
+        "getChat",
+        "getMe"
+      ],
+      "rationale": "Штатное завершение и уничтожение общей TDLib-сессии принадлежат lifecycle boundary."
+    },
+    {
+      "feature_id": "F002",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "Authentication"
+        },
+        {
+          "kind": "contains",
+          "value": "Authorization"
+        },
+        {
+          "kind": "exact",
+          "value": "acceptTermsOfService"
+        },
+        {
+          "kind": "exact",
+          "value": "confirmQrCodeAuthentication"
+        },
+        {
+          "kind": "exact",
+          "value": "registerUser"
+        },
+        {
+          "kind": "exact",
+          "value": "requestQrCodeAuthentication"
+        },
+        {
+          "kind": "exact",
+          "value": "setDatabaseEncryptionKey"
+        },
+        {
+          "kind": "exact",
+          "value": "setTdlibParameters"
+        }
+      ],
+      "expected": {
+        "method_count": 28,
+        "method_set_sha256": "843d33848bfd2f775ee0f94f7d5d904af0ecfa4ad01f603648115da0402f3643"
+      },
+      "positive_examples": [
+        "acceptTermsOfService",
+        "getAuthorizationState",
+        "setAuthenticationPhoneNumber",
+        "setDatabaseEncryptionKey"
+      ],
+      "negative_examples": [
+        "getChat",
+        "getMe"
+      ],
+      "rationale": "Authorization state machine, authentication challenges, terms acceptance и database key принадлежат brokered authorization flow."
+    },
+    {
+      "feature_id": "F004",
+      "any": [
+        {
+          "kind": "exact",
+          "value": "getCurrentState"
+        }
+      ],
+      "expected": {
+        "method_count": 1,
+        "method_set_sha256": "fd2280b827054de69401f5a95793ed19c5412c8e009208f11080d589614a385d"
+      },
+      "positive_examples": [
+        "getCurrentState"
+      ],
+      "negative_examples": [
+        "getAuthorizationState",
+        "getMe"
+      ],
+      "rationale": "getCurrentState является входом в ordered state snapshot и request-chain completeness."
+    },
+    {
+      "feature_id": "F007",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "CloseFriends"
+        },
+        {
+          "kind": "contains",
+          "value": "Contact"
+        },
+        {
+          "kind": "contains",
+          "value": "PhoneNumber"
+        },
+        {
+          "kind": "contains",
+          "value": "Profile"
+        },
+        {
+          "kind": "contains",
+          "value": "User"
+        },
+        {
+          "kind": "contains",
+          "value": "Username"
+        },
+        {
+          "kind": "exact",
+          "value": "blockMessageSenderFromReplies"
+        },
+        {
+          "kind": "exact",
+          "value": "getBlockedMessageSenders"
+        },
+        {
+          "kind": "exact",
+          "value": "getGroupsInCommon"
+        },
+        {
+          "kind": "exact",
+          "value": "getMe"
+        },
+        {
+          "kind": "exact",
+          "value": "setAccentColor"
+        },
+        {
+          "kind": "exact",
+          "value": "setBio"
+        },
+        {
+          "kind": "exact",
+          "value": "setBirthdate"
+        },
+        {
+          "kind": "exact",
+          "value": "setMainProfileTab"
+        },
+        {
+          "kind": "exact",
+          "value": "setMessageSenderBlockList"
+        },
+        {
+          "kind": "exact",
+          "value": "setName"
+        },
+        {
+          "kind": "exact",
+          "value": "setPersonalChat"
+        }
+      ],
+      "expected": {
+        "method_count": 78,
+        "method_set_sha256": "d9b3e8f7a319e394361f5aafb5de229331f918cc13e76b8de8e5ff8d80b99f1c"
+      },
+      "positive_examples": [
+        "getMe",
+        "getUser",
+        "searchContacts"
+      ],
+      "negative_examples": [
+        "getChat",
+        "getFile"
+      ],
+      "rationale": "User, contact и profile identity операции принадлежат users/contacts/profile workflow."
+    },
+    {
+      "feature_id": "F008",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "Archive"
+        },
+        {
+          "kind": "contains",
+          "value": "Chat"
+        },
+        {
+          "kind": "contains",
+          "value": "Folder"
+        },
+        {
+          "kind": "contains",
+          "value": "SecretChat"
+        },
+        {
+          "kind": "contains",
+          "value": "Topic"
+        }
+      ],
+      "expected": {
+        "method_count": 246,
+        "method_set_sha256": "d322443e04db31d0cd5b773f4c9b9ac5f51ec0327a15a4c0096bb17af7a3286b"
+      },
+      "positive_examples": [
+        "getChat",
+        "getChatListsToAddChat",
+        "getForumTopics"
+      ],
+      "negative_examples": [
+        "getFile",
+        "getMe"
+      ],
+      "rationale": "Chat containers, lists, folders, topics и secret chats принадлежат chat navigation workflow."
+    },
+    {
+      "feature_id": "F009",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "Draft"
+        },
+        {
+          "kind": "contains",
+          "value": "Message"
+        },
+        {
+          "kind": "contains",
+          "value": "Poll"
+        },
+        {
+          "kind": "contains",
+          "value": "Quote"
+        },
+        {
+          "kind": "contains",
+          "value": "RichMessage"
+        },
+        {
+          "kind": "contains",
+          "value": "Speech"
+        },
+        {
+          "kind": "contains",
+          "value": "Sponsored"
+        },
+        {
+          "kind": "contains",
+          "value": "TextComposition"
+        },
+        {
+          "kind": "exact",
+          "value": "addChecklistTasks"
+        },
+        {
+          "kind": "exact",
+          "value": "addOffer"
+        },
+        {
+          "kind": "exact",
+          "value": "approveSuggestedPost"
+        },
+        {
+          "kind": "exact",
+          "value": "clearSearchedForTags"
+        },
+        {
+          "kind": "exact",
+          "value": "clickAnimatedEmojiMessage"
+        },
+        {
+          "kind": "exact",
+          "value": "composeTextWithAi"
+        },
+        {
+          "kind": "exact",
+          "value": "declineSuggestedPost"
+        },
+        {
+          "kind": "exact",
+          "value": "deleteChatHistory"
+        },
+        {
+          "kind": "exact",
+          "value": "fixTextWithAi"
+        },
+        {
+          "kind": "exact",
+          "value": "forwardMessages"
+        },
+        {
+          "kind": "exact",
+          "value": "getChatHistory"
+        },
+        {
+          "kind": "exact",
+          "value": "getForumTopicHistory"
+        },
+        {
+          "kind": "exact",
+          "value": "getLinkPreview"
+        },
+        {
+          "kind": "exact",
+          "value": "getMarkdownText"
+        },
+        {
+          "kind": "exact",
+          "value": "getPersonalChatHistory"
+        },
+        {
+          "kind": "exact",
+          "value": "getPublicPostSearchLimits"
+        },
+        {
+          "kind": "exact",
+          "value": "getSearchedForTags"
+        },
+        {
+          "kind": "exact",
+          "value": "getTextEntities"
+        },
+        {
+          "kind": "exact",
+          "value": "getWebPageInstantView"
+        },
+        {
+          "kind": "exact",
+          "value": "listenToAudio"
+        },
+        {
+          "kind": "exact",
+          "value": "markChecklistTasksAsDone"
+        },
+        {
+          "kind": "exact",
+          "value": "openMessageContent"
+        },
+        {
+          "kind": "exact",
+          "value": "parseMarkdown"
+        },
+        {
+          "kind": "exact",
+          "value": "parseTextEntities"
+        },
+        {
+          "kind": "exact",
+          "value": "rateSpeechRecognition"
+        },
+        {
+          "kind": "exact",
+          "value": "readAllChatMentions"
+        },
+        {
+          "kind": "exact",
+          "value": "readAllChatReactions"
+        },
+        {
+          "kind": "exact",
+          "value": "readAllForumTopicMentions"
+        },
+        {
+          "kind": "exact",
+          "value": "readAllForumTopicReactions"
+        },
+        {
+          "kind": "exact",
+          "value": "recognizeSpeech"
+        },
+        {
+          "kind": "exact",
+          "value": "removeRecentHashtag"
+        },
+        {
+          "kind": "exact",
+          "value": "removeSearchedForTag"
+        },
+        {
+          "kind": "exact",
+          "value": "resendMessages"
+        },
+        {
+          "kind": "exact",
+          "value": "searchHashtags"
+        },
+        {
+          "kind": "exact",
+          "value": "searchPublicPosts"
+        },
+        {
+          "kind": "exact",
+          "value": "sendChatAction"
+        },
+        {
+          "kind": "exact",
+          "value": "summarizeMessage"
+        },
+        {
+          "kind": "exact",
+          "value": "translateText"
+        },
+        {
+          "kind": "exact",
+          "value": "viewMessages"
+        }
+      ],
+      "expected": {
+        "method_count": 229,
+        "method_set_sha256": "951a6420628ede5fdd4b5806e849d7c47f548289ae887ab0b8c46a87f9f44391"
+      },
+      "positive_examples": [
+        "getChatHistory",
+        "getMessage",
+        "getTextEntities",
+        "searchMessages"
+      ],
+      "negative_examples": [
+        "getFile",
+        "getMe"
+      ],
+      "rationale": "Messages, history, search, text parsing, drafts, polls и reactions принадлежат message interaction workflow."
+    },
+    {
+      "feature_id": "F010",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "AutoDownload"
+        },
+        {
+          "kind": "contains",
+          "value": "Autosave"
+        },
+        {
+          "kind": "contains",
+          "value": "Download"
+        },
+        {
+          "kind": "contains",
+          "value": "File"
+        },
+        {
+          "kind": "contains",
+          "value": "Import"
+        },
+        {
+          "kind": "contains",
+          "value": "Upload"
+        },
+        {
+          "kind": "exact",
+          "value": "importMessages"
+        }
+      ],
+      "expected": {
+        "method_count": 37,
+        "method_set_sha256": "4e4e770166f0d17d98172699643a33aee3a161183cad6112462b30bb23967e80"
+      },
+      "positive_examples": [
+        "downloadFile",
+        "getFile",
+        "preliminaryUploadFile"
+      ],
+      "negative_examples": [
+        "getChat",
+        "getMe"
+      ],
+      "rationale": "File transfer, generated files, downloads, uploads и media import принадлежат file lifecycle."
+    },
+    {
+      "feature_id": "F011",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "Administrators"
+        },
+        {
+          "kind": "contains",
+          "value": "BasicGroup"
+        },
+        {
+          "kind": "contains",
+          "value": "Boost"
+        },
+        {
+          "kind": "contains",
+          "value": "ChatMember"
+        },
+        {
+          "kind": "contains",
+          "value": "InviteLink"
+        },
+        {
+          "kind": "contains",
+          "value": "JoinRequest"
+        },
+        {
+          "kind": "contains",
+          "value": "Ownership"
+        },
+        {
+          "kind": "contains",
+          "value": "Supergroup"
+        },
+        {
+          "kind": "exact",
+          "value": "boostChat"
+        },
+        {
+          "kind": "exact",
+          "value": "checkChatUsername"
+        },
+        {
+          "kind": "exact",
+          "value": "checkCreatedPublicChatsLimit"
+        },
+        {
+          "kind": "exact",
+          "value": "deleteChat"
+        },
+        {
+          "kind": "exact",
+          "value": "getChatEventLog"
+        },
+        {
+          "kind": "exact",
+          "value": "getChatOwnerAfterLeaving"
+        },
+        {
+          "kind": "exact",
+          "value": "getCreatedPublicChats"
+        },
+        {
+          "kind": "exact",
+          "value": "getGiveawayInfo"
+        },
+        {
+          "kind": "exact",
+          "value": "getSuitableDiscussionChats"
+        },
+        {
+          "kind": "exact",
+          "value": "joinChat"
+        },
+        {
+          "kind": "exact",
+          "value": "launchPrepaidGiveaway"
+        },
+        {
+          "kind": "exact",
+          "value": "leaveChat"
+        },
+        {
+          "kind": "exact",
+          "value": "processChatHasProtectedContentDisableRequest"
+        },
+        {
+          "kind": "exact",
+          "value": "reportChat"
+        },
+        {
+          "kind": "exact",
+          "value": "reportChatPhoto"
+        },
+        {
+          "kind": "exact",
+          "value": "setChatAccentColor"
+        },
+        {
+          "kind": "exact",
+          "value": "setChatDescription"
+        },
+        {
+          "kind": "exact",
+          "value": "setChatDirectMessagesGroup"
+        },
+        {
+          "kind": "exact",
+          "value": "setChatDiscussionGroup"
+        },
+        {
+          "kind": "exact",
+          "value": "setChatLocation"
+        },
+        {
+          "kind": "exact",
+          "value": "setChatPermissions"
+        },
+        {
+          "kind": "exact",
+          "value": "setChatPhoto"
+        },
+        {
+          "kind": "exact",
+          "value": "setChatProfileAccentColor"
+        },
+        {
+          "kind": "exact",
+          "value": "setChatSlowModeDelay"
+        },
+        {
+          "kind": "exact",
+          "value": "setChatTitle"
+        },
+        {
+          "kind": "exact",
+          "value": "toggleChatHasProtectedContent"
+        }
+      ],
+      "expected": {
+        "method_count": 102,
+        "method_set_sha256": "8aa61cfccc5e242bbab9009e50468b4dccf4b7033089a5597407b12619e4a2b9"
+      },
+      "positive_examples": [
+        "createChatInviteLink",
+        "getChatMember",
+        "getSupergroup",
+        "launchPrepaidGiveaway"
+      ],
+      "negative_examples": [
+        "getFile",
+        "getMe"
+      ],
+      "rationale": "Groups, channels, membership, invites, moderation, boosts и giveaway administration принадлежат community administration."
+    },
+    {
+      "feature_id": "F012",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "Bot"
+        },
+        {
+          "kind": "contains",
+          "value": "Callback"
+        },
+        {
+          "kind": "contains",
+          "value": "Commands"
+        },
+        {
+          "kind": "contains",
+          "value": "Game"
+        },
+        {
+          "kind": "contains",
+          "value": "GuestQuery"
+        },
+        {
+          "kind": "contains",
+          "value": "Inline"
+        },
+        {
+          "kind": "contains",
+          "value": "MenuButton"
+        },
+        {
+          "kind": "contains",
+          "value": "PreCheckout"
+        },
+        {
+          "kind": "contains",
+          "value": "Prepared"
+        },
+        {
+          "kind": "contains",
+          "value": "Shipping"
+        },
+        {
+          "kind": "exact",
+          "value": "answerChatJoinRequestQuery"
+        },
+        {
+          "kind": "exact",
+          "value": "deleteChatReplyMarkup"
+        },
+        {
+          "kind": "exact",
+          "value": "setDefaultChannelAdministratorRights"
+        },
+        {
+          "kind": "exact",
+          "value": "setDefaultGroupAdministratorRights"
+        }
+      ],
+      "expected": {
+        "method_count": 77,
+        "method_set_sha256": "682bb4d4adfaaacdda129e6ee1394e8f6ccaeff3fb041133dc1c5fbc312efb43"
+      },
+      "positive_examples": [
+        "answerCallbackQuery",
+        "getBotInfoDescription",
+        "getInlineQueryResults"
+      ],
+      "negative_examples": [
+        "getFile",
+        "getMe"
+      ],
+      "rationale": "Bot, inline, callback, game и bot-testing operations принадлежат bot workflow."
+    },
+    {
+      "feature_id": "F013",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "AttachmentMenu"
+        },
+        {
+          "kind": "contains",
+          "value": "LoginUrl"
+        },
+        {
+          "kind": "contains",
+          "value": "Oauth"
+        },
+        {
+          "kind": "contains",
+          "value": "WebApp"
+        },
+        {
+          "kind": "exact",
+          "value": "getPreparedKeyboardButton"
+        },
+        {
+          "kind": "exact",
+          "value": "savePreparedKeyboardButton"
+        }
+      ],
+      "expected": {
+        "method_count": 23,
+        "method_set_sha256": "9efa3bde6e1c966773b3eb179949e77a6118cda7e70b551dc93ec59c8414da87"
+      },
+      "positive_examples": [
+        "getWebAppUrl",
+        "openWebApp",
+        "toggleBotIsAddedToAttachmentMenu"
+      ],
+      "negative_examples": [
+        "getFile",
+        "getMe"
+      ],
+      "rationale": "Web App, LoginUrl и attachment-menu methods принадлежат Mini App launch lifecycle."
+    },
+    {
+      "feature_id": "F014",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "Animation"
+        },
+        {
+          "kind": "contains",
+          "value": "Emoji"
+        },
+        {
+          "kind": "contains",
+          "value": "Reaction"
+        },
+        {
+          "kind": "contains",
+          "value": "Sticker"
+        }
+      ],
+      "expected": {
+        "method_count": 101,
+        "method_set_sha256": "4551ed49b959d81781494688fb959751de853e77136080bf6b82975e148c629d"
+      },
+      "positive_examples": [
+        "getEmojiReaction",
+        "getStickerSet",
+        "searchEmojis"
+      ],
+      "negative_examples": [
+        "getFile",
+        "getMe"
+      ],
+      "rationale": "Sticker, custom emoji, reaction и animation catalogs принадлежат sticker/emoji lifecycle."
+    },
+    {
+      "feature_id": "F015",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "Call"
+        },
+        {
+          "kind": "contains",
+          "value": "GroupCall"
+        },
+        {
+          "kind": "contains",
+          "value": "Live"
+        },
+        {
+          "kind": "contains",
+          "value": "Story"
+        },
+        {
+          "kind": "contains",
+          "value": "VideoChat"
+        },
+        {
+          "kind": "exact",
+          "value": "getChatActiveStories"
+        },
+        {
+          "kind": "exact",
+          "value": "getChatArchivedStories"
+        },
+        {
+          "kind": "exact",
+          "value": "getChatPostedToChatPageStories"
+        },
+        {
+          "kind": "exact",
+          "value": "getChatsToPostStories"
+        },
+        {
+          "kind": "exact",
+          "value": "loadActiveStories"
+        },
+        {
+          "kind": "exact",
+          "value": "searchPublicStoriesByLocation"
+        },
+        {
+          "kind": "exact",
+          "value": "searchPublicStoriesByTag"
+        },
+        {
+          "kind": "exact",
+          "value": "searchPublicStoriesByVenue"
+        },
+        {
+          "kind": "exact",
+          "value": "setChatActiveStoriesList"
+        },
+        {
+          "kind": "exact",
+          "value": "setChatPinnedStories"
+        }
+      ],
+      "expected": {
+        "method_count": 117,
+        "method_set_sha256": "e6ca31169ab9971cd9e90df92bee5120b9b870f9148546a80b72b177e4856e61"
+      },
+      "positive_examples": [
+        "createCall",
+        "getGroupCall",
+        "getStory",
+        "sendGroupCallMessage"
+      ],
+      "negative_examples": [
+        "getFile",
+        "getMe"
+      ],
+      "rationale": "Stories, calls, group-call message plane, video chats и live streams принадлежат real-time media workflow."
+    },
+    {
+      "feature_id": "F016",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "AccountTtl"
+        },
+        {
+          "kind": "contains",
+          "value": "Device"
+        },
+        {
+          "kind": "contains",
+          "value": "LoginEmail"
+        },
+        {
+          "kind": "contains",
+          "value": "Notification"
+        },
+        {
+          "kind": "contains",
+          "value": "Password"
+        },
+        {
+          "kind": "contains",
+          "value": "Privacy"
+        },
+        {
+          "kind": "contains",
+          "value": "Push"
+        },
+        {
+          "kind": "contains",
+          "value": "RecoveryEmail"
+        },
+        {
+          "kind": "contains",
+          "value": "Session"
+        },
+        {
+          "kind": "contains",
+          "value": "Website"
+        },
+        {
+          "kind": "exact",
+          "value": "addLoginPasskey"
+        },
+        {
+          "kind": "exact",
+          "value": "deleteAccount"
+        },
+        {
+          "kind": "exact",
+          "value": "getDefaultMessageAutoDeleteTime"
+        },
+        {
+          "kind": "exact",
+          "value": "getLoginPasskeys"
+        },
+        {
+          "kind": "exact",
+          "value": "getPasskeyParameters"
+        },
+        {
+          "kind": "exact",
+          "value": "hideSuggestedAction"
+        },
+        {
+          "kind": "exact",
+          "value": "removeLoginPasskey"
+        },
+        {
+          "kind": "exact",
+          "value": "setDefaultMessageAutoDeleteTime"
+        },
+        {
+          "kind": "exact",
+          "value": "toggleHasSponsoredMessagesEnabled"
+        }
+      ],
+      "expected": {
+        "method_count": 70,
+        "method_set_sha256": "6d4e03907af33b58d660f5ffa26f1406a1c3b88701de309b826b66a48786b52b"
+      },
+      "positive_examples": [
+        "getActiveSessions",
+        "getPasswordState",
+        "getStoryNotificationSettingsExceptions",
+        "setUserPrivacySettingRules"
+      ],
+      "negative_examples": [
+        "getFile",
+        "getMe"
+      ],
+      "rationale": "Account security, privacy, notification exceptions, sessions, devices и push принадлежат account settings."
+    },
+    {
+      "feature_id": "F017",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "Business"
+        },
+        {
+          "kind": "contains",
+          "value": "QuickReply"
+        }
+      ],
+      "expected": {
+        "method_count": 52,
+        "method_set_sha256": "1a848c5ad64c54db5a0de44a00b8b00f30dd602136019d1d3b692ab3547d199e"
+      },
+      "positive_examples": [
+        "getBusinessConnection",
+        "loadQuickReplyShortcuts",
+        "setBusinessStartPage"
+      ],
+      "negative_examples": [
+        "getFile",
+        "getMe"
+      ],
+      "rationale": "Business account, managed bots и quick replies принадлежат Business workflow."
+    },
+    {
+      "feature_id": "F018",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "Affiliate"
+        },
+        {
+          "kind": "contains",
+          "value": "BankCard"
+        },
+        {
+          "kind": "contains",
+          "value": "Collectible"
+        },
+        {
+          "kind": "contains",
+          "value": "Gift"
+        },
+        {
+          "kind": "contains",
+          "value": "Giveaway"
+        },
+        {
+          "kind": "contains",
+          "value": "Invoice"
+        },
+        {
+          "kind": "contains",
+          "value": "OrderInfo"
+        },
+        {
+          "kind": "contains",
+          "value": "Passport"
+        },
+        {
+          "kind": "contains",
+          "value": "Payment"
+        },
+        {
+          "kind": "contains",
+          "value": "Premium"
+        },
+        {
+          "kind": "contains",
+          "value": "Star"
+        },
+        {
+          "kind": "contains",
+          "value": "StoreTransaction"
+        },
+        {
+          "kind": "exact",
+          "value": "allowUnpaidMessagesFromUser"
+        },
+        {
+          "kind": "exact",
+          "value": "canPurchaseFromStore"
+        },
+        {
+          "kind": "exact",
+          "value": "checkEmailAddressVerificationCode"
+        },
+        {
+          "kind": "exact",
+          "value": "deleteSavedCredentials"
+        },
+        {
+          "kind": "exact",
+          "value": "getChatRevenueWithdrawalUrl"
+        },
+        {
+          "kind": "exact",
+          "value": "getGramWithdrawalUrl"
+        },
+        {
+          "kind": "exact",
+          "value": "getPreferredCountryLanguage"
+        },
+        {
+          "kind": "exact",
+          "value": "getStakeDiceState"
+        },
+        {
+          "kind": "exact",
+          "value": "getTonTransactions"
+        },
+        {
+          "kind": "exact",
+          "value": "resendEmailAddressVerificationCode"
+        },
+        {
+          "kind": "exact",
+          "value": "sendEmailAddressVerificationCode"
+        },
+        {
+          "kind": "exact",
+          "value": "toggleDirectMessagesChatTopicCanSendUnpaidMessages"
+        }
+      ],
+      "expected": {
+        "method_count": 118,
+        "method_set_sha256": "567a0cab3dbe67b645a0282ad362000f58660c136f15d17aba1ca76adddda0e9"
+      },
+      "positive_examples": [
+        "getPaymentForm",
+        "getPreferredCountryLanguage",
+        "getPremiumFeatures",
+        "getStarTransactions",
+        "getTonTransactions"
+      ],
+      "negative_examples": [
+        "getFile",
+        "getMe"
+      ],
+      "rationale": "Payments, asset transactions, localized payment helpers, Stars, gifts, Premium, Passport и affiliates принадлежат digital assets workflow."
+    },
+    {
+      "feature_id": "F019",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "DatabaseStatistics"
+        },
+        {
+          "kind": "contains",
+          "value": "NetworkStatistics"
+        },
+        {
+          "kind": "contains",
+          "value": "Revenue"
+        },
+        {
+          "kind": "contains",
+          "value": "StatisticalGraph"
+        },
+        {
+          "kind": "contains",
+          "value": "Statistics"
+        },
+        {
+          "kind": "contains",
+          "value": "Storage"
+        },
+        {
+          "kind": "exact",
+          "value": "addNetworkStatistics"
+        },
+        {
+          "kind": "exact",
+          "value": "optimizeStorage"
+        },
+        {
+          "kind": "exact",
+          "value": "resetNetworkStatistics"
+        }
+      ],
+      "expected": {
+        "method_count": 19,
+        "method_set_sha256": "f3a3695cc908fa4c76a68d9c8f8efe383c66ed8145abec580f7998e768ed4035"
+      },
+      "positive_examples": [
+        "getChatStatistics",
+        "getNetworkStatistics",
+        "getStorageStatistics"
+      ],
+      "negative_examples": [
+        "getFile",
+        "getMe"
+      ],
+      "rationale": "Statistics, revenue graphs, storage и network accounting принадлежат analytics/resource management."
+    },
+    {
+      "feature_id": "F020",
+      "any": [
+        {
+          "kind": "contains",
+          "value": "ApplicationConfig"
+        },
+        {
+          "kind": "contains",
+          "value": "ApplicationDownloadLink"
+        },
+        {
+          "kind": "contains",
+          "value": "ApplicationLog"
+        },
+        {
+          "kind": "contains",
+          "value": "Background"
+        },
+        {
+          "kind": "contains",
+          "value": "Country"
+        },
+        {
+          "kind": "contains",
+          "value": "CustomQuery"
+        },
+        {
+          "kind": "contains",
+          "value": "CustomRequest"
+        },
+        {
+          "kind": "contains",
+          "value": "DeepLink"
+        },
+        {
+          "kind": "contains",
+          "value": "Json"
+        },
+        {
+          "kind": "contains",
+          "value": "Language"
+        },
+        {
+          "kind": "contains",
+          "value": "Log"
+        },
+        {
+          "kind": "contains",
+          "value": "Option"
+        },
+        {
+          "kind": "contains",
+          "value": "Proxy"
+        },
+        {
+          "kind": "contains",
+          "value": "Support"
+        },
+        {
+          "kind": "contains",
+          "value": "Theme"
+        },
+        {
+          "kind": "contains",
+          "value": "TimeZone"
+        },
+        {
+          "kind": "contains",
+          "value": "Weather"
+        },
+        {
+          "kind": "exact",
+          "value": "addWebBrowserSettingsException"
+        },
+        {
+          "kind": "exact",
+          "value": "changeWebBrowserSettings"
+        },
+        {
+          "kind": "exact",
+          "value": "getCountries"
+        },
+        {
+          "kind": "exact",
+          "value": "getExternalLink"
+        },
+        {
+          "kind": "exact",
+          "value": "getExternalLinkInfo"
+        },
+        {
+          "kind": "exact",
+          "value": "getInternalLink"
+        },
+        {
+          "kind": "exact",
+          "value": "getInternalLinkType"
+        },
+        {
+          "kind": "exact",
+          "value": "getLinkWebBrowserType"
+        },
+        {
+          "kind": "exact",
+          "value": "getLocalizationTargetInfo"
+        },
+        {
+          "kind": "exact",
+          "value": "getPhoneNumberInfo"
+        },
+        {
+          "kind": "exact",
+          "value": "getPhoneNumberInfoSync"
+        },
+        {
+          "kind": "exact",
+          "value": "getProxies"
+        },
+        {
+          "kind": "exact",
+          "value": "getRecentlyVisitedTMeUrls"
+        },
+        {
+          "kind": "exact",
+          "value": "removeAllWebBrowserSettingsExceptions"
+        },
+        {
+          "kind": "exact",
+          "value": "removeWebBrowserSettingsException"
+        },
+        {
+          "kind": "exact",
+          "value": "searchStringsByPrefix"
+        },
+        {
+          "kind": "exact",
+          "value": "setAlarm"
+        },
+        {
+          "kind": "exact",
+          "value": "setApplicationVerificationToken"
+        },
+        {
+          "kind": "exact",
+          "value": "setNetworkType"
+        },
+        {
+          "kind": "prefix",
+          "value": "test"
+        }
+      ],
+      "expected": {
+        "method_count": 110,
+        "method_set_sha256": "3c35931fd4bd09d1bca3a938a5c9dc908786a28dbd60a0fc0cb7daf4e98b61c7"
+      },
+      "positive_examples": [
+        "addProxy",
+        "getLocalizationTargetInfo",
+        "setApplicationVerificationToken",
+        "testCallEmpty"
+      ],
+      "negative_examples": [
+        "getFile",
+        "getMe"
+      ],
+      "rationale": "Localization, links, themes, proxies, application verification, logging и explicit test/custom calls принадлежат platform utilities."
+    }
+  ],
+  "overrides": [
+    {
+      "method": "addChatFolderByInviteLink",
+      "owner": "F008",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "132bb9f0c661c8941ee159a27781b2600067ee7379a5c18c6cb0b6ea418b9b45",
+      "rationale": "Пересечение F008, F011: F008 выбран как владелец chat container workflow для этого exact schema method."
+    },
+    {
+      "method": "addChatMember",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "0251165c25d00ee03e4e978a41253d49c5a7293afd912f3617c4d261d3d1404b",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "addChatMembers",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "e3ea6c775fe85b71b727149d6633d37925226d1bb60754d120ba627a1c99bcec",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "addLogMessage",
+      "owner": "F020",
+      "expected_candidates": [
+        "F009",
+        "F020"
+      ],
+      "signature_sha256": "8cd8a6f535d455ff1057bcd287404ec71673005ef7bd1cb7a6b4825c844882e1",
+      "rationale": "Пересечение F009, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "addLoginPasskey",
+      "owner": "F016",
+      "expected_candidates": [
+        "F016",
+        "F020"
+      ],
+      "signature_sha256": "1e91f8377fa938c59d1e5caa6969f2e0e5dcc5cb003ba05d3396c8973b5ab1eb",
+      "rationale": "Пересечение F016, F020: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "addMessageReaction",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "cd326fe8b21b042f67b8a9ce0e0f9853205510a739a16f8442292fc6f0f3e304",
+      "rationale": "Пересечение F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "addPendingLiveStoryReaction",
+      "owner": "F015",
+      "expected_candidates": [
+        "F014",
+        "F015"
+      ],
+      "signature_sha256": "d0191a750a171b81d0d139e1231b6b512ebc452bc600a1c85cbd60273f227244",
+      "rationale": "Пересечение F014, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "addPendingPaidMessageReaction",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "d2316e8d43664f43cb7c51ff01046cda4bda2cd1fbbd80f702ed6f81f1d441ab",
+      "rationale": "Пересечение F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "addPollOption",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F020"
+      ],
+      "signature_sha256": "c11dcd20b7a5cf882ceee53e9341d579749b842e9be9c092fe2ca53f54e55ef1",
+      "rationale": "Пересечение F009, F020: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "addQuickReplyShortcutInlineQueryResultMessage",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F012",
+        "F017"
+      ],
+      "signature_sha256": "885258ad197d6ecbf7e51ca745941d8453c54c1a40431d44bfd5c9ac4b7fbb2e",
+      "rationale": "Пересечение F009, F012, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "addQuickReplyShortcutMessage",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "0fc781d2f0fd43a82594206696b4f362ee2e720c6a78d04522f1b2f9b3ff3b99",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "addQuickReplyShortcutMessageAlbum",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "1b09c19dcc55e448e3ace0949f650fd2837354253cfb4e81fd578749fe167d00",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "allowBotToSendMessages",
+      "owner": "F012",
+      "expected_candidates": [
+        "F009",
+        "F012"
+      ],
+      "signature_sha256": "9b978d533c9df6ebf9fb7ae5a2bd1a40572dbe9a8f3c5399a22a6a46ccab14ab",
+      "rationale": "Пересечение F009, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "allowUnpaidMessagesFromUser",
+      "owner": "F018",
+      "expected_candidates": [
+        "F007",
+        "F009",
+        "F018"
+      ],
+      "signature_sha256": "9f5c6454910754d848c8c6e1c1cd3272e1ce0c28e635d19c772f26b20d55d13e",
+      "rationale": "Пересечение F007, F009, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "answerCallbackQuery",
+      "owner": "F012",
+      "expected_candidates": [
+        "F012",
+        "F015"
+      ],
+      "signature_sha256": "19aab71b22d8847e388d15af9afcace2c3d3d808e62b6106b504fae364aaa5e1",
+      "rationale": "Пересечение F012, F015: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "answerChatJoinRequestQuery",
+      "owner": "F012",
+      "expected_candidates": [
+        "F008",
+        "F011",
+        "F012"
+      ],
+      "signature_sha256": "524d940bc227bce3f06579a96d3353f577aaf17ab357b34448353ccf5889a03f",
+      "rationale": "Пересечение F008, F011, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "banChatMember",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "85de5a842e3067444e19565ac0a5caa364368235f8ef8c746721260c51afcc41",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "blockMessageSenderFromReplies",
+      "owner": "F007",
+      "expected_candidates": [
+        "F007",
+        "F009"
+      ],
+      "signature_sha256": "d4caf6c0ec07dbcf05fa084354acb6240518b8342fad2069e49dc8421c34097f",
+      "rationale": "Пересечение F007, F009: F007 выбран как владелец user/profile workflow для этого exact schema method."
+    },
+    {
+      "method": "boostChat",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "8466336e0cad4e2e5c51e682d17a0a582326b77c180961b37be4b3faf814f7a6",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "canBotSendMessages",
+      "owner": "F012",
+      "expected_candidates": [
+        "F009",
+        "F012"
+      ],
+      "signature_sha256": "90e7991020a86df0070814dd8b86cc53aa95a70046090286d80359a4d82700a9",
+      "rationale": "Пересечение F009, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "canSendMessageToUser",
+      "owner": "F007",
+      "expected_candidates": [
+        "F007",
+        "F009"
+      ],
+      "signature_sha256": "37e72db373feb006a11663700c980a5717f71baf0475ff084f978efa7c0d63be",
+      "rationale": "Пересечение F007, F009: F007 выбран как владелец user/profile workflow для этого exact schema method."
+    },
+    {
+      "method": "changeImportedContacts",
+      "owner": "F007",
+      "expected_candidates": [
+        "F007",
+        "F010"
+      ],
+      "signature_sha256": "0ae5cf0ab9ffd2e0d46ef1c4ded600f265f927f1bbcb8262856b9848af1fbf79",
+      "rationale": "Пересечение F007, F010: F007 выбран как владелец user/profile workflow для этого exact schema method."
+    },
+    {
+      "method": "checkAuthenticationBotToken",
+      "owner": "F002",
+      "expected_candidates": [
+        "F002",
+        "F012"
+      ],
+      "signature_sha256": "07414f8aca565134dec76e3c8ac93cbb0c2b8ceaa08bd4a62725277da774331c",
+      "rationale": "Пересечение F002, F012: F002 выбран как владелец authorization workflow для этого exact schema method."
+    },
+    {
+      "method": "checkAuthenticationPassword",
+      "owner": "F002",
+      "expected_candidates": [
+        "F002",
+        "F016"
+      ],
+      "signature_sha256": "c0b3a9ea74fc679d639dd16c51448f8d6dba274e1ec40f53d9912140a707edf2",
+      "rationale": "Пересечение F002, F016: F002 выбран как владелец authorization workflow для этого exact schema method."
+    },
+    {
+      "method": "checkAuthenticationPasswordRecoveryCode",
+      "owner": "F002",
+      "expected_candidates": [
+        "F002",
+        "F016"
+      ],
+      "signature_sha256": "127a07f3f4852be76f27392379779b54cd0f66505fb21434befe4f7b2fb8b7b5",
+      "rationale": "Пересечение F002, F016: F002 выбран как владелец authorization workflow для этого exact schema method."
+    },
+    {
+      "method": "checkAuthenticationPremiumPurchase",
+      "owner": "F002",
+      "expected_candidates": [
+        "F002",
+        "F018"
+      ],
+      "signature_sha256": "fb37dfbab4ac1da8de3326d9037d5634659815edcc7bdc805817cce813c295ff",
+      "rationale": "Пересечение F002, F018: F002 выбран как владелец authorization workflow для этого exact schema method."
+    },
+    {
+      "method": "checkBotUsername",
+      "owner": "F012",
+      "expected_candidates": [
+        "F007",
+        "F012"
+      ],
+      "signature_sha256": "4ce9430e0b658218575de52bbc638f20fa5eaab58fdae5f379f4aebfa4226d43",
+      "rationale": "Пересечение F007, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "checkChatFolderInviteLink",
+      "owner": "F008",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "8be55c27ec8496cc719b74cd147ddd54fce1ad75a4239cd5375b9f08272e84ff",
+      "rationale": "Пересечение F008, F011: F008 выбран как владелец chat container workflow для этого exact schema method."
+    },
+    {
+      "method": "checkChatInviteLink",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "b34ee94b354182a292b085d9f4051ddbe7eb32eb3bb8fe4ed19ac530046331b3",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "checkChatUsername",
+      "owner": "F011",
+      "expected_candidates": [
+        "F007",
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "0c9cabd373c2c111493fec8baf4eb209507fd6b2ac57257a28e12fa21024228e",
+      "rationale": "Пересечение F007, F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "checkCreatedPublicChatsLimit",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "ac260714cb8587514778ee51211e02c3bf8017eb404b6129d0101013f4dafeb0",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "checkLoginEmailAddressCode",
+      "owner": "F016",
+      "expected_candidates": [
+        "F016",
+        "F020"
+      ],
+      "signature_sha256": "7517749b855f68fc697402e5fbc2df80f9b3b76ae3f9c8aaa1985598b8713d3c",
+      "rationale": "Пересечение F016, F020: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "checkWebAppFileDownload",
+      "owner": "F013",
+      "expected_candidates": [
+        "F010",
+        "F013"
+      ],
+      "signature_sha256": "33de1cc28b8bdd1216421c235f355abec4fd687d317069ee7d3f030be289b4b0",
+      "rationale": "Пересечение F010, F013: F013 выбран как владелец Mini App workflow для этого exact schema method."
+    },
+    {
+      "method": "clearImportedContacts",
+      "owner": "F007",
+      "expected_candidates": [
+        "F007",
+        "F010"
+      ],
+      "signature_sha256": "a604ea0869121542bbfce89360a68e65c418813f9bc6e1a95b4d2912f8352b1e",
+      "rationale": "Пересечение F007, F010: F007 выбран как владелец user/profile workflow для этого exact schema method."
+    },
+    {
+      "method": "clickAnimatedEmojiMessage",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "2e714bb4718fa84a5f7de448b62b616ed78ad10182d9bc4cec8146b92f601ab7",
+      "rationale": "Пересечение F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "clickChatSponsoredMessage",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "985cb0b512bac909283a218c34e67904f2951583e38a518346f9ae5f62d91a36",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "commitPendingLiveStoryReactions",
+      "owner": "F015",
+      "expected_candidates": [
+        "F014",
+        "F015"
+      ],
+      "signature_sha256": "556aacbdcc067dcf682a848431f2a38b530fe395607e096a603852eb97a6d444",
+      "rationale": "Пересечение F014, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "commitPendingPaidMessageReactions",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "a453f299b3a8d64f19d9633e23786505a4695a9b5e5811c306744124b5d5f7c1",
+      "rationale": "Пересечение F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "confirmBusinessConnectedBot",
+      "owner": "F017",
+      "expected_candidates": [
+        "F012",
+        "F017"
+      ],
+      "signature_sha256": "0a5abe31f20a8460261e0514eb2279ec835e2129d3615f1b02cb00a62a3897c7",
+      "rationale": "Пересечение F012, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "createBasicGroupChat",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "555bbdcf6b1c2a5a311fa5ba897b17969e6d820a59504f07e7ef550dd77f84a0",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "createBusinessChatLink",
+      "owner": "F017",
+      "expected_candidates": [
+        "F008",
+        "F017"
+      ],
+      "signature_sha256": "c108583c5871c9da1ec48fb0fb9e3741f42b1e4fd0d5f8d0191a91139a53fbf8",
+      "rationale": "Пересечение F008, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "createChatFolderInviteLink",
+      "owner": "F008",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "79e1a2f99cdb9cc5ef8aa355bc73dc01e1ff3efa93163e2a7c4da1b80a01fd2f",
+      "rationale": "Пересечение F008, F011: F008 выбран как владелец chat container workflow для этого exact schema method."
+    },
+    {
+      "method": "createChatInviteLink",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "3df3a38f20393f73741062fb0435fd4c51b86e993114b377b632862798d9712a",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "createChatSubscriptionInviteLink",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "87e95f12375e7ff11b4f0fd21a5aa4ebfc608bda3af785724f38b320e03dc24e",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "createNewBasicGroupChat",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "e9b7dfe3f8fd87f6496baf461c92b4f9425a9a36d04d35a00a90f1bdcf98a146",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "createNewSupergroupChat",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "4941db8b1b053f99a363f6af8a33322aa6b1be2069097ebe2f0a2128627874be",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "createSupergroupChat",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "66aa8d08e9e672d0311c11102775b8b3a747f43156956b67d328d5c07b46a628",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "createVideoChat",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "af9ea3c6fb9466bf39665c953093ce0f6d4a1b95c0e7b6fc07ff4d5746a5ae2e",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteAllCallMessages",
+      "owner": "F015",
+      "expected_candidates": [
+        "F009",
+        "F015"
+      ],
+      "signature_sha256": "9e21b9a82e61f108d2a28ffdeaec9b6502326ddf54ba1e571d3b257c0389ae0d",
+      "rationale": "Пересечение F009, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteAllRecentMessageReactionsFromSender",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "8f476da7db854111e0ada419e0a687a0b6e690161eaa8ba4c8c70f12c56a4bab",
+      "rationale": "Пересечение F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteAllRevokedChatInviteLinks",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "c3534646e646dfdba666545c291ac937585f2863b25aaa1d61a69f16bc48ae36",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteBusinessChatLink",
+      "owner": "F017",
+      "expected_candidates": [
+        "F008",
+        "F017"
+      ],
+      "signature_sha256": "a6fe46417ea9e3f281b6cb75828366ffc24d713ac70a1146a492669811c2a608",
+      "rationale": "Пересечение F008, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteBusinessConnectedBot",
+      "owner": "F017",
+      "expected_candidates": [
+        "F012",
+        "F017"
+      ],
+      "signature_sha256": "5e762a0c3ffb5c9c13418de06e7481422886a51efd685e601710773f3e440ff5",
+      "rationale": "Пересечение F012, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteBusinessMessages",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "540519223c3ea8c33a3180a00192602ab32e9cc7924403f38184d38e2b7f9849",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteBusinessStory",
+      "owner": "F017",
+      "expected_candidates": [
+        "F015",
+        "F017"
+      ],
+      "signature_sha256": "6b4aa1c3f97e959854f0adc66b591aec8e85c7d5d50bd2b6c46b805fd90b4535",
+      "rationale": "Пересечение F015, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteChat",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "c4842617571c0087bfa79084fadadf65b57ea7c952ccfd91b4fb2289a5e93a0c",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteChatBackground",
+      "owner": "F020",
+      "expected_candidates": [
+        "F008",
+        "F020"
+      ],
+      "signature_sha256": "d297625266285b9d20733734358e2879df2387375cf2734a6d172a7fc4dd9df5",
+      "rationale": "Пересечение F008, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteChatFolderInviteLink",
+      "owner": "F008",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "46dd4b894064bf535a2de7602e7b92b87f9d2993bbd16c4eebc7e160d4bd3b79",
+      "rationale": "Пересечение F008, F011: F008 выбран как владелец chat container workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteChatHistory",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "f635b0e4e43f463a0159d06a931db664f9d6f6a90a038f2d59834415dc4a9556",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteChatMessagesByDate",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "4353ccc507dbc69782cf4f42615ca5d0736d8fcc5ab7ac17fc189f88d946b3c0",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteChatMessagesBySender",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "0b32d36562061d3630b8fff5c9563fc6000297fddd4a7887e0692552a7ec899e",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteChatReplyMarkup",
+      "owner": "F012",
+      "expected_candidates": [
+        "F008",
+        "F012"
+      ],
+      "signature_sha256": "301c939db6e98888f6f1f1e4a8fe911e171d69c34dabad3335593ead438d569b",
+      "rationale": "Пересечение F008, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteDirectMessagesChatTopicHistory",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "63183677f961b503d466a7d56c5a969448aa37edf5a38b7f9e9b72a40bfe7c3d",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteDirectMessagesChatTopicMessagesByDate",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "971b392314d8d70cf100a353b218bc02df9739af0616daf031ec99b11fce11b8",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteGroupCallMessages",
+      "owner": "F015",
+      "expected_candidates": [
+        "F009",
+        "F015"
+      ],
+      "signature_sha256": "d163696b108314c8a723d76c47c317572313a5b0423c22280b7f4b354d56388f",
+      "rationale": "Пересечение F009, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteGroupCallMessagesBySender",
+      "owner": "F015",
+      "expected_candidates": [
+        "F009",
+        "F015"
+      ],
+      "signature_sha256": "d2a53eaca08a38f8fba95537247589480b8c4f72936e69b94e187680a0aad31f",
+      "rationale": "Пересечение F009, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteMessageReactionsFromSender",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "ead98e2fff724d7a1d45787eae179152a6eb6fce3e3892b2d5633649f00f8322",
+      "rationale": "Пересечение F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "deletePollOption",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F020"
+      ],
+      "signature_sha256": "5b62ec39089ab944498ac5a9dfc23b354d1cb2ab104e37eb8d27837e2a874ea3",
+      "rationale": "Пересечение F009, F020: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteQuickReplyShortcutMessages",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "39f7eb956389a3b7b4cfca4a45244d61defd68b96aa251f05b7f3d77551cb0a2",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteRevokedChatInviteLink",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "3c1316350948ff367aac62e70dc6b0abd3432357d591b7d58883e710d192b249",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteSavedMessagesTopicHistory",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "cb4014f91b692e2205b860c81b12ebf7f9add93b273d1a5d03d314f315ac1f63",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "deleteSavedMessagesTopicMessagesByDate",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "25a702084b7a5f0e99cffbab678ecf454673f8a638e476da5110c8211dd9ec10",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "disableAllSupergroupUsernames",
+      "owner": "F011",
+      "expected_candidates": [
+        "F007",
+        "F011"
+      ],
+      "signature_sha256": "26308de739e4af9691968db772da5ef0e67e3598034211d4cb360b11f007fc40",
+      "rationale": "Пересечение F007, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "editBusinessChatLink",
+      "owner": "F017",
+      "expected_candidates": [
+        "F008",
+        "F017"
+      ],
+      "signature_sha256": "40d45b1c449b77d355f3569ce5abb7c3f4f12c24643599ea8d31c137205d929a",
+      "rationale": "Пересечение F008, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "editBusinessMessageCaption",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "0ff5b3f03cd3f30c71ee57c0c3593a3d49091048e75625424a58591bf48a162b",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "editBusinessMessageChecklist",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "eba6b5be5c073fc39ccf79c7228c92712c5beb011b3f7eeaad73ab13e453ba29",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "editBusinessMessageLiveLocation",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F015",
+        "F017"
+      ],
+      "signature_sha256": "ded00400eb725cc31ce31e25d90686d630f17ba13ca0a3cafe6782222703610f",
+      "rationale": "Пересечение F009, F015, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "editBusinessMessageMedia",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "11bd263f9346e8d944bc962dd1a78c8faa258ea9253511d947661f9ca17ee5da",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "editBusinessMessageReplyMarkup",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "9b1d7ea644312f5d7ca2ce36ea5414153e5d2d129aab54908d612543c6c7d2bb",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "editBusinessMessageText",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "c664af88f17c26df1268d2b42027416381c4c7f17423a8509a290066575245e6",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "editBusinessStory",
+      "owner": "F017",
+      "expected_candidates": [
+        "F015",
+        "F017"
+      ],
+      "signature_sha256": "701bfa3ab6feab0a68998a366cf4bd50e8633a7ce875075c5c941f8059957ed9",
+      "rationale": "Пересечение F015, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "editChatFolderInviteLink",
+      "owner": "F008",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "4bf22bf9b918ea2317b784c973818523867445d8ce5a5da7dfda53bf49b4970a",
+      "rationale": "Пересечение F008, F011: F008 выбран как владелец chat container workflow для этого exact schema method."
+    },
+    {
+      "method": "editChatInviteLink",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "ce2d41613e1f7ae18ee21222b5ed3675c90dcf28599af4d4bf025965313ef96d",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "editChatSubscriptionInviteLink",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "cdb55940160a74bb1a7f25a6a4ae061d2a4c3152ecaff4be714041c4e8f6b5a4",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "editInlineMessageCaption",
+      "owner": "F012",
+      "expected_candidates": [
+        "F009",
+        "F012"
+      ],
+      "signature_sha256": "cc55efe5c53cc3f85ca9081744267983a05c6447cce2c75fd43d986f3ec76c57",
+      "rationale": "Пересечение F009, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "editInlineMessageLiveLocation",
+      "owner": "F012",
+      "expected_candidates": [
+        "F009",
+        "F012",
+        "F015"
+      ],
+      "signature_sha256": "9d7b9cac78ba1672f90dd6817a42194d34f14fd3422b549a392261548f75899d",
+      "rationale": "Пересечение F009, F012, F015: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "editInlineMessageMedia",
+      "owner": "F012",
+      "expected_candidates": [
+        "F009",
+        "F012"
+      ],
+      "signature_sha256": "d74e9a3455a9a5153171de977ff417f9c3cff973af1d8921d9a0bfad564edcaa",
+      "rationale": "Пересечение F009, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "editInlineMessageReplyMarkup",
+      "owner": "F012",
+      "expected_candidates": [
+        "F009",
+        "F012"
+      ],
+      "signature_sha256": "1880df88b20b6ec1e9a82b366df3a69575e9cb19d3f5a40db92ddfd77a206df6",
+      "rationale": "Пересечение F009, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "editInlineMessageText",
+      "owner": "F012",
+      "expected_candidates": [
+        "F009",
+        "F012"
+      ],
+      "signature_sha256": "b50f8cd621bc34a1023f3877656d6e4c3f8152ff96fdfe053d51984d5353df52",
+      "rationale": "Пересечение F009, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "editMessageLiveLocation",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F015"
+      ],
+      "signature_sha256": "74048af24c4fe977fbcda1c3a6fdbb1c10aab54bf5b891414f4cb67bb94edeae",
+      "rationale": "Пересечение F009, F015: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "editQuickReplyMessage",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "55265bf302ed94272dad17e1231fc13dc6f43259e326de804c600ed9a84bcdeb",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "editUserStarSubscription",
+      "owner": "F018",
+      "expected_candidates": [
+        "F007",
+        "F018"
+      ],
+      "signature_sha256": "e618d4982b51c379c0ab9bb8cddc70fca28d905c25e7d1d0c1ab8a464f27c69f",
+      "rationale": "Пересечение F007, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "getApplicationDownloadLink",
+      "owner": "F020",
+      "expected_candidates": [
+        "F010",
+        "F020"
+      ],
+      "signature_sha256": "013367c02a768e8aa3fb4bee7bdac58c60e8cdad8c4135e06c18ac4884b427d6",
+      "rationale": "Пересечение F010, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "getArchivedStickerSets",
+      "owner": "F014",
+      "expected_candidates": [
+        "F008",
+        "F014"
+      ],
+      "signature_sha256": "0bb258ecc935506cef3d23584ac734945ffd2df3cdde04fd3516811aad698fc4",
+      "rationale": "Пересечение F008, F014: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "getAttachmentMenuBot",
+      "owner": "F013",
+      "expected_candidates": [
+        "F012",
+        "F013"
+      ],
+      "signature_sha256": "cc6411e7838f69b7c9107432fbab7fa3149e3685d399252ad06c082b7977f77a",
+      "rationale": "Пересечение F012, F013: F013 выбран как владелец Mini App workflow для этого exact schema method."
+    },
+    {
+      "method": "getAvailableChatBoostSlots",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "16218759308d560c23d34b3ac2133e22600587ad62c7100e2fafd2be4359aba2",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getBlockedMessageSenders",
+      "owner": "F007",
+      "expected_candidates": [
+        "F007",
+        "F009"
+      ],
+      "signature_sha256": "e06a21dda4c74b156c8830cf67260a699e8dbd0c30b411e0192005936afb3675",
+      "rationale": "Пересечение F007, F009: F007 выбран как владелец user/profile workflow для этого exact schema method."
+    },
+    {
+      "method": "getBusinessAccountStarAmount",
+      "owner": "F018",
+      "expected_candidates": [
+        "F017",
+        "F018"
+      ],
+      "signature_sha256": "afbb8f4d3b3283721e82dfbc86bf4c27f9636967814bb577e22c6bc2f4742292",
+      "rationale": "Пересечение F017, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "getBusinessChatLinkInfo",
+      "owner": "F017",
+      "expected_candidates": [
+        "F008",
+        "F017"
+      ],
+      "signature_sha256": "9c9a48fdc80bc4c2f3b05c6a6077cfa6ec99c8b780327d9ec70ee3f5e62439df",
+      "rationale": "Пересечение F008, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "getBusinessChatLinks",
+      "owner": "F017",
+      "expected_candidates": [
+        "F008",
+        "F017"
+      ],
+      "signature_sha256": "ad3637297f9fa9ddbc9d87a6b9c71adb63e04a49b27ac28f3fc055b9c92cfe41",
+      "rationale": "Пересечение F008, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "getBusinessConnectedBot",
+      "owner": "F017",
+      "expected_candidates": [
+        "F012",
+        "F017"
+      ],
+      "signature_sha256": "024318e3bd723a3cee86333419eac3d1bd7d0d9ecb0b86e365ab5609108b174b",
+      "rationale": "Пересечение F012, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "getCallbackQueryAnswer",
+      "owner": "F012",
+      "expected_candidates": [
+        "F012",
+        "F015"
+      ],
+      "signature_sha256": "6f2c330ee8cd55492d0c4f3c18e3a154bfc1822ea6440d4979a61a21925e7a79",
+      "rationale": "Пересечение F012, F015: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "getCallbackQueryMessage",
+      "owner": "F012",
+      "expected_candidates": [
+        "F009",
+        "F012",
+        "F015"
+      ],
+      "signature_sha256": "84f48f0f55b1305b9a09e4753e0b3c503dbb6b395cd63a3a1160bb47dccb2dd0",
+      "rationale": "Пересечение F009, F012, F015: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatActiveStories",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "98dbd50361a6bd45f3436ea47b7166550056857e485f74b4d73059be160e0adf",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatAdministrators",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "c221769df3d9941aee468c32d2b0dca36f502049b36bc237b7167c1e10d31d4e",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatArchivedStories",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "e9fc336e83baaee32a16448297e86682e2970f747dc233c25fa8e6ecf2e7d67e",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatAvailableMessageSenders",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "41808c47f6e3aa0707dd3d39523d775e9871762bcbe5ee640ae4fabc155dc6e3",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatAvailablePaidMessageReactionSenders",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "11078f60d9286dd489c4ebefddd7a0788d7d92cfb52082c80a6e2a8a601db96b",
+      "rationale": "Пересечение F008, F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatBoostFeatures",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "7c77d5acef345ddef063c5121ab6ed9c3813c708d9a13c5f3a2f80c4570d60cf",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatBoostLevelFeatures",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "f06f3590d29f3472a8ab4bcbec90ec8864cdb42e87ce0bc62189230462529f5d",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatBoostLink",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "84107ff87967fc5e2d7997a5772ebf00279a4d7833701b61ed5bc9f5d2b475aa",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatBoostLinkInfo",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "b897aa2fd703518bff7715c98b2f6aa82d3ff1c05cea734028c98d3617edb3df",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatBoostStatus",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "f8bbf616f301387ee5c6a956468b48ab44289695d62a85716f6d710b7630edbc",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatBoosts",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "a036aa24c8fcf46c550fdb034f0559b9a483d176162a04a7b8875f07e35d55a6",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatEventLog",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011",
+        "F020"
+      ],
+      "signature_sha256": "be5c5e36e77ba63e7889e25088f0f691e6d59eaf01450451cbdcc532a32669a1",
+      "rationale": "Пересечение F008, F011, F020: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatFolderInviteLinks",
+      "owner": "F008",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "8249f43b2c05218e30da3c3158c6ef3d64991229c15e3e8e1bc8b463b76426e5",
+      "rationale": "Пересечение F008, F011: F008 выбран как владелец chat container workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatHistory",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "f07370d2d4e639a0ccb793b183b0866c4295093049eab82c62863656fd118113",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatInviteLink",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "e3c7b2bdf5fdaeaaaef8caf3867a2a740fee409144de1727e5200c8ade9820b8",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatInviteLinkCounts",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "c0c51f8f0289cc1bda6f6b72bc647db86d4c5407c186629ecd56894174a8a1bc",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatInviteLinkMembers",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "deb6c7854e9b1d5cc93cade8e15bcf59410611a3117679ace4b93ab5ea61bacd",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatInviteLinks",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "6c4d8dd9cb60efc8bee9b77e0ee4012d43d48771676001394c87d431011df00b",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatJoinRequests",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "ae54cab167de8e3eff5d16cf536f80688478f5c0bc98331c76f123a1645f9966",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatMember",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "fc2de7e9545f91f9c1379fa8b262678c6759b8408e7fd4ba7109c93838a2a662",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatMessageByDate",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "bacc1928716bd59d751667ccc607e5178e89c70dbc12067397674346d8b62200",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatMessageCalendar",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "c00fdcbca9bc424b80eec70cea45ff505eb2d1f795a75c902a0772d9bfdf041d",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatMessageCount",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "311f5e553084edb90c70eee14c3da01d9ac813f4b38e803a71231163ada02328",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatMessagePosition",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "62a9cb157cf5089d630b327ef8193654d529c68adad840b232d9cd5547c59665",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatNotificationSettingsExceptions",
+      "owner": "F016",
+      "expected_candidates": [
+        "F008",
+        "F016"
+      ],
+      "signature_sha256": "dcecaf186e773611fb1423644827a99f1ad9f85af805a12f6c403962499aff12",
+      "rationale": "Пересечение F008, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatOwnerAfterLeaving",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "8da34d6b87356fc7858c23065b4be89d2adb5810edf71687fe36cdc07f0564dd",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatPinnedMessage",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "d646cc7a2a5f4dd5b1569253e62a72b55ad84bc1efc2b77cb9bafd48a8c0ca97",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatPostedToChatPageStories",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "8d163a40f4c1f2e6eef02ab8feadeba2bade280c9a1eb775aa222e4a1a009492",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatRevenueStatistics",
+      "owner": "F019",
+      "expected_candidates": [
+        "F008",
+        "F019"
+      ],
+      "signature_sha256": "3fab2143b330f5561f54f4995945454564e003fb733151170765a8284f6e3681",
+      "rationale": "Пересечение F008, F019: F019 выбран как владелец statistics/resources workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatRevenueTransactions",
+      "owner": "F019",
+      "expected_candidates": [
+        "F008",
+        "F019"
+      ],
+      "signature_sha256": "c1f4b0f2af2c177faa264a13e4a01298b40ed5ce18464eb230c9d16b1475e1ad",
+      "rationale": "Пересечение F008, F019: F019 выбран как владелец statistics/resources workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatRevenueWithdrawalUrl",
+      "owner": "F018",
+      "expected_candidates": [
+        "F008",
+        "F018",
+        "F019"
+      ],
+      "signature_sha256": "98a87452c5a899e4fadc56dddb188e817470620c6923a66bb532e258ec81c861",
+      "rationale": "Пересечение F008, F018, F019: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatScheduledMessages",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "3d487bbc61fa96df30647f82534a431e99b3b0fa8f6ad2f092f7dd83fae6f0cf",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatSparseMessagePositions",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "1855c25bc54788ae551f7946d6ef9bb6318fe52b285348e3879c6a57f1e007c2",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatSponsoredMessages",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "21588ad4825fe938b7964c1695363c9d321bd3a8f303e26393ce00bd6005bf2b",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatStatistics",
+      "owner": "F019",
+      "expected_candidates": [
+        "F008",
+        "F019"
+      ],
+      "signature_sha256": "ba47a6a642fe5cb966a8a417eaf1a2d6e8cfdb642c8a093a8b9cc6def25088a6",
+      "rationale": "Пересечение F008, F019: F019 выбран как владелец statistics/resources workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatStoryAlbums",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "031f1359edc33d2e630328426695dd9f70d2265ed9c2456d9d5d8563ad620c53",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatStoryInteractions",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "9532b87f4036fa1ea60f64dcf153f1e6dbde628d256df37c71a012e7943e0c19",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatsForChatFolderInviteLink",
+      "owner": "F008",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "9e1f71b5a8d97839d91e5345ea850a9570d3e43b9252437306c1e8db19d5dbce",
+      "rationale": "Пересечение F008, F011: F008 выбран как владелец chat container workflow для этого exact schema method."
+    },
+    {
+      "method": "getChatsToPostStories",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "d47f114c9f6d95a50b07d8f70ca966d2d4c5473e8b1b343ec5db7ccf24f2efc4",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "getCountryFlagEmoji",
+      "owner": "F020",
+      "expected_candidates": [
+        "F014",
+        "F020"
+      ],
+      "signature_sha256": "3f548a7020e224e5fcf2169726735adce79ab98c861f3ee3f12ee7138a144d15",
+      "rationale": "Пересечение F014, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "getCreatedPublicChats",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "1ff8f7b0ea30c6391813114ae73267945e3db7ae817b7aaa76527da746e8ea77",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getDefaultBackgroundCustomEmojiStickers",
+      "owner": "F014",
+      "expected_candidates": [
+        "F014",
+        "F020"
+      ],
+      "signature_sha256": "67e814179e235bb4a3694810c720f9a0791ac3432164697bded4416efd368967",
+      "rationale": "Пересечение F014, F020: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "getDefaultChatEmojiStatuses",
+      "owner": "F014",
+      "expected_candidates": [
+        "F008",
+        "F014"
+      ],
+      "signature_sha256": "01488c740982a17d7c417f6264a59c30340beb937d3775444a2445630ba9922f",
+      "rationale": "Пересечение F008, F014: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "getDefaultChatPhotoCustomEmojiStickers",
+      "owner": "F014",
+      "expected_candidates": [
+        "F008",
+        "F014"
+      ],
+      "signature_sha256": "c52b5303b2efc577fad87fbdc71b9b3dc75101d992bd7a1b5276d7fc296f9111",
+      "rationale": "Пересечение F008, F014: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "getDefaultMessageAutoDeleteTime",
+      "owner": "F016",
+      "expected_candidates": [
+        "F009",
+        "F016"
+      ],
+      "signature_sha256": "a1215c97f47b7edde483b4964223db2bfacd25094039261fdf42d154d8ab3dab",
+      "rationale": "Пересечение F009, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "getDefaultProfilePhotoCustomEmojiStickers",
+      "owner": "F014",
+      "expected_candidates": [
+        "F007",
+        "F014"
+      ],
+      "signature_sha256": "2081c6bf277165e868e7e5bf563285fd3f0881ad5c80140f89f767bf7f7a36cc",
+      "rationale": "Пересечение F007, F014: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "getDirectMessagesChatTopic",
+      "owner": "F008",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "7b36ae8987ffb36b92515a05ea34813acb1569f014cbc11ab454850b76576abb",
+      "rationale": "Пересечение F008, F009: F008 выбран как владелец chat container workflow для этого exact schema method."
+    },
+    {
+      "method": "getDirectMessagesChatTopicHistory",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "283cd7945833108ab1c5735f001bb4c9ba9f4cbfc2c2c2ed5ec2e4e1ec8d13b5",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getDirectMessagesChatTopicMessageByDate",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "c15bd0864c8881d9158f52f42150576e246a0ac554683723a756c5779c98b416",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getDirectMessagesChatTopicRevenue",
+      "owner": "F019",
+      "expected_candidates": [
+        "F008",
+        "F009",
+        "F019"
+      ],
+      "signature_sha256": "0d8fecb3490b21d83fa1763ecf4b3a962c202af3ab389fe268335cb5b286cc03",
+      "rationale": "Пересечение F008, F009, F019: F019 выбран как владелец statistics/resources workflow для этого exact schema method."
+    },
+    {
+      "method": "getDisallowedChatEmojiStatuses",
+      "owner": "F014",
+      "expected_candidates": [
+        "F008",
+        "F014"
+      ],
+      "signature_sha256": "ec41c33916f7e53a13df42b624b8b80adec2534d8a545d14d9f047f5330906b7",
+      "rationale": "Пересечение F008, F014: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "getForumTopicHistory",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "91a0131093a7de2fa2a38f7232b0a6765d72d809e143c329431385398f1e9dc7",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getGiftChatThemes",
+      "owner": "F020",
+      "expected_candidates": [
+        "F008",
+        "F018",
+        "F020"
+      ],
+      "signature_sha256": "78ddd7f3f96d59d3d5a1f21531dd085ce4aef418fca20dc2c849a89f2dbc044f",
+      "rationale": "Пересечение F008, F018, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "getGiveawayInfo",
+      "owner": "F011",
+      "expected_candidates": [
+        "F011",
+        "F018"
+      ],
+      "signature_sha256": "5755f860237c2ec3a7e920dba849dc5cad8a586366903bf51160dfbc9e670eed",
+      "rationale": "Пересечение F011, F018: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getGrossingWebAppBots",
+      "owner": "F013",
+      "expected_candidates": [
+        "F012",
+        "F013"
+      ],
+      "signature_sha256": "c9a04b01e85480d355305fb2dfa40c2506054f0ee6c83341a81c7dd4246576dd",
+      "rationale": "Пересечение F012, F013: F013 выбран как владелец Mini App workflow для этого exact schema method."
+    },
+    {
+      "method": "getGuardBotWebAppUrl",
+      "owner": "F013",
+      "expected_candidates": [
+        "F012",
+        "F013"
+      ],
+      "signature_sha256": "8606f2e8bd1f3b1c64fb677a18c3a29ce2994ea7f3642ab4ababf456cdbfc5a7",
+      "rationale": "Пересечение F012, F013: F013 выбран как владелец Mini App workflow для этого exact schema method."
+    },
+    {
+      "method": "getImportedContactCount",
+      "owner": "F007",
+      "expected_candidates": [
+        "F007",
+        "F010"
+      ],
+      "signature_sha256": "eb7323349711f4e777b189c343e6dfe1bce14d27c151b3b1b91681caa0d9ac86",
+      "rationale": "Пересечение F007, F010: F007 выбран как владелец user/profile workflow для этого exact schema method."
+    },
+    {
+      "method": "getInactiveSupergroupChats",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "feead6ae1c564c8cf1c6dc2ff13a81ac40d68862651b8f68f264b60023c453da",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getLiveStoryAvailableMessageSenders",
+      "owner": "F015",
+      "expected_candidates": [
+        "F009",
+        "F015"
+      ],
+      "signature_sha256": "8d7b1f6896b1e4efce694d08fefefcf9fbdf904b622e2839b767f89d37aaefab",
+      "rationale": "Пересечение F009, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "getLoginPasskeys",
+      "owner": "F016",
+      "expected_candidates": [
+        "F016",
+        "F020"
+      ],
+      "signature_sha256": "8bb760ca67c63f096100f514acde5235407a3b8ed0e3216abdde0987da08fdc0",
+      "rationale": "Пересечение F016, F020: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "getLoginUrl",
+      "owner": "F013",
+      "expected_candidates": [
+        "F013",
+        "F020"
+      ],
+      "signature_sha256": "4d419fd3c76be35aa11395c0d7ff695e94575650287a9ba6b013466fd15a2614",
+      "rationale": "Пересечение F013, F020: F013 выбран как владелец Mini App workflow для этого exact schema method."
+    },
+    {
+      "method": "getLoginUrlInfo",
+      "owner": "F013",
+      "expected_candidates": [
+        "F013",
+        "F020"
+      ],
+      "signature_sha256": "e099dc59d879f98f9e3a74279c81e6c9b5caae7db8d9c4b7807b473c7dee45f4",
+      "rationale": "Пересечение F013, F020: F013 выбран как владелец Mini App workflow для этого exact schema method."
+    },
+    {
+      "method": "getMessageAddedReactions",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "8b0ec48dfce0fb4c594c588bdb491e37f474160f2eaf7a3975aa57868e540ce3",
+      "rationale": "Пересечение F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getMessageAvailableReactions",
+      "owner": "F014",
+      "expected_candidates": [
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "cb41fc92e85f1cc86f1b29b4c03dbe0a12194f41b2890e3a9fa2d692e35f33cd",
+      "rationale": "Пересечение F009, F014: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "getMessageFileType",
+      "owner": "F010",
+      "expected_candidates": [
+        "F009",
+        "F010"
+      ],
+      "signature_sha256": "0c16c801be2a389dd080b743b418642feb51f92387cf4372f86c6b74f8e77454",
+      "rationale": "Пересечение F009, F010: F010 выбран как владелец file/media workflow для этого exact schema method."
+    },
+    {
+      "method": "getMessageImportConfirmationText",
+      "owner": "F010",
+      "expected_candidates": [
+        "F009",
+        "F010"
+      ],
+      "signature_sha256": "59bf1aed78695ca5da0c312d16483f0b3d0bab52a192ce52c84d64ffe503bf91",
+      "rationale": "Пересечение F009, F010: F010 выбран как владелец file/media workflow для этого exact schema method."
+    },
+    {
+      "method": "getMessageStatistics",
+      "owner": "F019",
+      "expected_candidates": [
+        "F009",
+        "F019"
+      ],
+      "signature_sha256": "6f45a3a59644b50a712325cd3d94139a6efc2f3eb5867a6d2a6865d2263be7c2",
+      "rationale": "Пересечение F009, F019: F019 выбран как владелец statistics/resources workflow для этого exact schema method."
+    },
+    {
+      "method": "getNewChatPrivacySettings",
+      "owner": "F016",
+      "expected_candidates": [
+        "F008",
+        "F016"
+      ],
+      "signature_sha256": "9df0bb8aaf0c0a64212783ed1651d31b7474872f8385007640828a68b256f36e",
+      "rationale": "Пересечение F008, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "getPaidMessageRevenue",
+      "owner": "F019",
+      "expected_candidates": [
+        "F009",
+        "F019"
+      ],
+      "signature_sha256": "c2d971d389af7f83267acead5af5888b56126687dceac8d8569f5ad762ec7aca",
+      "rationale": "Пересечение F009, F019: F019 выбран как владелец statistics/resources workflow для этого exact schema method."
+    },
+    {
+      "method": "getPassportAuthorizationForm",
+      "owner": "F018",
+      "expected_candidates": [
+        "F002",
+        "F018"
+      ],
+      "signature_sha256": "c5497e50c8f9a4320f048ec281fc5dfba201a8139ebb88cbfa02500bf6ba6838",
+      "rationale": "Пересечение F002, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "getPassportAuthorizationFormAvailableElements",
+      "owner": "F018",
+      "expected_candidates": [
+        "F002",
+        "F018"
+      ],
+      "signature_sha256": "607c7ab4152196fc838396913358d4a6d26bbbf5462844bd0dafcb16761dee17",
+      "rationale": "Пересечение F002, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "getPersonalChatHistory",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "27e166cd6db7fb7b01062cab4ae325529dcb4cbc1239fbf603c834e998ede94f",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getPhoneNumberInfo",
+      "owner": "F020",
+      "expected_candidates": [
+        "F007",
+        "F020"
+      ],
+      "signature_sha256": "8c5fea18a3b9eaee90c848c1dc3340171e7498e92c68829d72679871a763e932",
+      "rationale": "Пересечение F007, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "getPhoneNumberInfoSync",
+      "owner": "F020",
+      "expected_candidates": [
+        "F007",
+        "F020"
+      ],
+      "signature_sha256": "90bd474c52c0468b8ce8d0fb32143128d66c34356894a3de481ad6d089c3cf77",
+      "rationale": "Пересечение F007, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "getPollOptionProperties",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F020"
+      ],
+      "signature_sha256": "d9c4cdb07fdcc10ce1589a6894a6e804b4fe52bdf3e788ecb05934a32f302261",
+      "rationale": "Пересечение F009, F020: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getPollVoteStatistics",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F019"
+      ],
+      "signature_sha256": "4c02c4bdb032e68b6d9b64dd59a652a2e7b03e0707acadc3dbd3c4f9e6b2853a",
+      "rationale": "Пересечение F009, F019: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getPreferredCountryLanguage",
+      "owner": "F018",
+      "expected_candidates": [
+        "F018",
+        "F020"
+      ],
+      "signature_sha256": "7cf63b956a1c585604d93ff0089d2443c28bd135e13bdb97049cdb896650f509",
+      "rationale": "Пересечение F018, F020: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "getPremiumGiftPaymentOptions",
+      "owner": "F018",
+      "expected_candidates": [
+        "F018",
+        "F020"
+      ],
+      "signature_sha256": "5621f6bab6dfdeb183a5784e63c82dcbbd29d8ae93ebb52f002c877f43bf01e4",
+      "rationale": "Пересечение F018, F020: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "getPremiumGiveawayPaymentOptions",
+      "owner": "F018",
+      "expected_candidates": [
+        "F018",
+        "F020"
+      ],
+      "signature_sha256": "a98c51af631522de4cee856f98c50af922aabe834cf977ca3b57cdf078854b4d",
+      "rationale": "Пересечение F018, F020: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "getPremiumInfoSticker",
+      "owner": "F018",
+      "expected_candidates": [
+        "F014",
+        "F018"
+      ],
+      "signature_sha256": "36dfaf559cd580dc089e2d3688843fc94aef094c36def0bd684b7731aa1f4be0",
+      "rationale": "Пересечение F014, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "getPremiumStickerExamples",
+      "owner": "F014",
+      "expected_candidates": [
+        "F014",
+        "F018"
+      ],
+      "signature_sha256": "9b6ba22405dd7d74afc06110c9db49daae295716d5408b6da68105cd3e61fe3b",
+      "rationale": "Пересечение F014, F018: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "getPremiumStickers",
+      "owner": "F014",
+      "expected_candidates": [
+        "F014",
+        "F018"
+      ],
+      "signature_sha256": "517b5425455bd9dfced4c73e581d73324fd1825f1abedefefe925d7b7abb4c6f",
+      "rationale": "Пересечение F014, F018: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "getPreparedInlineMessage",
+      "owner": "F012",
+      "expected_candidates": [
+        "F009",
+        "F012"
+      ],
+      "signature_sha256": "af8f078fd51eb72cfdd0a3c30f5a7e73daded2266992f8ab47366505cb73f33a",
+      "rationale": "Пересечение F009, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "getPreparedKeyboardButton",
+      "owner": "F013",
+      "expected_candidates": [
+        "F012",
+        "F013"
+      ],
+      "signature_sha256": "14a22b21dc43878e6adb06e903980b0691c8a7c1b5cba478e896a1ae6ebc6370",
+      "rationale": "Пересечение F012, F013: F013 выбран как владелец Mini App workflow для этого exact schema method."
+    },
+    {
+      "method": "getSavedMessagesTopicHistory",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "e0b89b2b82f09dc19174ee3a5d10539ad1380777b79659dedc83537c7e51c159",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getSavedMessagesTopicMessageByDate",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "f606565b0fd28dfbd3eb46d17c5c68062467893e1787bc8da74045473f043c01",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getSearchSponsoredChats",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "75025fe9ff40f67dc15fc826a1d3b87c3493df4aa42df8726c0ed9fe17afafcc",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "getStarGiftPaymentOptions",
+      "owner": "F018",
+      "expected_candidates": [
+        "F018",
+        "F020"
+      ],
+      "signature_sha256": "fb715bf6b51880c1a97000b86c1efb23ed320219790ac6c2cb3216763b076979",
+      "rationale": "Пересечение F018, F020: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "getStarGiveawayPaymentOptions",
+      "owner": "F018",
+      "expected_candidates": [
+        "F018",
+        "F020"
+      ],
+      "signature_sha256": "30e838a4a218cdef300b433d701c01af1288edb0c03f0646709d71aafd996221",
+      "rationale": "Пересечение F018, F020: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "getStarPaymentOptions",
+      "owner": "F018",
+      "expected_candidates": [
+        "F018",
+        "F020"
+      ],
+      "signature_sha256": "c00fd5f27db27639bb8097fa0a8d8ae8d44fc403d134bc7782d6c51740c9c408",
+      "rationale": "Пересечение F018, F020: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "getStarRevenueStatistics",
+      "owner": "F019",
+      "expected_candidates": [
+        "F018",
+        "F019"
+      ],
+      "signature_sha256": "edd6270c4d61f917de855d909fbc6aabf54d5658a6e420c818d228dd625d2df6",
+      "rationale": "Пересечение F018, F019: F019 выбран как владелец statistics/resources workflow для этого exact schema method."
+    },
+    {
+      "method": "getStoryAvailableReactions",
+      "owner": "F015",
+      "expected_candidates": [
+        "F014",
+        "F015"
+      ],
+      "signature_sha256": "51a920819e8a0e56ebcda5b558077964edb7381c3455d9f673572b58e42c807d",
+      "rationale": "Пересечение F014, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "getStoryNotificationSettingsExceptions",
+      "owner": "F016",
+      "expected_candidates": [
+        "F015",
+        "F016"
+      ],
+      "signature_sha256": "d9f5aa9eb4c71c5c1d337d8de66a7246572df4be3d19d23c4cef07ee9fe7ee5c",
+      "rationale": "Пересечение F015, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "getStoryStatistics",
+      "owner": "F019",
+      "expected_candidates": [
+        "F015",
+        "F019"
+      ],
+      "signature_sha256": "f139793e25168971bbc951d42e4c68d65a45cb43b3cc94e8c8228018117601a2",
+      "rationale": "Пересечение F015, F019: F019 выбран как владелец statistics/resources workflow для этого exact schema method."
+    },
+    {
+      "method": "getSuitableDiscussionChats",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "f19cc9033f8547d8114dc3676ffae0e6c12ff960f3789ed6def5c8bf5fc3983d",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getSupportUser",
+      "owner": "F020",
+      "expected_candidates": [
+        "F007",
+        "F020"
+      ],
+      "signature_sha256": "957a47877c1d2ffdd8c2225416f2328b9bd6508750f9a6c9b7da10cfeb92c9e0",
+      "rationale": "Пересечение F007, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "getThemedChatEmojiStatuses",
+      "owner": "F014",
+      "expected_candidates": [
+        "F008",
+        "F014",
+        "F020"
+      ],
+      "signature_sha256": "12da9d19f32d6ffa3a21b2d7482a24ad15db38d74cf264421bbc0c6fa5533efa",
+      "rationale": "Пересечение F008, F014, F020: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "getThemedEmojiStatuses",
+      "owner": "F014",
+      "expected_candidates": [
+        "F014",
+        "F020"
+      ],
+      "signature_sha256": "639f3bade740ca6951de9856a740835f69e5de9683eb3712b7e1f6ea8c6fa799",
+      "rationale": "Пересечение F014, F020: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "getUpgradedGiftEmojiStatuses",
+      "owner": "F014",
+      "expected_candidates": [
+        "F014",
+        "F018"
+      ],
+      "signature_sha256": "81a74d9833150c3aae51c58e4300a27dfa2ea0d617ddde3f69c593eeadb38683",
+      "rationale": "Пересечение F014, F018: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "getUpgradedGiftsPromotionalAnimation",
+      "owner": "F018",
+      "expected_candidates": [
+        "F014",
+        "F018"
+      ],
+      "signature_sha256": "d7fee38993aef942f96df75017d5dab7e2536f8554c1fb3ad6d609efba90ebc2",
+      "rationale": "Пересечение F014, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "getUserChatBoosts",
+      "owner": "F011",
+      "expected_candidates": [
+        "F007",
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "9b100bf1b7ece95e531c93d809af5412bdd9c957a02d12812a6534e82cfd839d",
+      "rationale": "Пересечение F007, F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "getUserPrivacySettingRules",
+      "owner": "F016",
+      "expected_candidates": [
+        "F007",
+        "F016"
+      ],
+      "signature_sha256": "8d0f470625e7f550839dd823872307e77a95f632753c6579a442552150042005",
+      "rationale": "Пересечение F007, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "getUserSupportInfo",
+      "owner": "F020",
+      "expected_candidates": [
+        "F007",
+        "F020"
+      ],
+      "signature_sha256": "8f171f77a88c9dcbe47165b872fa8f00871f9c664f94db0c7da33331239eb859",
+      "rationale": "Пересечение F007, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "getVideoChatAvailableParticipants",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "026b4e534447bb9044ccc5b3e72e7943857077a9dd5adfb278efc7ea375ea982",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "getVideoChatInviteLink",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F011",
+        "F015"
+      ],
+      "signature_sha256": "6c67f4bf92d63488b31dd76b70ac60aef73cbc7c2fddcfd66343967dfdea9459",
+      "rationale": "Пересечение F008, F011, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "getVideoChatRtmpUrl",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "c986edcdfc76c7ab05d71516b00ece790a43e7541cbf793ce6b4a11dc7c07ec2",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "importMessages",
+      "owner": "F010",
+      "expected_candidates": [
+        "F009",
+        "F010"
+      ],
+      "signature_sha256": "72e67c107436f67ef10b77e9d0776dfd106136709946a6c1ff3bbd0838d4f65f",
+      "rationale": "Пересечение F009, F010: F010 выбран как владелец file/media workflow для этого exact schema method."
+    },
+    {
+      "method": "inviteVideoChatParticipants",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "4c0559fec6b25a1c8bfaff9bfd11c8c69f5fef96c450df52258db728965c3c30",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "isLoginEmailAddressRequired",
+      "owner": "F016",
+      "expected_candidates": [
+        "F016",
+        "F020"
+      ],
+      "signature_sha256": "6ce7e0a1554a87a915b8c1c8d21bf84cd814a2ca78fccb95718fa46a2e35c3b5",
+      "rationale": "Пересечение F016, F020: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "joinChat",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "fe026c0997c615540cef89f6597c74bceb15bda7c2295ad50955bbf306b1ba83",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "joinChatByInviteLink",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "7f73bc897befbdc8f820050ea78e3f833b2943d633d611b5f33ede1786570f14",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "joinVideoChat",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "f852a4eb19eba9261b0eed00bf72acd4d1963e459966808664b1ab1caa4ef1a3",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "launchPrepaidGiveaway",
+      "owner": "F011",
+      "expected_candidates": [
+        "F011",
+        "F018"
+      ],
+      "signature_sha256": "353610f8cf9ef8f0bf91289e3ea7692600b0ce838bf3d211a42831a76cabee5b",
+      "rationale": "Пересечение F011, F018: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "leaveChat",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "81bea100fd03aa9785c0d3cb087ae927043e7ec906d82e14ea7673434852e21d",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "loadDirectMessagesChatTopics",
+      "owner": "F008",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "0313c7bd3e99e26d6e0066bb1c8dd28bcb5e76bb60d397e144c488517c53db2e",
+      "rationale": "Пересечение F008, F009: F008 выбран как владелец chat container workflow для этого exact schema method."
+    },
+    {
+      "method": "loadQuickReplyShortcutMessages",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "f7d613f1d0d6228fcf02e662d08817dd013078d31ec1703dc97b953f304661ef",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "loadSavedMessagesTopics",
+      "owner": "F008",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "d685dc8924c92d8d7292af7324fcd3b6612db968d59da672bb7282262e4fe1bd",
+      "rationale": "Пересечение F008, F009: F008 выбран как владелец chat container workflow для этого exact schema method."
+    },
+    {
+      "method": "openSponsoredChat",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "43e9d6936165ccab6e4de61b8212df394c225a955f527b8709a44188cd30fa81",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "pinChatMessage",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "6dd2fbb6666bdcdfe8c4f76e886a72708070812887fecacbe1366c535b369574",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "processChatHasProtectedContentDisableRequest",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "c4e09c44550d4660f33b6ddc8810ff678c1ed1683344cc9a421caf9328b1a764",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "processChatJoinRequest",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "4a0052e7f0bdd5052788fa7dadc8936d94e40cc27b8bcb8fdc4e6e1e5596f2a1",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "processChatJoinRequests",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "affedd4cc0d90ef59ab2da337a75b42b086f8d6a6aae637a8afd97d115a61a3b",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "readAllChatMentions",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "9070d721e4918d0576d8cc6d21dfe420cb67eac4f10e5f31b65c3cc6fc42d0bf",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "readAllChatPollVotes",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "3a84faf81f5d91d5aec226d5d1016bc594e2341dc3a11fae2a26faf7f359d60c",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "readAllChatReactions",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "359967a2668013480285b2541f6b35ba3ebf428a6fcc8f84eaa60ce3b543be60",
+      "rationale": "Пересечение F008, F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "readAllDirectMessagesChatTopicReactions",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "a003d1ecf697c57ba13cec5ac8467a248882b582a7863631e0fab37ca8746a5e",
+      "rationale": "Пересечение F008, F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "readAllForumTopicMentions",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "ce03ac1dba85efec88f31c2ca3d021f06e02714eeda6722b7f63f2bc1837ec63",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "readAllForumTopicPollVotes",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "66ce2efed815e0468549ad0b8ca81ae04a3a4988155c6b084bb61c4d47fbaa61",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "readAllForumTopicReactions",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "bce5e2d275330ee8d733e1c0cbade577ae533aceb1ee312cff995dc2d92ef06a",
+      "rationale": "Пересечение F008, F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "readBusinessMessage",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "50197b46c0e270c25cee6e6d95bba60be065ec0e9814a43739c80789f5f08f13",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "readdQuickReplyShortcutMessages",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "7d0f2ee1de9f83d9bba92bc218fec302ca21ce6e88934f476078b41976dd6f96",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "recoverAuthenticationPassword",
+      "owner": "F002",
+      "expected_candidates": [
+        "F002",
+        "F016"
+      ],
+      "signature_sha256": "03a6db04790cf39baf133d1641e859c91e58b5c02f00dd5c279c89b5a7784993",
+      "rationale": "Пересечение F002, F016: F002 выбран как владелец authorization workflow для этого exact schema method."
+    },
+    {
+      "method": "registerUser",
+      "owner": "F002",
+      "expected_candidates": [
+        "F002",
+        "F007"
+      ],
+      "signature_sha256": "a1ff0be5e2c2e7f05af33a0e644bde00b770aa362ac399940119458512b75d2c",
+      "rationale": "Пересечение F002, F007: F002 выбран как владелец authorization workflow для этого exact schema method."
+    },
+    {
+      "method": "removeBusinessConnectedBotFromChat",
+      "owner": "F017",
+      "expected_candidates": [
+        "F008",
+        "F012",
+        "F017"
+      ],
+      "signature_sha256": "03598723de58efa1c2fe00e87a4ff584e969e5c570639ddf7a92a48dae3aecda",
+      "rationale": "Пересечение F008, F012, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "removeLoginPasskey",
+      "owner": "F016",
+      "expected_candidates": [
+        "F016",
+        "F020"
+      ],
+      "signature_sha256": "b1bba2f26850a45d8b3d32e6eebaf3c64b99f77fb2abd125e7d9b5851b79cde1",
+      "rationale": "Пересечение F016, F020: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "removeMessageReaction",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "5ff20fbb2c41129ce973f39fd698511ede6d0d30e02cc440eddc53576a6a7354",
+      "rationale": "Пересечение F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "removeMessageSenderBotVerification",
+      "owner": "F012",
+      "expected_candidates": [
+        "F009",
+        "F012"
+      ],
+      "signature_sha256": "cf3a429885edd8cad6e1f592c095c07bce7d12330f181ecb0fcfaa0c9c19dfc4",
+      "rationale": "Пересечение F009, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "removePendingLiveStoryReactions",
+      "owner": "F015",
+      "expected_candidates": [
+        "F014",
+        "F015"
+      ],
+      "signature_sha256": "328360c97c6a07babdd616cbfb1127b6b4911cda19b21949f96c13ca58804e1f",
+      "rationale": "Пересечение F014, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "removePendingPaidMessageReactions",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "2739e64aefa62d1bad8558f101913ddd4e3f9490151047616ad69fc4561cf841",
+      "rationale": "Пересечение F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "reorderBotActiveUsernames",
+      "owner": "F012",
+      "expected_candidates": [
+        "F007",
+        "F012"
+      ],
+      "signature_sha256": "16454a97c5d43e645792c6f38e7e02f5b37495ee4e1fdc5f671f9aa487a5ac20",
+      "rationale": "Пересечение F007, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "reorderSupergroupActiveUsernames",
+      "owner": "F011",
+      "expected_candidates": [
+        "F007",
+        "F011"
+      ],
+      "signature_sha256": "b15f048f233ace0e75e55101c87403ef0dd090f4718a321262ba98d5987724a5",
+      "rationale": "Пересечение F007, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "replacePrimaryChatInviteLink",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "17965173aab9d5482d659e0020d2bf5b314536196b8a9630d3bb019d42639ecc",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "replaceVideoChatRtmpUrl",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "bc8e2aa7a9c374c23149d189c5a2be17ed2aea353934bee0504e224f9938e9fd",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "reportChat",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "8328c20b3642b2614c51ad238f8d64f0993b1ca33cdc1c239c502b756e2b0180",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "reportChatPhoto",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "a8160f1741416298a76bff40f5ce17442f57cfd449b0e3ff142cb1d3ebb43d42",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "reportChatSponsoredMessage",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "6ea069e9c3f9a34256981cec76b07625e5c84c758ad1dad320cb8b7345186b0c",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "reportMessageReactions",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "456cb9d8b574bcf5545083be7b4ef8b96328fd8fde1b919ce33bcb653c1e63d0",
+      "rationale": "Пересечение F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "reportSponsoredChat",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "e8c77e0378b8c0a04158f14b4124702f268233f432c651aca58d2732e9051d96",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "requestAuthenticationPasswordRecovery",
+      "owner": "F002",
+      "expected_candidates": [
+        "F002",
+        "F016"
+      ],
+      "signature_sha256": "10c65c36ab3dd13eaae99a1057d9d70bd5e3f9368c88cb15ab9d83f871ab567e",
+      "rationale": "Пересечение F002, F016: F002 выбран как владелец authorization workflow для этого exact schema method."
+    },
+    {
+      "method": "resendLoginEmailAddressCode",
+      "owner": "F016",
+      "expected_candidates": [
+        "F016",
+        "F020"
+      ],
+      "signature_sha256": "84022420cdda41b65e6a38046e676eb7b92796333d9739221fbb834e536b3395",
+      "rationale": "Пересечение F016, F020: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "revokeChatInviteLink",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "23f845340fea4863ea9f311bb40e0ae640f9736f00035732f15157201e81dbc2",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "revokeGroupCallInviteLink",
+      "owner": "F015",
+      "expected_candidates": [
+        "F011",
+        "F015"
+      ],
+      "signature_sha256": "02b8f1a191053eb08013a10bb65d665b38cdea79e2f11bba30379bfc978decd2",
+      "rationale": "Пересечение F011, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "savePreparedInlineMessage",
+      "owner": "F012",
+      "expected_candidates": [
+        "F009",
+        "F012"
+      ],
+      "signature_sha256": "0697ccb4a1b071dfce0760181f211488e6cb6838dda12d7f6c7563a13e2cbd16",
+      "rationale": "Пересечение F009, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "savePreparedKeyboardButton",
+      "owner": "F013",
+      "expected_candidates": [
+        "F012",
+        "F013"
+      ],
+      "signature_sha256": "abefb20952fc131d71efcca1613600531e6bea4643f7b48b0f14248381ec2aa7",
+      "rationale": "Пересечение F012, F013: F013 выбран как владелец Mini App workflow для этого exact schema method."
+    },
+    {
+      "method": "searchCallMessages",
+      "owner": "F015",
+      "expected_candidates": [
+        "F009",
+        "F015"
+      ],
+      "signature_sha256": "3137f84591388581070c88e76672df10ca77e2b7092ecd25086d8882885bb7f0",
+      "rationale": "Пересечение F009, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "searchChatAffiliateProgram",
+      "owner": "F018",
+      "expected_candidates": [
+        "F008",
+        "F018"
+      ],
+      "signature_sha256": "d40d99c5de6892484c12fcf186a7ea9831740e1b7757be9f51281c00e29f5727",
+      "rationale": "Пересечение F008, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "searchChatMembers",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "63f624efe91a59abb492eb1e06515897e7a7a4bac39a3c37ac86bb3358edd777",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "searchChatMessages",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "ecbcb70cf2ddc348514f7504b20d8e9adf41fd8a90599dd55febfbc16f0b1489",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "searchChatRecentLocationMessages",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "5cddb7dc615d2b0ed340f3ba6161ef1326f559ef9ee85a61fb17cb49ad7ef3e3",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "sendBotStartMessage",
+      "owner": "F012",
+      "expected_candidates": [
+        "F009",
+        "F012",
+        "F018"
+      ],
+      "signature_sha256": "635fea90b0c3f054c768c3fec859e748a036e743859466c0c129a55898ad3928",
+      "rationale": "Пересечение F009, F012, F018: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "sendBusinessMessage",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "932285871c18e4939844bb930cb6a0998168798ab6c8b7665b6dab91ce264def",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "sendBusinessMessageAlbum",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "400e4e1d032d595b11f0f7d3793080b3d737ec37651ab3fd8c7aa1584094f41d",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "sendCallLog",
+      "owner": "F015",
+      "expected_candidates": [
+        "F015",
+        "F020"
+      ],
+      "signature_sha256": "9d3f09b30b00a2c062df9306f6a0ac8d9f6e8d09d56c604f43295541d463780e",
+      "rationale": "Пересечение F015, F020: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "sendChatAction",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "1a57a93d2394cc1e9d12ebf2cbfc333da4f10b9b771e59984c0e17b0bc1cae9d",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "sendGroupCallMessage",
+      "owner": "F015",
+      "expected_candidates": [
+        "F009",
+        "F015"
+      ],
+      "signature_sha256": "e485c2d752bc9a8df8dff82323bf2013d9b0b3af6a2d2a39281f7db9643f6f66",
+      "rationale": "Пересечение F009, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "sendInlineQueryResultMessage",
+      "owner": "F012",
+      "expected_candidates": [
+        "F009",
+        "F012"
+      ],
+      "signature_sha256": "2813f1dae0d6054d6be2d9fb9c01045bfaf37fd63e237f6da0566b5ec8e4a47e",
+      "rationale": "Пересечение F009, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "sendPassportAuthorizationForm",
+      "owner": "F018",
+      "expected_candidates": [
+        "F002",
+        "F018"
+      ],
+      "signature_sha256": "dd31f54fff493a2cea1e01b943aadb72445d57af7f32859028dc3dc4da3caaf5",
+      "rationale": "Пересечение F002, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "sendQuickReplyShortcutMessages",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "4add9de1cf64a0fb2174b55feeee366750b6c07f3da3331f1c2aecfb71d21162",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "sendWebAppCustomRequest",
+      "owner": "F013",
+      "expected_candidates": [
+        "F013",
+        "F020"
+      ],
+      "signature_sha256": "9f65c88c7238f055a7ae7b02ce3c0e7d34facfbdaffc9c17b8946bf9b0a56526",
+      "rationale": "Пересечение F013, F020: F013 выбран как владелец Mini App workflow для этого exact schema method."
+    },
+    {
+      "method": "setAuthenticationPhoneNumber",
+      "owner": "F002",
+      "expected_candidates": [
+        "F002",
+        "F007"
+      ],
+      "signature_sha256": "22c922f8b41ce08f54b3f404c31015b15ff59cd0159480f1eb20d1d9875420fb",
+      "rationale": "Пересечение F002, F007: F002 выбран как владелец authorization workflow для этого exact schema method."
+    },
+    {
+      "method": "setAuthenticationPremiumPurchaseTransaction",
+      "owner": "F002",
+      "expected_candidates": [
+        "F002",
+        "F018"
+      ],
+      "signature_sha256": "7aa4db3e241e94c319e0ea739a23e6c10604713e7adabf5dd181ecfe8785ec38",
+      "rationale": "Пересечение F002, F018: F002 выбран как владелец authorization workflow для этого exact schema method."
+    },
+    {
+      "method": "setBotProfilePhoto",
+      "owner": "F012",
+      "expected_candidates": [
+        "F007",
+        "F012"
+      ],
+      "signature_sha256": "6ad0b69f115b0d295a865f795e51377b974bfec59a171296b035a7994e5a0097",
+      "rationale": "Пересечение F007, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "setBusinessAccountGiftSettings",
+      "owner": "F018",
+      "expected_candidates": [
+        "F017",
+        "F018"
+      ],
+      "signature_sha256": "8da8f41d7a8d0fe8c2d09006a834bedb2a72bcd026521dded60887a1675382fe",
+      "rationale": "Пересечение F017, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "setBusinessAccountProfilePhoto",
+      "owner": "F017",
+      "expected_candidates": [
+        "F007",
+        "F017"
+      ],
+      "signature_sha256": "95bc2cc71d4645dd8a01a1169a08fabbd95150f7689ec394f04f1b73ad33af0d",
+      "rationale": "Пересечение F007, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "setBusinessAccountUsername",
+      "owner": "F017",
+      "expected_candidates": [
+        "F007",
+        "F017"
+      ],
+      "signature_sha256": "8489f6623b8e9197c741df23a68264db425752ed7ca1125cbadb6071712f3c3e",
+      "rationale": "Пересечение F007, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "setBusinessAwayMessageSettings",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "cbb138ae3667fa552c22fc6ebf101c858b717bebbafea35441a5a8bde9897717",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "setBusinessConnectedBot",
+      "owner": "F017",
+      "expected_candidates": [
+        "F012",
+        "F017"
+      ],
+      "signature_sha256": "f070e6eeb1e5b9182bc49e5e6b61057b61884a3d92269db27cefc2a41e24938b",
+      "rationale": "Пересечение F012, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "setBusinessGreetingMessageSettings",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "04e09d29f601c4e89c2e8701d74ca27ac53e19f62ea298186bef30fece9a71ea",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "setBusinessMessageIsPinned",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "a89bd5a0f1323b161e539d545ce71110575efa424e8190ebad4b28761a15b3f7",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "setBusinessStartPage",
+      "owner": "F017",
+      "expected_candidates": [
+        "F017",
+        "F018"
+      ],
+      "signature_sha256": "47661eb789673a9b66fd8b00aa57c7193cddd5e22d697aef8515196c21472c8c",
+      "rationale": "Пересечение F017, F018: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatAccentColor",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "edc962e183c27e205f6002973dbc151337067bd2848bb31aff3962bf52700942",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatActiveStoriesList",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "ca9f4fc115b7f4fab2b6261bfc3d78cc72272dff97d19fd5c3f5cf072e096aed",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatAffiliateProgram",
+      "owner": "F018",
+      "expected_candidates": [
+        "F008",
+        "F018"
+      ],
+      "signature_sha256": "c341fe221cd9649d7d2671a493f0f88e3a8f1001f8bf868ab73ab0df9c85468c",
+      "rationale": "Пересечение F008, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatAvailableReactions",
+      "owner": "F014",
+      "expected_candidates": [
+        "F008",
+        "F014"
+      ],
+      "signature_sha256": "661c5ecc36d5d260b7a71350fde92983f9d944027df90d6c3e9a10f6fdb68829",
+      "rationale": "Пересечение F008, F014: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatBackground",
+      "owner": "F020",
+      "expected_candidates": [
+        "F008",
+        "F020"
+      ],
+      "signature_sha256": "6e9aacb6e95e8e708eaa53b0d01575b9fd4b76945e68de3bcea84cd704efe1e3",
+      "rationale": "Пересечение F008, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatDescription",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "36664fa268714478239886752e3b0dce234febceedeab13d760f2348e79b70eb",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatDirectMessagesGroup",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F009",
+        "F011"
+      ],
+      "signature_sha256": "39675887a56e3a2509a096e2878749f6fc7f475710a72a3f5f211019213d20f6",
+      "rationale": "Пересечение F008, F009, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatDiscussionGroup",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "a07ff0665f761aa98bdec4fd58317e35b6d92396b3ef70a8f2cf658b9b985fe2",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatDraftMessage",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "c5160d1f55f8ba2a251c30675aae99a26eff53360a497dc4d2dc92f8447a25d9",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatEmojiStatus",
+      "owner": "F014",
+      "expected_candidates": [
+        "F008",
+        "F014"
+      ],
+      "signature_sha256": "d9d82be694fd370181d1077e0b0fe0c3f02e3185514f091c1e8e4e3a673a2ac6",
+      "rationale": "Пересечение F008, F014: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatLocation",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "c552a3bbbafa0137e3b93899a15c1e4745aec37b4c4949eb11e01e7f2bf20679",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatMemberStatus",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "477f6ac3a9f7fe2c3f027c335a14dda7c5872e40693d76398dc23db674700272",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatMemberTag",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "56ea81c303f9f48960861a83933f2e4321652ffc8173cbb090c4fcdb545be2d8",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatMessageAutoDeleteTime",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "5f79df6b2c5f2909a595753a433634d9eafa7f86b4006eb2bcc9f69acbd3ec23",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatMessageSender",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "8d4e5d8898adb8de070ecfdb6ccf567685a8979cfc959dfcf42853f35194ab15",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatNotificationSettings",
+      "owner": "F016",
+      "expected_candidates": [
+        "F008",
+        "F016"
+      ],
+      "signature_sha256": "5241dfa0a3a72917c5b39fd9895bc026fd8fbf7a7e47dc00447f17d463192dc4",
+      "rationale": "Пересечение F008, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatPaidMessageStarCount",
+      "owner": "F018",
+      "expected_candidates": [
+        "F008",
+        "F009",
+        "F018"
+      ],
+      "signature_sha256": "806a4cbde0c9561cfb6745017d0a054861043b3f226ae14625aad905fc624525",
+      "rationale": "Пересечение F008, F009, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatPermissions",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "3b67fa6761253d1239e96491d725b6cecc6b4d2e33b1908779c5480021432f18",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatPhoto",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "464414b4f8c87f1f6bb66cc2d020170d53aeecd71d030c6353a953be65c84aee",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatPinnedStories",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "8abd0aa70521acc4053c5f71bbca10a9babbb7e2bb5a4ff543eb232b44a81aa7",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatProfileAccentColor",
+      "owner": "F011",
+      "expected_candidates": [
+        "F007",
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "8276a64f6c4ed01ea897af4848407696f7475dad0c079c7d537088e1fcb98e9e",
+      "rationale": "Пересечение F007, F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatSlowModeDelay",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "c341b39dc6c2c442ab739727bfcf35a69d389d5986e129675b1fbad85e9bf053",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatTheme",
+      "owner": "F020",
+      "expected_candidates": [
+        "F008",
+        "F020"
+      ],
+      "signature_sha256": "d1fda2b27f63f64982cd237110d8a9b598f94837b76e7491dd023a3fc4cecca0",
+      "rationale": "Пересечение F008, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "setChatTitle",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "9ab7298f92fed2b633b712796e38a8c64af58ff0abe5bf68275e9cef7f72db4e",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setDefaultMessageAutoDeleteTime",
+      "owner": "F016",
+      "expected_candidates": [
+        "F009",
+        "F016"
+      ],
+      "signature_sha256": "b442f8f6535beeeb7aefb214f05871761983e4ab632bc9fcf87d37dbbef52414",
+      "rationale": "Пересечение F009, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "setDirectMessagesChatTopicIsMarkedAsUnread",
+      "owner": "F008",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "5de7dc9ba64b9d18fb75988d5aa8c47231ad79f4befe3edd06d24edc74f2feba",
+      "rationale": "Пересечение F008, F009: F008 выбран как владелец chat container workflow для этого exact schema method."
+    },
+    {
+      "method": "setForumTopicNotificationSettings",
+      "owner": "F016",
+      "expected_candidates": [
+        "F008",
+        "F016"
+      ],
+      "signature_sha256": "c2dff278e65023e0f8817d291056258429e15575d71e5c66532ff4708235c301",
+      "rationale": "Пересечение F008, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "setGroupCallPaidMessageStarCount",
+      "owner": "F015",
+      "expected_candidates": [
+        "F009",
+        "F015",
+        "F018"
+      ],
+      "signature_sha256": "dde8da47d8f566f1f648dd6ab93646bfbd5d9241ab48f6c382fa434c5a29a5da",
+      "rationale": "Пересечение F009, F015, F018: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "setLiveStoryMessageSender",
+      "owner": "F015",
+      "expected_candidates": [
+        "F009",
+        "F015"
+      ],
+      "signature_sha256": "70a354f38b7e02a44c8841e73e37b6aba85e5268a2642cc9ae2c4ff7a951d672",
+      "rationale": "Пересечение F009, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "setLoginEmailAddress",
+      "owner": "F016",
+      "expected_candidates": [
+        "F016",
+        "F020"
+      ],
+      "signature_sha256": "396c9317dabc276e9a03cae5c00e80e03e563bb58e6cfe193aa5c42a8346e5f8",
+      "rationale": "Пересечение F016, F020: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "setMessageReactions",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "0a294b5baf708807509b70b45095480307617d6b99a04830bb171d9287ad65d9",
+      "rationale": "Пересечение F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "setMessageSenderBlockList",
+      "owner": "F007",
+      "expected_candidates": [
+        "F007",
+        "F009"
+      ],
+      "signature_sha256": "ac4716b25efed37352d4eda435b6dafe37dcb2b4ebcaee82d992514351c405c0",
+      "rationale": "Пересечение F007, F009: F007 выбран как владелец user/profile workflow для этого exact schema method."
+    },
+    {
+      "method": "setMessageSenderBotVerification",
+      "owner": "F012",
+      "expected_candidates": [
+        "F009",
+        "F012"
+      ],
+      "signature_sha256": "2a9a98709b4ef5c7d7777c4506d9aebec28b7adc89ab512ed59c61d4f907da2f",
+      "rationale": "Пересечение F009, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "setNewChatPrivacySettings",
+      "owner": "F016",
+      "expected_candidates": [
+        "F008",
+        "F016"
+      ],
+      "signature_sha256": "29b45d7b6d04c6edf5096e740cbc6070e69340f4477df6471d8e9d0df13ee3d3",
+      "rationale": "Пересечение F008, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "setPaidMessageReactionType",
+      "owner": "F009",
+      "expected_candidates": [
+        "F009",
+        "F014"
+      ],
+      "signature_sha256": "61666fc7f682c4331a9d53b270f79b93a76a4c8ad28754462a2ae557a9537198",
+      "rationale": "Пересечение F009, F014: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "setPersonalChat",
+      "owner": "F007",
+      "expected_candidates": [
+        "F007",
+        "F008"
+      ],
+      "signature_sha256": "97c695bce9b291682d660d185fb681432ceacb80d240cab4ea9a6b1ac551a656",
+      "rationale": "Пересечение F007, F008: F007 выбран как владелец user/profile workflow для этого exact schema method."
+    },
+    {
+      "method": "setPinnedSavedMessagesTopics",
+      "owner": "F008",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "13ce2e0213bcda6828d0117048a39222d5b0630a7746cf2a5ef9bd4e82bf21a6",
+      "rationale": "Пересечение F008, F009: F008 выбран как владелец chat container workflow для этого exact schema method."
+    },
+    {
+      "method": "setReactionNotificationSettings",
+      "owner": "F016",
+      "expected_candidates": [
+        "F014",
+        "F016"
+      ],
+      "signature_sha256": "3ab1e6e111aa6ae504d194725549019ef65d7e5cd3da7287af76489787cef42f",
+      "rationale": "Пересечение F014, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "setStoryPrivacySettings",
+      "owner": "F015",
+      "expected_candidates": [
+        "F015",
+        "F016"
+      ],
+      "signature_sha256": "8af350913c1d75738b1b25d1f785cbed47847de278f9e5828944301fddb0ef0e",
+      "rationale": "Пересечение F015, F016: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "setStoryReaction",
+      "owner": "F015",
+      "expected_candidates": [
+        "F014",
+        "F015"
+      ],
+      "signature_sha256": "7768e4d6ea07fae4ed45bb69d6c6d476ef8b7e324fc3644a4985b345222835c7",
+      "rationale": "Пересечение F014, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "setSupergroupCustomEmojiStickerSet",
+      "owner": "F011",
+      "expected_candidates": [
+        "F011",
+        "F014"
+      ],
+      "signature_sha256": "05f2a24247a829a3b887522ba380c551d306bedc5c5628380dad51427bc2a59e",
+      "rationale": "Пересечение F011, F014: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setSupergroupMainProfileTab",
+      "owner": "F011",
+      "expected_candidates": [
+        "F007",
+        "F011"
+      ],
+      "signature_sha256": "06fc6992bd07ed826dff3d96185d30630526c773313939d73a5ae116436e68c1",
+      "rationale": "Пересечение F007, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setSupergroupStickerSet",
+      "owner": "F011",
+      "expected_candidates": [
+        "F011",
+        "F014"
+      ],
+      "signature_sha256": "da50d386703e00526d0596412c226b8189fe2670219bb7ccc9fbf6b9fd7085d2",
+      "rationale": "Пересечение F011, F014: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setSupergroupUsername",
+      "owner": "F011",
+      "expected_candidates": [
+        "F007",
+        "F011"
+      ],
+      "signature_sha256": "58e9a2949f9cc7d266621f14a70aeca90c72c7a60c015e16744210cb3521191a",
+      "rationale": "Пересечение F007, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "setUserEmojiStatus",
+      "owner": "F014",
+      "expected_candidates": [
+        "F007",
+        "F014"
+      ],
+      "signature_sha256": "14f29c9f51fbcf9fc381e138c36c8ad959528493436da84993991e0c93fc4fe0",
+      "rationale": "Пересечение F007, F014: F014 выбран как владелец sticker/emoji workflow для этого exact schema method."
+    },
+    {
+      "method": "setUserPrivacySettingRules",
+      "owner": "F016",
+      "expected_candidates": [
+        "F007",
+        "F016"
+      ],
+      "signature_sha256": "d4b1423c1c06d86f2486558044726daaf477a99813e9ad574e4472d81e44d44f",
+      "rationale": "Пересечение F007, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "setUserSupportInfo",
+      "owner": "F020",
+      "expected_candidates": [
+        "F007",
+        "F020"
+      ],
+      "signature_sha256": "ce6076e620454d2676855d4f0f042ab88cfe0ea8a0c8efd0eb1c0267cda51d25",
+      "rationale": "Пересечение F007, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "setVideoChatDefaultParticipant",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "50f388780585b9deb2f3659da6fe2341fae68af1e283f52185089ee8428afd9f",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "setVideoChatTitle",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "b3f9145ceedeb69223c1ed99d4a541b82d3d8d810c423e61b3413784fbce1b38",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "shareChatWithBot",
+      "owner": "F012",
+      "expected_candidates": [
+        "F008",
+        "F012"
+      ],
+      "signature_sha256": "256af5d8c8303d3cf7028e48ca810c9604b02b5cffc26886cf10b5d9f5ded954",
+      "rationale": "Пересечение F008, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "shareUsersWithBot",
+      "owner": "F012",
+      "expected_candidates": [
+        "F007",
+        "F012"
+      ],
+      "signature_sha256": "08ba66d1bb642bba6c0fa6139d30ad364c307e846e6ccbd5afed4dbfb46afbd1",
+      "rationale": "Пересечение F007, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "startScheduledVideoChat",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "033f91a2fcced3d3b82943487fc55367e06cc1ceacca90ad50c897e4aa5a8f18",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "stopBusinessPoll",
+      "owner": "F017",
+      "expected_candidates": [
+        "F009",
+        "F017"
+      ],
+      "signature_sha256": "def9619c5eed5bad9a7b92be171b23b0954764975141f7adef9258f89609bdb8",
+      "rationale": "Пересечение F009, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "testCallBytes",
+      "owner": "F020",
+      "expected_candidates": [
+        "F015",
+        "F020"
+      ],
+      "signature_sha256": "03543a9469ab3dd9b85c551c2fcd64c521058cc06104bac48c02f25094bcb232",
+      "rationale": "Пересечение F015, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "testCallEmpty",
+      "owner": "F020",
+      "expected_candidates": [
+        "F015",
+        "F020"
+      ],
+      "signature_sha256": "7834e79f369b349e237ee99e1ed75aaa2659ffe215676e87569349b54302c256",
+      "rationale": "Пересечение F015, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "testCallString",
+      "owner": "F020",
+      "expected_candidates": [
+        "F015",
+        "F020"
+      ],
+      "signature_sha256": "2bb6c482145b1ea187b8d7316e8dba63f27619b54e79fe63bb663dbd2c9a9b55",
+      "rationale": "Пересечение F015, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "testCallVectorInt",
+      "owner": "F020",
+      "expected_candidates": [
+        "F015",
+        "F020"
+      ],
+      "signature_sha256": "70e89a646d6d89b073a9eac1185eb4a6962a00b8a650cd8fdad0a9a206458b36",
+      "rationale": "Пересечение F015, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "testCallVectorIntObject",
+      "owner": "F020",
+      "expected_candidates": [
+        "F015",
+        "F020"
+      ],
+      "signature_sha256": "85c003c5f1fe6d2500653a6673ba53e0bbfce7cbecdf9099e97a6c1dcbe3876f",
+      "rationale": "Пересечение F015, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "testCallVectorString",
+      "owner": "F020",
+      "expected_candidates": [
+        "F015",
+        "F020"
+      ],
+      "signature_sha256": "a516fb07f9b7c462f796302c5fb3da311d32ce33abdf7247f81f173614c2a47c",
+      "rationale": "Пересечение F015, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "testCallVectorStringObject",
+      "owner": "F020",
+      "expected_candidates": [
+        "F015",
+        "F020"
+      ],
+      "signature_sha256": "c8be814ab40542c266e312479907af8c8113e3dc201265fe1ea7486dfb3097ba",
+      "rationale": "Пересечение F015, F020: F020 выбран как владелец platform utility workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleBotCanManageEmojiStatus",
+      "owner": "F012",
+      "expected_candidates": [
+        "F012",
+        "F014"
+      ],
+      "signature_sha256": "b29478fa4200752c360762c956ccbc6397532c43c32f6474b2daf37ac5145747",
+      "rationale": "Пересечение F012, F014: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleBotIsAddedToAttachmentMenu",
+      "owner": "F013",
+      "expected_candidates": [
+        "F012",
+        "F013"
+      ],
+      "signature_sha256": "ce2b81d0fa83037d5020f404ab1156bed5ce0486d4b5460242f95ad6e6d3146d",
+      "rationale": "Пересечение F012, F013: F013 выбран как владелец Mini App workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleBotUsernameIsActive",
+      "owner": "F012",
+      "expected_candidates": [
+        "F007",
+        "F012"
+      ],
+      "signature_sha256": "9d0e8deb689889c6667bb9513a57e1434b49dcab07a040b032ba92b6972c23db",
+      "rationale": "Пересечение F007, F012: F012 выбран как владелец bot workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleBusinessConnectedBotChatIsPaused",
+      "owner": "F017",
+      "expected_candidates": [
+        "F008",
+        "F012",
+        "F017"
+      ],
+      "signature_sha256": "a4c2d875844f47b6051fc534f6b62b5df86e5716ad1eefb35701c73d0747ca28",
+      "rationale": "Пересечение F008, F012, F017: F017 выбран как владелец Business workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleChatDefaultDisableNotification",
+      "owner": "F016",
+      "expected_candidates": [
+        "F008",
+        "F016"
+      ],
+      "signature_sha256": "86fcf71493f2c9c658b58cda3c5733fd2d22008cb1c977d3da67b37bf4c8ea64",
+      "rationale": "Пересечение F008, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleChatGiftNotifications",
+      "owner": "F018",
+      "expected_candidates": [
+        "F008",
+        "F016",
+        "F018"
+      ],
+      "signature_sha256": "c73e7dbe4cf33ac4c60ef7eed8d6b7d69deee2c4ce442babeb4e5ab2d7191eff",
+      "rationale": "Пересечение F008, F016, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleChatHasProtectedContent",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "7e3361cf933f323cb8b33fac6da8db962bf5cc83ca09bd23e64be2c0a6937604",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleDirectMessagesChatTopicCanSendUnpaidMessages",
+      "owner": "F018",
+      "expected_candidates": [
+        "F008",
+        "F009",
+        "F018"
+      ],
+      "signature_sha256": "91e034058cee3e4383f3b11220263fdc92e1d193021db0fd1d60502a1f356151",
+      "rationale": "Пересечение F008, F009, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleGroupCallAreMessagesAllowed",
+      "owner": "F015",
+      "expected_candidates": [
+        "F009",
+        "F015"
+      ],
+      "signature_sha256": "6d6b0644b352e55e4bb2f6cadef99dd26a0450102975745549671b2c8f1b508a",
+      "rationale": "Пересечение F009, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleHasSponsoredMessagesEnabled",
+      "owner": "F016",
+      "expected_candidates": [
+        "F009",
+        "F016"
+      ],
+      "signature_sha256": "a33e32503f78d5a360ebe7d8ea6b5c11aa4d2174540c73e27675bed62a13a2e0",
+      "rationale": "Пересечение F009, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleSavedMessagesTopicIsPinned",
+      "owner": "F008",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "213c97668731e4ae8286d8906a8f13ae5cfc6defb0a8ec6860698d9295b16dc7",
+      "rationale": "Пересечение F008, F009: F008 выбран как владелец chat container workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleSessionCanAcceptCalls",
+      "owner": "F016",
+      "expected_candidates": [
+        "F015",
+        "F016"
+      ],
+      "signature_sha256": "bc23e3e0d653938e673889a9b4fa1e2c0012303926b94e9ea7db70866449d85c",
+      "rationale": "Пересечение F015, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleSessionCanAcceptSecretChats",
+      "owner": "F016",
+      "expected_candidates": [
+        "F008",
+        "F016"
+      ],
+      "signature_sha256": "698c3cc116e31117cbb973c613a80f2ab2be8ce02f1c824811cf88219e35943e",
+      "rationale": "Пересечение F008, F016: F016 выбран как владелец account settings workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleStoryIsPostedToChatPage",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "f58c4c749fdf0e601275ba4aae75e805129fbd7d7a4c3b017a60652921d12cc8",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleSupergroupCanHaveSponsoredMessages",
+      "owner": "F011",
+      "expected_candidates": [
+        "F009",
+        "F011"
+      ],
+      "signature_sha256": "3b02edd928c9c3b9d82812dddc8839f83768c0ada31089cebba6e5585e9c3129",
+      "rationale": "Пересечение F009, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleSupergroupJoinToSendMessages",
+      "owner": "F011",
+      "expected_candidates": [
+        "F009",
+        "F011"
+      ],
+      "signature_sha256": "5f577d720e452a7203c8aa2a41c9c961c04c51cff02e6ecb82b5a8c03a1fc734",
+      "rationale": "Пересечение F009, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleSupergroupSignMessages",
+      "owner": "F011",
+      "expected_candidates": [
+        "F009",
+        "F011"
+      ],
+      "signature_sha256": "72bbbc2bf263445a687f9f90df2cfe6903da42680d97003f1539d13d102b9ce1",
+      "rationale": "Пересечение F009, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleSupergroupUsernameIsActive",
+      "owner": "F011",
+      "expected_candidates": [
+        "F007",
+        "F011"
+      ],
+      "signature_sha256": "2aec79957c394a49cbffb35254bf6687676e6464cefb4d7bc2eec095ed99c0dc",
+      "rationale": "Пересечение F007, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleVideoChatEnabledStartNotification",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015",
+        "F016",
+        "F018"
+      ],
+      "signature_sha256": "9ea64562c5e8f4358a81b0ecdc590d8465eb477770ab75c44c30f2a7182c6f75",
+      "rationale": "Пересечение F008, F015, F016, F018: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "toggleVideoChatMuteNewParticipants",
+      "owner": "F015",
+      "expected_candidates": [
+        "F008",
+        "F015"
+      ],
+      "signature_sha256": "e662757416bf7af408b2c486d6dfae1717b4db03e363dd139d41ff5b1912598b",
+      "rationale": "Пересечение F008, F015: F015 выбран как владелец story/call/live workflow для этого exact schema method."
+    },
+    {
+      "method": "transferBusinessAccountStars",
+      "owner": "F018",
+      "expected_candidates": [
+        "F017",
+        "F018"
+      ],
+      "signature_sha256": "0bbe1a42eb577569f698808628d6e7c9139ccf6d42c95965595956758514fc09",
+      "rationale": "Пересечение F017, F018: F018 выбран как владелец payments/digital assets workflow для этого exact schema method."
+    },
+    {
+      "method": "transferChatOwnership",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "74f8eb816fac26be3e3d1d0874c50df61dc04ef1431b4bebe6a9d1554ffd814e",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "unpinAllChatMessages",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "56486bff7653a6fb0b2eac0c8c8b7e900ecdc7ef57bcccede74a50bfc2ca2c85",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "unpinAllDirectMessagesChatTopicMessages",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "a610bf80f67270bd1958b0a401667f0c332982da4d0058746fc136fdd8830837",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "unpinAllForumTopicMessages",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "947dc32575a1e9d2d0b80d8fe31fe90c2ada03390b55d1abcb49083150770cb5",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "unpinChatMessage",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "8840db6c63176dd38b93978b91bee19c8035909351cf3d2de8123f524cf12573",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    },
+    {
+      "method": "upgradeBasicGroupChatToSupergroupChat",
+      "owner": "F011",
+      "expected_candidates": [
+        "F008",
+        "F011"
+      ],
+      "signature_sha256": "49f13368c36cd0fc88a9f2fffec8b882beb5c4c7493db929a8ef9b6a4cb503fd",
+      "rationale": "Пересечение F008, F011: F011 выбран как владелец group/channel administration workflow для этого exact schema method."
+    },
+    {
+      "method": "uploadStickerFile",
+      "owner": "F010",
+      "expected_candidates": [
+        "F010",
+        "F014"
+      ],
+      "signature_sha256": "e1e5a0e533a62712386ab10a8a0396a61274ad927c266cfe9fdb1cc2b6a62055",
+      "rationale": "Пересечение F010, F014: F010 выбран как владелец file/media workflow для этого exact schema method."
+    },
+    {
+      "method": "viewSponsoredChat",
+      "owner": "F009",
+      "expected_candidates": [
+        "F008",
+        "F009"
+      ],
+      "signature_sha256": "be32e798b36d31655cf634b9877db90c7efe1319f9118b155074f84cde65e564",
+      "rationale": "Пересечение F008, F009: F009 выбран как владелец message interaction workflow для этого exact schema method."
+    }
+  ]
+}

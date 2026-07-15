@@ -104,10 +104,10 @@ flowchart LR
 
 - [x] Создать Cargo workspace и crate boundaries из раздела Architecture.
 - [x] Зафиксировать exact TDLib commit/native build и сохранить `td_api.tl` + SHA-256.
-- [ ] Реализовать schema parser, method/type/update/auth-state inventory и feature-owner manifest.
+- [x] Реализовать schema parser, method/type/update/auth-state inventory и feature-owner manifest.
   - [x] Строгий Rust parser и deterministic inventory закреплённой TDLib schema.
   - [x] Bounded offline generator, fail-closed owner rule engine и atomic/read-only publication boundary.
-  - [ ] Reviewed feature-owner rules/overrides и manifest для всех 1010 methods.
+  - [x] Reviewed feature-owner rules/overrides и manifest для всех 1010 methods.
 - [ ] Зафиксировать capability matrix: regular user, bot, Business/Premium, admin-gated, official-only.
 - [ ] Определить supported targets: macOS arm64 и Linux x86_64 минимум.
 - [ ] Перенести только доказанно reusable части `tg-analytics`; не переносить NATS/Postgres/analytics orchestration.
@@ -115,7 +115,7 @@ flowchart LR
 ### Acceptance
 
 - [ ] CI обнаруживает любое schema drift.
-- [ ] Все parsed methods назначены ровно одному F001–F022 или gate падает.
+- [x] Все parsed methods назначены ровно одному F001–F022 или gate падает.
 - [ ] Все constructors, updates и authorization states имеют registry/codec/router/handler parity с pinned schema.
 - [ ] Для каждого method заполнены risk/retry/prerequisite/capability поля.
 - [ ] Account/session model принят до начала runtime implementation.
@@ -128,6 +128,7 @@ flowchart LR
 - `W-20260715-008` supersedes current artifact/resource facts из `W-20260715-007` после crash-safety review: offline `jobs=2` rebuild дал 27 654 296 bytes, SHA-256 `5dbd3009...6852e7e`; build 330.225 s, peak sampled RSS 2 064 613 376 bytes, tree 310 298 581 bytes, processes 13. Global lock наследуют все watchdog paths; target gate, recursive stale-state recovery и proof-backed finalization проверены parent/inspection `SIGKILL` controls. Оба checker mode, 17 provenance controls и шесть crash/build suites green; cache `1`, leftovers `0`, `target` 42 MiB. Решение: `D-20260715-005`; Linux `P-20260715-003` и bit-for-bit reproducibility остаются open.
 - `W-20260715-009`: в `telegram-core` реализован pure strict-subset parser pinned `td_api.tl` без сторонних dependencies и новых Cargo targets. Он сохраняет raw/structured documentation, строит canonical signatures и sorted inventory, отделяет 9 builtins от 2159 object constructors и подтверждает 1010 methods, 745 type families, 184 updates и 13 authorization states. Input ограничен 2 MiB, type nesting — 32; 12 TDD/negative tests, workspace boundary, Clippy и independent re-review green. Решение: `D-20260715-006`. Feature-owner manifest, generated registry/codec/router parity и runtime остаются незавершёнными, поэтому parent task и P0 acceptance не закрыты.
 - `W-20260715-010`: отдельный non-default `tdlib-registry-gen` реализует bounded offline owner classification для parsed methods. Один rule на feature строит только candidate set; reviewed count+SHA-256 фиксирует raw match set, а exact override обязан совпасть с фактическими candidates и signature hash. Нет priorities, regex или fallback; unowned/ambiguous/stale/dead policy блокирует весь output. `check` read-only, `generate` берёт один fixed-temp lease до input snapshot, публикует canonical JSON atomic rename и не удаляет подменённый temp; leaf symlinks inputs/output и symlink output directory отклоняются. 16 generator и 14 core tests, Clippy, workspace contract с 4 negative controls и independent re-review green. Решение: `D-20260715-007`. Corpus policy и 1010-row artifact остаются отдельной незавершённой задачей; registry/codec/runtime parity не заявляется.
+- `W-20260715-011`: exact schema-bound owner policy из 17 rules, 252 atoms и 372 reviewed overlap overrides генерирует canonical owner-only artifact для 1010/1010 methods. Semantic audit исправил broad-name ошибки на границах group-call/messages, auth/platform, giveaway/payment, TON/withdrawal/revenue, rich text, auto-delete и network state/statistics. Corpus gate сверяет exact method set, schema signatures/source lines, 22 per-feature count/hash oracles, независимый method-owner digest и adversarial owners; real temp-root test доказывает byte-identical `check`/`generate`, read-only drift detection, fail-closed policy evidence и cleanup единственного temp. 19 generator и 14 core tests, Clippy, fmt, workspace gates и independent final review green. Решение: `D-20260715-008`. Capability/risk/retry, constructor/update/auth-state registry/codec/router parity и runtime остаются незавершёнными.
 
 ## P1 — Core transport, authorization и ordered state
 

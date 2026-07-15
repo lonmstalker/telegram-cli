@@ -379,4 +379,6 @@ impl fmt::Display for AppError {
 impl Error for AppError {}
 
 #[cfg(test)]
+mod corpus_tests;
+#[cfg(test)]
 mod tests;

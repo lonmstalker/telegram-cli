@@ -110,3 +110,14 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Problems: новых durable problems нет; [P-20260715-003](../problems/problems.md) не затронута.
 - Boundary: corpus policy/generated 1010 rows, capability/risk/retry и registry/codec/router/runtime parity не реализованы; parent P0 task и acceptance остаются open.
 - Next: отдельным reviewed TDD-коммитом добавить exact schema-bound owner policy, adversarial camel-name controls и canonical 1010/1010 artifact.
+
+## [2026-07-15] work | W-20260715-011 | P0.4b reviewed 1010-method owner corpus
+
+- Цель: закрыть exact feature ownership всех pinned methods отдельным TDD-коммитом, не приписывая owner artifact ещё не реализованные policy/runtime поля.
+- Sources: [owner corpus digest](../raw/2026-07-15-tdlib-feature-owner-corpus.md), pinned schema/parser, `HARNESS.md`, feature harnesses и два независимых semantic/review passes.
+- Actions: добавлены schema-bound policy из 17 rules/252 atoms/372 exact overrides и canonical 1010-row artifact; принят `D-20260715-008`. Initial mechanically complete draft был заблокирован semantic audit, cross-domain owners исправлены до generation. Corpus tests закрепили exact schema/mapping/per-feature oracles, adversarial boundaries, owner-only shape и bounded real check/generate behavior.
+- Verification: read-only generator check, 19 generator и 14 core tests, whole-workspace tests, Clippy `-D warnings`, fmt/diff gates green; independent final reviewer — `Approved`, findings отсутствуют. Один temp corpus ≤1.73 MB очищается через RAII; background processes/leftovers отсутствуют, `target` 117 MiB.
+- Decisions: [D-20260715-008](../decisions/decisions.md).
+- Problems: новых durable problems нет; [P-20260715-003](../problems/problems.md) не затронута.
+- Boundary: capability/risk/prerequisite/retry, constructors/updates/auth-state registry/codec/router и runtime остаются open; parent P0 phase не закрыта.
+- Next: отдельным TDD/reviewed коммитом закрепить capability matrix и method policy classes, не расширяя owner-only artifact ложными defaults.

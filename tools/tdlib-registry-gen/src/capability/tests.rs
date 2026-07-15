@@ -6,8 +6,8 @@ use sha2::{Digest, Sha256};
 use telegram_core::method_capability::{
     AccountKind, ApplicationRequirement, AuthorizationState, CapabilityDescriptor,
     ChatAdministratorRight, ChatKindCondition, ChatMemberRight, ChatTargetRef, DcEnvironment,
-    ForumTopicRef, RequirementAlternatives, ResolvedChatKind, RuntimeRequirement,
-    SynchronousCapability,
+    ForumTopicRef, MessageCapability, MessageSubjectRef, RequirementAlternatives, ResolvedChatKind,
+    RuntimeRequirement, SynchronousCapability,
 };
 use telegram_core::schema::Schema;
 
@@ -20,7 +20,7 @@ use super::{
     parse_runtime_requirements, runtime_signal_dispositions_with_consumed, runtime_signal_families,
     serialize_pretty_with_limit, sha256_hex, validate_documented_authorization_states,
     validate_documented_method_constraints, validate_documented_parameter_notices,
-    validate_documented_runtime_requirements,
+    validate_documented_runtime_requirements, validate_message_properties_vocabulary,
 };
 
 type PolicyMutation = Box<dyn Fn(&mut Value)>;
@@ -54,6 +54,7 @@ chatTypeSecret secret_chat_id:int32 user_id:int53 = ChatType;
 chatAdministratorRights is_anonymous:Bool can_manage_chat:Bool can_change_info:Bool can_post_messages:Bool can_edit_messages:Bool can_delete_messages:Bool can_invite_users:Bool can_restrict_members:Bool can_pin_messages:Bool can_manage_topics:Bool can_promote_members:Bool can_manage_video_chats:Bool can_post_stories:Bool can_edit_stories:Bool can_delete_stories:Bool can_manage_direct_messages:Bool can_manage_tags:Bool = ChatAdministratorRights;
 chatPermissions can_send_basic_messages:Bool can_send_audios:Bool can_send_documents:Bool can_send_photos:Bool can_send_videos:Bool can_send_video_notes:Bool can_send_voice_notes:Bool can_send_polls:Bool can_send_other_messages:Bool can_add_link_previews:Bool can_react_to_messages:Bool can_edit_tag:Bool can_change_info:Bool can_invite_users:Bool can_pin_messages:Bool can_create_topics:Bool = ChatPermissions;
 businessBotRights can_reply:Bool can_read_messages:Bool can_delete_sent_messages:Bool can_delete_all_messages:Bool can_edit_name:Bool can_edit_bio:Bool can_edit_profile_photo:Bool can_edit_username:Bool can_view_gifts_and_stars:Bool can_sell_gifts:Bool can_change_gift_settings:Bool can_transfer_and_upgrade_gifts:Bool can_transfer_stars:Bool can_manage_stories:Bool = BusinessBotRights;
+messageProperties can_add_offer:Bool can_add_tasks:Bool can_be_approved:Bool can_be_copied:Bool can_be_copied_to_secret_chat:Bool can_be_declined:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_paid:Bool can_be_pinned:Bool can_be_replied:Bool can_be_replied_in_another_chat:Bool can_be_saved:Bool can_be_shared_in_story:Bool can_delete_reactions:Bool can_edit_media:Bool can_edit_scheduling_state:Bool can_edit_suggested_post_info:Bool can_get_author:Bool can_get_embedding_code:Bool can_get_link:Bool can_get_media_timestamp_links:Bool can_get_message_thread:Bool can_get_poll_vote_statistics:Bool can_get_read_date:Bool can_get_statistics:Bool can_get_video_advertisements:Bool can_get_viewers:Bool can_mark_tasks_as_done:Bool can_recognize_speech:Bool can_report_chat:Bool can_report_reactions:Bool can_report_supergroup_spam:Bool can_set_fact_check:Bool has_protected_content_by_current_user:Bool has_protected_content_by_other_user:Bool need_show_statistics:Bool = MessageProperties;
 
 ---functions---
 
@@ -65,6 +66,9 @@ setTdlibParameters = Ok;
 
 //@description Returns a chat @chat_id Chat identifier
 getChat chat_id:int53 = Ok;
+
+//@description Returns properties of a message. This is an offline method @chat_id Chat identifier @message_id Identifier of the message
+getMessageProperties chat_id:int53 message_id:int53 = MessageProperties;
 
 //@description Uses a feature; for Telegram Premium users only
 usePremiumFeature = Ok;
@@ -131,8 +135,8 @@ fn canonical_generation_is_pure_and_independent_of_policy_order() {
     assert_eq!(first.last(), Some(&b'\n'));
     let artifact: Value = serde_json::from_slice(&first).expect("artifact JSON");
     assert_eq!(artifact["format_version"], super::FORMAT_VERSION);
-    assert_eq!(artifact["counts"]["schema_methods"], 16);
-    assert_eq!(artifact["counts"]["capability_methods"], 16);
+    assert_eq!(artifact["counts"]["schema_methods"], 17);
+    assert_eq!(artifact["counts"]["capability_methods"], 17);
     let methods = artifact["methods"].as_array().expect("method rows");
     assert!(
         methods
@@ -164,6 +168,63 @@ fn canonical_generation_is_pure_and_independent_of_policy_order() {
     assert_eq!(
         get_option["synchronous"]["values"],
         json!(["commit_hash", "version"])
+    );
+}
+
+#[test]
+fn public_generation_enforces_and_serializes_message_capability_contracts() {
+    let marker = "//@description Uses a feature; for Telegram Premium users only";
+    let schema = SCHEMA.replacen(
+        marker,
+        concat!(
+            "//@description Edits the text of a message\n",
+            "//@chat_id The chat the message belongs to\n",
+            "//@message_id Identifier of the message. Use messageProperties.can_be_edited to check whether the message can be edited\n",
+            "editMessageText chat_id:int53 message_id:int53 = Ok;\n\n",
+            "//@description Uses a feature; for Telegram Premium users only"
+        ),
+        1,
+    );
+    assert_ne!(schema, SCHEMA, "message-gated fixture insertion");
+    let fixture = Fixture::new(&schema);
+    let error = fixture
+        .generate()
+        .expect_err("public generator must reject omitted message capability");
+    assert_eq!(error.kind(), CapabilityGenerationErrorKind::InvalidPolicy);
+
+    let mut policy = fixture.capability_value();
+    method_row_mut(&mut policy, "editMessageText")["runtime_requirements"] = json!({
+        "kind": "any_of",
+        "clauses": [{"all_of": [{
+            "kind": "message_capability",
+            "subject": {
+                "kind": "one",
+                "chat_argument": "chat_id",
+                "message_argument": "message_id"
+            },
+            "capability": "can_be_edited"
+        }]}]
+    });
+    let artifact: Value = serde_json::from_slice(
+        &fixture
+            .generate_value(&policy)
+            .expect("public message-capability generation"),
+    )
+    .expect("canonical public artifact");
+    assert_eq!(
+        method_row(&artifact, "editMessageText")["runtime_requirements"],
+        json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": [{
+                "kind": "message_capability",
+                "subject": {
+                    "kind": "one",
+                    "chat": {"kind": "chat_id", "argument": "chat_id"},
+                    "message_argument": "message_id"
+                },
+                "capability": "can_be_edited"
+            }]}]
+        })
     );
 }
 
@@ -431,32 +492,41 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
         })
         .collect::<Vec<_>>();
     assert_eq!(
-        hash_method_set(supported),
+        hash_method_set(supported.clone()),
         (
-            6,
-            "ea3222e73264dc7188935067c81fdb459ef3566a5081a65e6660b47f48e899a9".to_owned()
+            35,
+            "fcd0437a123ad047e2e8edddbe51ffc63795d49c47e9ae1bb4c986745155a22e".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
     assert_eq!(
-        hash_method_set(terminal_non_gates),
+        hash_method_set(terminal_non_gates.clone()),
         (
             2,
             "6db93f2a315604af0e4d16bec5202f1528ecad5157625e62782923b84bb3f2b1".to_owned()
         ),
         "terminal lexical non-gate set drift"
     );
+    supported.extend(terminal_non_gates);
+    assert_eq!(
+        hash_method_set(supported),
+        (
+            37,
+            "43535e24511a033a1e62c27c1e52dcd007d66186fd57254754c08ba5e31ee8a0".to_owned()
+        ),
+        "terminal runtime-disposition set drift"
+    );
     unsupported.sort_unstable();
     let mut unsupported_oracle = unsupported.join("\n");
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        185,
+        156,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "b4b68de316938e83a661cfb9cde4dd3ca33336c6544f37ab0d39aa4b7f3009c8",
+        "e3ce3e31e2f024513cb1f04e5d4f116b05e31eca6483302532da1395197b8e54",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -533,7 +603,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "bd1ccc88e83cea58e7a3ec161032dfe54e53f244ca89a51db568250f059bca65"
+        "f3deda49ce421e04ebe35c1745635299c20f46ceaff1caa85791483ceb28165d"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -601,6 +671,585 @@ fn parses_schema_bound_chat_kind_atoms() {
                         && condition.target().argument().as_str() == "chat_id"
             )
     ));
+}
+
+#[test]
+fn parses_schema_bound_message_capability_atoms() {
+    let schema =
+        Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
+    let parse = |method: &str, value: Value| {
+        let dto: RuntimeRequirementsDto = serde_json::from_value(json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": [value]}]
+        }))
+        .expect("runtime requirement DTO");
+        parse_runtime_requirements(dto, find_method(&schema, method))
+    };
+
+    let one = parse(
+        "editMessageText",
+        json!({
+            "kind": "message_capability",
+            "subject": {
+                "kind": "one",
+                "chat_argument": "chat_id",
+                "message_argument": "message_id"
+            },
+            "capability": "can_be_edited"
+        }),
+    )
+    .expect("scalar message capability");
+    assert!(matches!(
+        one.clauses(),
+        [clause]
+            if matches!(
+                clause.as_slice(),
+                [RuntimeRequirement::MessageCapability { subject, capability }]
+                    if *capability == MessageCapability::CanBeEdited
+                        && matches!(subject, MessageSubjectRef::One { .. })
+            )
+    ));
+
+    let each = parse(
+        "reportSupergroupSpam",
+        json!({
+            "kind": "message_capability",
+            "subject": {
+                "kind": "each",
+                "chat_argument": "supergroup_id",
+                "message_argument": "message_ids"
+            },
+            "capability": "can_report_supergroup_spam"
+        }),
+    )
+    .expect("universal message capability");
+    assert!(matches!(
+        each.clauses(),
+        [clause]
+            if matches!(
+                clause.as_slice(),
+                [RuntimeRequirement::MessageCapability { subject, capability }]
+                    if *capability == MessageCapability::CanReportSupergroupSpam
+                        && matches!(subject, MessageSubjectRef::Each { .. })
+            )
+    ));
+    assert_eq!(
+        serde_json::to_value(super::CanonicalRuntimeRequirement::from_domain(
+            &one.clauses()[0][0]
+        ))
+        .expect("canonical scalar message capability"),
+        json!({
+            "kind": "message_capability",
+            "subject": {
+                "kind": "one",
+                "chat": {"kind": "chat_id", "argument": "chat_id"},
+                "message_argument": "message_id"
+            },
+            "capability": "can_be_edited"
+        })
+    );
+    assert_eq!(
+        serde_json::to_value(super::CanonicalRuntimeRequirement::from_domain(
+            &each.clauses()[0][0]
+        ))
+        .expect("canonical universal message capability"),
+        json!({
+            "kind": "message_capability",
+            "subject": {
+                "kind": "each",
+                "chat": {"kind": "supergroup_id", "argument": "supergroup_id"},
+                "message_argument": "message_ids"
+            },
+            "capability": "can_report_supergroup_spam"
+        })
+    );
+
+    for (method, subject) in [
+        (
+            "editMessageText",
+            json!({
+                "kind": "each",
+                "chat_argument": "chat_id",
+                "message_argument": "message_id"
+            }),
+        ),
+        (
+            "reportSupergroupSpam",
+            json!({
+                "kind": "one",
+                "chat_argument": "supergroup_id",
+                "message_argument": "message_ids"
+            }),
+        ),
+    ] {
+        assert_eq!(
+            parse(
+                method,
+                json!({
+                    "kind": "message_capability",
+                    "subject": subject,
+                    "capability": "can_be_edited"
+                })
+            )
+            .expect_err("cardinality/type mismatch")
+            .kind(),
+            CapabilityGenerationErrorKind::InvalidPolicy
+        );
+    }
+
+    assert_eq!(
+        parse(
+            "editMessageText",
+            json!({
+                "kind": "message_capability",
+                "subject": {
+                    "kind": "one",
+                    "chat_argument": "chat_id",
+                    "message_argument": "message_id"
+                },
+                "capability": "can_fly"
+            })
+        )
+        .expect_err("unknown message capability")
+        .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+    assert!(
+        serde_json::from_value::<RuntimeRequirementsDto>(json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": [{
+                "kind": "message_capability",
+                "subject": {
+                    "kind": "one",
+                    "chat_argument": "chat_id",
+                    "message_argument": "message_id",
+                    "unexpected": true
+                },
+                "capability": "can_be_edited"
+            }]}]
+        }))
+        .is_err(),
+        "message subject DTO must reject unknown fields"
+    );
+
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    for schema in [
+        pinned.replace(
+            "reportSupergroupSpam supergroup_id:int53 message_ids:vector<int53>",
+            "reportSupergroupSpam supergroup_id:int53 message_ids:int53",
+        ),
+        pinned.replace(
+            "reportSupergroupSpam supergroup_id:int53 message_ids:vector<int53>",
+            "reportSupergroupSpam supergroup_id:int53 message_ids:vector<int32>",
+        ),
+        pinned.replace(
+            "reportSupergroupSpam supergroup_id:int53 message_ids:vector<int53>",
+            "reportSupergroupSpam supergroup_id:int53 message_ids:vector<vector<int53>>",
+        ),
+    ] {
+        let schema = Schema::parse(&schema).expect("valid wrong-shape schema");
+        let dto: RuntimeRequirementsDto = serde_json::from_value(json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": [{
+                "kind": "message_capability",
+                "subject": {
+                    "kind": "each",
+                    "chat_argument": "supergroup_id",
+                    "message_argument": "message_ids"
+                },
+                "capability": "can_report_supergroup_spam"
+            }]}]
+        }))
+        .expect("universal requirement DTO");
+        assert_eq!(
+            parse_runtime_requirements(dto, find_method(&schema, "reportSupergroupSpam"))
+                .expect_err("non-exact vector<int53> must fail")
+                .kind(),
+            CapabilityGenerationErrorKind::InvalidPolicy
+        );
+    }
+}
+
+#[test]
+fn requires_exact_message_properties_schema_vocabulary() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    validate_message_properties_vocabulary(&Schema::parse(pinned).expect("pinned schema"))
+        .expect("exact pinned MessageProperties contract");
+
+    let constructor = pinned
+        .lines()
+        .find(|line| line.starts_with("messageProperties "))
+        .expect("messageProperties constructor");
+    let method = "getMessageProperties chat_id:int53 message_id:int53 = MessageProperties;";
+    let drifted = [
+        pinned.replace(
+            "messageProperties can_add_offer:Bool can_add_tasks:Bool",
+            "messageProperties can_add_tasks:Bool can_add_offer:Bool",
+        ),
+        pinned.replace("can_set_fact_check:Bool", "can_set_fact_check:int32"),
+        pinned.replace(
+            " need_show_statistics:Bool = MessageProperties;",
+            " = MessageProperties;",
+        ),
+        pinned.replace(
+            "messageProperties can_add_offer:Bool",
+            "messagePropertiesOther can_add_offer:Bool",
+        ),
+        pinned.replace(
+            "getMessageProperties chat_id:int53 message_id:int53 = MessageProperties;",
+            "getMessageProperties chat_id:int53 message_id:int32 = MessageProperties;",
+        ),
+        pinned.replace("can_add_offer:Bool", "can_add_offer_other:Bool"),
+        pinned.replace(
+            " need_show_statistics:Bool = MessageProperties;",
+            " need_show_statistics:Bool extra:Bool = MessageProperties;",
+        ),
+    ];
+    assert!(
+        Schema::parse(&pinned.replace(
+            " need_show_statistics:Bool = MessageProperties;",
+            " need_show_statistics:Bool = MessageProperties<int53>;",
+        ))
+        .is_err(),
+        "generic MessageProperties result must fail at the schema boundary"
+    );
+    let duplicate_constructor = pinned.replace(
+        "---functions---",
+        &format!("{constructor}\n\n---functions---"),
+    );
+    assert!(
+        Schema::parse(&duplicate_constructor).is_err(),
+        "duplicate MessageProperties constructor must fail at the schema boundary"
+    );
+    let duplicate_method = pinned.replacen(method, &format!("{method}\n{method}"), 1);
+    assert!(
+        Schema::parse(&duplicate_method).is_err(),
+        "duplicate getMessageProperties method must fail at the schema boundary"
+    );
+
+    for schema in drifted {
+        let error = validate_message_properties_vocabulary(
+            &Schema::parse(&schema).expect("valid drifted schema"),
+        )
+        .expect_err("MessageProperties drift");
+        assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
+    }
+}
+
+#[test]
+fn pinned_message_capability_contracts_are_exact() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let safe_methods = [
+        "addChecklistTasks",
+        "addOffer",
+        "approveSuggestedPost",
+        "declineSuggestedPost",
+        "deleteMessageReactionsFromSender",
+        "editMessageCaption",
+        "editMessageChecklist",
+        "editMessageLiveLocation",
+        "editMessageMedia",
+        "editMessageReplyMarkup",
+        "editMessageSchedulingState",
+        "editMessageText",
+        "getMessageAuthor",
+        "getMessageEmbeddingCode",
+        "getMessagePublicForwards",
+        "getMessageReadDate",
+        "getMessageStatistics",
+        "getMessageThread",
+        "getMessageThreadHistory",
+        "getMessageViewers",
+        "getPollVoteStatistics",
+        "getVideoMessageAdvertisements",
+        "markChecklistTasksAsDone",
+        "pinChatMessage",
+        "recognizeSpeech",
+        "reportMessageReactions",
+        "reportSupergroupSpam",
+        "setMessageFactCheck",
+        "stopPoll",
+    ];
+    let unsafe_methods = [
+        "deleteMessages",
+        "forwardMessages",
+        "getMessageLink",
+        "reportChat",
+    ];
+    let hash_rows = |mut rows: Vec<String>| {
+        rows.sort_unstable();
+        let mut payload = rows.join("\n");
+        payload.push('\n');
+        sha256_hex(payload.as_bytes())
+    };
+    let safe_set = safe_methods
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    let unsafe_set = unsafe_methods
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    assert!(safe_set.is_disjoint(&unsafe_set));
+    let reviewed_partition = safe_set
+        .union(&unsafe_set)
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    let derived_message_property_methods = schema
+        .methods()
+        .iter()
+        .filter_map(|method| {
+            documented_runtime_signal_dispositions(method)
+                .unwrap_or_else(|error| panic!("{}: {error}", method.name()))
+                .iter()
+                .any(|(key, _)| key.family() == RuntimeSignalFamily::MessagePropertiesFact)
+                .then_some(method.name())
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        reviewed_partition, derived_message_property_methods,
+        "safe/deferred MessageProperties partition must be exhaustive"
+    );
+    assert_eq!(reviewed_partition.len(), 33);
+    assert_eq!(
+        hash_rows(reviewed_partition.iter().map(ToString::to_string).collect()),
+        "5f04f36c0e2862498474a4a1651d2f5131f3adb80d6cef766b33c9c2bf11e8fc",
+        "schema-derived MessageProperties method set drift"
+    );
+    assert_eq!(
+        hash_rows(safe_methods.iter().map(ToString::to_string).collect()),
+        "45d98c8243fd32ac9b9fc0234b73a2946e1eb62813cbac30cabaa043c7e53cba",
+        "reviewed message-capability method set drift"
+    );
+
+    let mut rows = Vec::new();
+    let mut consumed_key_rows = Vec::new();
+    for method_name in safe_methods {
+        let method = find_method(&schema, method_name);
+        let dispositions = documented_runtime_signal_dispositions(method)
+            .unwrap_or_else(|error| panic!("{method_name}: {error}"));
+        let sources = dispositions
+            .iter()
+            .filter(|(key, disposition)| {
+                *disposition == RuntimeSignalDisposition::ConsumedByRuntimeRequirements
+                    && key.family() == RuntimeSignalFamily::MessagePropertiesFact
+            })
+            .map(|(key, _)| match key.source() {
+                RuntimeSignalSource::Description => "description".to_owned(),
+                RuntimeSignalSource::Argument(argument) => {
+                    format!("argument:{}", argument.as_str())
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(sources.len(), 1, "{method_name}: exact property source");
+        consumed_key_rows.extend(
+            dispositions
+                .iter()
+                .filter(|(_, disposition)| {
+                    *disposition == RuntimeSignalDisposition::ConsumedByRuntimeRequirements
+                })
+                .map(|(key, _)| {
+                    let source = match key.source() {
+                        RuntimeSignalSource::Description => "description".to_owned(),
+                        RuntimeSignalSource::Argument(argument) => {
+                            format!("argument:{}", argument.as_str())
+                        }
+                    };
+                    format!("{method_name}\t{source}\t{}", key.family().canonical_name())
+                }),
+        );
+
+        let requirements = documented_runtime_requirements(method)
+            .unwrap_or_else(|error| panic!("{method_name}: {error}"))
+            .expect("reviewed message capability contract");
+        match method_name {
+            "addOffer" => assert_eq!(requirements.clauses().len(), 2),
+            _ => assert_eq!(requirements.clauses().len(), 1, "{method_name}"),
+        }
+        if method_name == "reportSupergroupSpam" {
+            let clause = &requirements.clauses()[0];
+            assert!(clause.iter().any(|atom| matches!(
+                atom,
+                RuntimeRequirement::ChatKind(condition)
+                    if condition.kind() == ResolvedChatKind::Supergroup
+                        && condition.target().argument().as_str() == "supergroup_id"
+            )));
+            assert!(clause.iter().any(|atom| matches!(
+                atom,
+                RuntimeRequirement::ChatAdministrator { target }
+                    if target.argument().as_str() == "supergroup_id"
+            )));
+        }
+        for clause in requirements.clauses() {
+            let mut property_atoms = 0;
+            for atom in clause {
+                if let RuntimeRequirement::MessageCapability {
+                    subject,
+                    capability,
+                } = atom
+                {
+                    property_atoms += 1;
+                    let (cardinality, chat, message) = match subject {
+                        MessageSubjectRef::One { chat, message } => {
+                            ("one", chat.argument().as_str(), message.argument().as_str())
+                        }
+                        MessageSubjectRef::Each { chat, messages } => (
+                            "all",
+                            chat.argument().as_str(),
+                            messages.argument().as_str(),
+                        ),
+                    };
+                    rows.push(format!(
+                        "{method_name}\t{}\t{chat}\t{message}\t{cardinality}\t{}",
+                        sources[0],
+                        capability.as_str()
+                    ));
+                }
+            }
+            assert_eq!(
+                property_atoms, 1,
+                "{method_name}: one property atom per clause"
+            );
+            let expected_atoms = if method_name == "reportSupergroupSpam" {
+                3
+            } else {
+                1
+            };
+            assert_eq!(clause.len(), expected_atoms, "{method_name}: exact clause");
+        }
+    }
+    assert_eq!(rows.len(), 30, "exact message-property binding count");
+    assert_eq!(
+        hash_rows(rows),
+        "fee0c5dc03c67084e46b0d20a8158dcecbf38c58676a149fe9140d8469aeb50b",
+        "message-property binding oracle drift"
+    );
+    assert_eq!(
+        consumed_key_rows.len(),
+        59,
+        "exact consumed signal-key count"
+    );
+    assert_eq!(
+        hash_rows(consumed_key_rows),
+        "c4f91a61456297edd4a9a2fe206d3d37410cc2eb67f6f73e9661985949175ed2",
+        "consumed message-contract signal-key oracle drift"
+    );
+
+    assert_eq!(
+        hash_rows(unsafe_methods.iter().map(ToString::to_string).collect()),
+        "a7755c8b6787c2ea596a45f6a17a4af970a735382721ee949aec54beb8602317",
+        "deferred mixed-semantics method set drift"
+    );
+    let mut deferred_key_rows = Vec::new();
+    for method_name in unsafe_methods {
+        let error = documented_runtime_requirements(find_method(&schema, method_name))
+            .expect_err("mixed message-property semantics must remain open");
+        assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
+        deferred_key_rows.extend(
+            documented_runtime_signal_dispositions(find_method(&schema, method_name))
+                .expect("deferred mixed-method dispositions")
+                .into_iter()
+                .map(|(key, disposition)| {
+                    assert!(matches!(disposition, RuntimeSignalDisposition::Deferred(_)));
+                    let source = match key.source() {
+                        RuntimeSignalSource::Description => "description".to_owned(),
+                        RuntimeSignalSource::Argument(argument) => {
+                            format!("argument:{}", argument.as_str())
+                        }
+                    };
+                    format!("{method_name}\t{source}\t{}", key.family().canonical_name())
+                }),
+        );
+    }
+    assert_eq!(
+        deferred_key_rows.len(),
+        11,
+        "exact deferred mixed-key count"
+    );
+    assert_eq!(
+        hash_rows(deferred_key_rows),
+        "c15898d88f92f2bde554308208952d52fd0add6d33bb0f72635b6959ec7beffc",
+        "deferred mixed-method signal-key oracle drift"
+    );
+
+    let source = "Identifier of the message. Use messageProperties.can_be_edited to check whether the message can be edited";
+    for (name, replacement) in [
+        ("missing source", "Identifier of the message"),
+        (
+            "same field with changed wording",
+            "Identifier of the message. Check messageProperties.can_be_edited before editing the message",
+        ),
+        (
+            "different valid field",
+            "Identifier of the message. Use messageProperties.can_be_pinned to check whether the message can be edited",
+        ),
+        (
+            "additional valid field",
+            "Identifier of the message. Use messageProperties.can_be_edited and messageProperties.can_be_pinned to check whether the message can be edited",
+        ),
+    ] {
+        let mutated = pinned.replacen(source, replacement, 1);
+        assert_ne!(mutated, pinned, "{name}: mutation fixture");
+        let mutated = Schema::parse(&mutated).expect("valid source mutation");
+        let error = documented_runtime_requirements(find_method(&mutated, "editMessageText"))
+            .expect_err("message-property source drift must fail closed");
+        assert_eq!(
+            error.kind(),
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "{name}"
+        );
+    }
+
+    let duplicate_source = pinned.replacen(
+        source,
+        &format!("{source}\n//@message_id Duplicate non-gating documentation"),
+        1,
+    );
+    let duplicate_source = Schema::parse(&duplicate_source).expect("duplicate source-tag schema");
+    let error = documented_runtime_requirements(find_method(&duplicate_source, "editMessageText"))
+        .expect_err("duplicate reviewed source tag must fail closed");
+    assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
+
+    let wrong_scalar = pinned.replace(
+        "editMessageText chat_id:int53 message_id:int53",
+        "editMessageText chat_id:int53 message_id:int32",
+    );
+    let wrong_scalar = Schema::parse(&wrong_scalar).expect("valid scalar-type mutation");
+    let error = documented_runtime_requirements(find_method(&wrong_scalar, "editMessageText"))
+        .expect_err("scalar message_id type drift must fail closed");
+    assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
+
+    for (name, mutated) in [
+        (
+            "administrator wording",
+            pinned.replace(
+                "Reports messages in a supergroup as spam; requires administrator rights in the supergroup",
+                "Reports messages in a supergroup as spam; requires administrator access in the supergroup",
+            ),
+        ),
+        (
+            "message vector element",
+            pinned.replace(
+                "reportSupergroupSpam supergroup_id:int53 message_ids:vector<int53>",
+                "reportSupergroupSpam supergroup_id:int53 message_ids:vector<int32>",
+            ),
+        ),
+        (
+            "chat identifier space",
+            pinned.replace(
+                "reportSupergroupSpam supergroup_id:int53 message_ids:vector<int53>",
+                "reportSupergroupSpam chat_id:int53 message_ids:vector<int53>",
+            ),
+        ),
+    ] {
+        let mutated = Schema::parse(&mutated).expect("valid spam-contract mutation");
+        let error = documented_runtime_requirements(find_method(&mutated, "reportSupergroupSpam"))
+            .expect_err("spam-contract drift must fail closed");
+        assert_eq!(
+            error.kind(),
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "{name}"
+        );
+    }
 }
 
 #[test]
@@ -1535,6 +2184,7 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
         "upgradeBasicGroupChatToSupergroupChat",
         "setSupergroupStickerSet",
         "unpinChatMessage",
+        "reportSupergroupSpam",
     ] {
         let error =
             validate_documented_runtime_requirements(find_method(&schema, method), &unrestricted)
@@ -1547,7 +2197,6 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
         "editForumTopic",
         "deleteForumTopic",
         "setChatMemberStatus",
-        "reportSupergroupSpam",
         "getSupergroupMembers",
         "banGroupCallParticipants",
         "canPostStory",

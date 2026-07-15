@@ -224,6 +224,51 @@ string_enum!(
     }
 );
 
+string_enum!(
+    /// Action capability из exact `messageProperties.can_*` vocabulary.
+    MessageCapability,
+    36,
+    "message capability",
+    {
+        CanAddOffer => "can_add_offer",
+        CanAddTasks => "can_add_tasks",
+        CanBeApproved => "can_be_approved",
+        CanBeCopied => "can_be_copied",
+        CanBeCopiedToSecretChat => "can_be_copied_to_secret_chat",
+        CanBeDeclined => "can_be_declined",
+        CanBeDeletedOnlyForSelf => "can_be_deleted_only_for_self",
+        CanBeDeletedForAllUsers => "can_be_deleted_for_all_users",
+        CanBeEdited => "can_be_edited",
+        CanBeForwarded => "can_be_forwarded",
+        CanBePaid => "can_be_paid",
+        CanBePinned => "can_be_pinned",
+        CanBeReplied => "can_be_replied",
+        CanBeRepliedInAnotherChat => "can_be_replied_in_another_chat",
+        CanBeSaved => "can_be_saved",
+        CanBeSharedInStory => "can_be_shared_in_story",
+        CanDeleteReactions => "can_delete_reactions",
+        CanEditMedia => "can_edit_media",
+        CanEditSchedulingState => "can_edit_scheduling_state",
+        CanEditSuggestedPostInfo => "can_edit_suggested_post_info",
+        CanGetAuthor => "can_get_author",
+        CanGetEmbeddingCode => "can_get_embedding_code",
+        CanGetLink => "can_get_link",
+        CanGetMediaTimestampLinks => "can_get_media_timestamp_links",
+        CanGetMessageThread => "can_get_message_thread",
+        CanGetPollVoteStatistics => "can_get_poll_vote_statistics",
+        CanGetReadDate => "can_get_read_date",
+        CanGetStatistics => "can_get_statistics",
+        CanGetVideoAdvertisements => "can_get_video_advertisements",
+        CanGetViewers => "can_get_viewers",
+        CanMarkTasksAsDone => "can_mark_tasks_as_done",
+        CanRecognizeSpeech => "can_recognize_speech",
+        CanReportChat => "can_report_chat",
+        CanReportReactions => "can_report_reactions",
+        CanReportSupergroupSpam => "can_report_supergroup_spam",
+        CanSetFactCheck => "can_set_fact_check",
+    }
+);
+
 /// Ссылка на именованный argument TDLib method.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ArgumentRef(String);
@@ -313,6 +358,104 @@ impl TryFrom<&String> for ChatTargetRef {
 
     fn try_from(value: &String) -> Result<Self, Self::Error> {
         Self::try_from(value.as_str())
+    }
+}
+
+/// Exact scalar `message_id` argument role.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct MessageIdRef(ArgumentRef);
+
+impl MessageIdRef {
+    pub fn argument(&self) -> &ArgumentRef {
+        &self.0
+    }
+}
+
+impl TryFrom<ArgumentRef> for MessageIdRef {
+    type Error = CapabilityModelError;
+
+    fn try_from(argument: ArgumentRef) -> Result<Self, Self::Error> {
+        if argument.as_str() != "message_id" {
+            return Err(CapabilityModelError::new(
+                CapabilityModelErrorKind::InvalidSemanticArgument,
+                format!(
+                    "single-message target must be named message_id, got {:?}",
+                    argument.as_str()
+                ),
+            ));
+        }
+        Ok(Self(argument))
+    }
+}
+
+impl TryFrom<&str> for MessageIdRef {
+    type Error = CapabilityModelError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::try_from(ArgumentRef::try_from(value)?)
+    }
+}
+
+/// Exact vector `message_ids` argument role.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct MessageIdsRef(ArgumentRef);
+
+impl MessageIdsRef {
+    pub fn argument(&self) -> &ArgumentRef {
+        &self.0
+    }
+}
+
+impl TryFrom<ArgumentRef> for MessageIdsRef {
+    type Error = CapabilityModelError;
+
+    fn try_from(argument: ArgumentRef) -> Result<Self, Self::Error> {
+        if argument.as_str() != "message_ids" {
+            return Err(CapabilityModelError::new(
+                CapabilityModelErrorKind::InvalidSemanticArgument,
+                format!(
+                    "multi-message target must be named message_ids, got {:?}",
+                    argument.as_str()
+                ),
+            ));
+        }
+        Ok(Self(argument))
+    }
+}
+
+impl TryFrom<&str> for MessageIdsRef {
+    type Error = CapabilityModelError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::try_from(ArgumentRef::try_from(value)?)
+    }
+}
+
+/// Message-property evidence target with explicit scalar/universal cardinality.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum MessageSubjectRef {
+    One {
+        chat: ChatTargetRef,
+        message: MessageIdRef,
+    },
+    Each {
+        chat: ChatTargetRef,
+        messages: MessageIdsRef,
+    },
+}
+
+impl MessageSubjectRef {
+    pub fn chat(&self) -> &ChatTargetRef {
+        match self {
+            Self::One { chat, .. } | Self::Each { chat, .. } => chat,
+        }
+    }
+
+    pub fn message_argument(&self) -> &ArgumentRef {
+        match self {
+            Self::One { message, .. } => message.argument(),
+            Self::Each { messages, .. } => messages.argument(),
+        }
     }
 }
 
@@ -535,6 +678,10 @@ pub enum RuntimeRequirement {
         connection: BusinessConnectionRef,
         right: BusinessBotRight,
     },
+    MessageCapability {
+        subject: MessageSubjectRef,
+        capability: MessageCapability,
+    },
 }
 
 impl RuntimeRequirement {
@@ -547,6 +694,9 @@ impl RuntimeRequirement {
             | Self::ChatOwner { target } => vec![target.argument()],
             Self::BusinessConnectionEnabled { connection }
             | Self::BusinessConnectionRight { connection, .. } => vec![connection.argument()],
+            Self::MessageCapability { subject, .. } => {
+                vec![subject.chat().argument(), subject.message_argument()]
+            }
             Self::TopicCreator { target, topic } => {
                 vec![target.argument(), topic.argument()]
             }

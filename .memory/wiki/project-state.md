@@ -24,10 +24,11 @@
 - P0.5b0 evidence baseline связывает current recognizer с exact 193-method signal set и 188-method fail-closed open set. Authorization validation читает все structured documentation tags; `setCustomLanguagePack.@info` больше не теряет pre-authorization contract. Open rows не считаются capability coverage.
 - P0.5b1 добавляет closed `ResolvedChatKind`/`ChatKindCondition`, exact four-constructor `ChatType` pin и conditional DNF для шести real methods. `unpinChatMessage` полностью dispositioned; exact open set уменьшен до 187 без расширения recognizer. Capability policy format — `2`; independent reviews — Approved.
 - P0.5b2 разворачивает 193-method recognizer в exact 208 source tags/398 signal keys. Explicit consumed-key equality запрещает partial completion; exact normalized lexical exceptions уменьшают open set до 185 без изменения capability format. Два independent reviews — Approved.
+- P0.5b3 закрепляет ordered 39-field `messageProperties`, closed 36-value `MessageCapability` и typed `One/Each` subjects. Полные contracts приняты для 29 из 33 schema-derived methods; четыре mixed methods остаются deferred. Open set уменьшен до 156, capability format — `3`; три independent reviews — Approved.
 
 ## Not implemented
 
-- Linux x86_64 TDLib artifact, typed dispositions для 185 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
+- Linux x86_64 TDLib artifact, typed dispositions для 156 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
 - Stateful request-chain engine, retry/reconciliation, policy, metrics и agent skill остаются планом.
 
 ## Active boundary
@@ -62,6 +63,7 @@
 - [TDLib capability evidence baseline](../raw/2026-07-15-tdlib-capability-evidence-baseline.md)
 - [TDLib ChatKind capability semantics](../raw/2026-07-15-tdlib-chat-kind-capability.md)
 - [TDLib per-signal runtime disposition oracle](../raw/2026-07-15-tdlib-runtime-signal-dispositions.md)
+- [TDLib MessageProperties capability digest](../raw/2026-07-15-tdlib-message-properties-capabilities.md)
 - [D-20260715-009](../decisions/decisions.md)
 - [W-20260715-012](../logs/work.md)
 - [W-20260715-013](../logs/work.md)
@@ -69,3 +71,5 @@
 - [D-20260715-012](../decisions/decisions.md)
 - [W-20260715-014](../logs/work.md)
 - [W-20260715-015](../logs/work.md)
+- [D-20260715-013](../decisions/decisions.md)
+- [W-20260715-016](../logs/work.md)

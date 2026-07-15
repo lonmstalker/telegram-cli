@@ -7,9 +7,9 @@ use super::{
     BusinessConnectionRef, CapabilityDescriptor, CapabilityModelErrorKind, ChatAdministratorRight,
     ChatKindCondition, ChatMemberRight, ChatTargetRef, CurrentAccountEntitlement, DcEnvironment,
     ForumTopicRef, MAX_ATOMS_PER_METHOD, MAX_CLAUSES_PER_METHOD, MAX_PARAMETER_NOTICES_PER_METHOD,
-    MAX_SYNCHRONOUS_VALUES_PER_METHOD, ParameterCapabilityNotice, ParameterGate,
-    ParameterStringValue, RequirementAlternatives, ResolvedChatKind, RuntimeRequirement,
-    SynchronousCapability,
+    MAX_SYNCHRONOUS_VALUES_PER_METHOD, MessageCapability, MessageIdRef, MessageIdsRef,
+    MessageSubjectRef, ParameterCapabilityNotice, ParameterGate, ParameterStringValue,
+    RequirementAlternatives, ResolvedChatKind, RuntimeRequirement, SynchronousCapability,
 };
 
 #[test]
@@ -46,6 +46,56 @@ fn rights_vocabularies_are_derived_from_the_pinned_schema() {
     assert_eq!(
         schema_fields(&schema, "businessBotRights"),
         enum_values(BusinessBotRight::ALL)
+    );
+}
+
+#[test]
+fn message_capabilities_and_subject_cardinality_are_closed_and_semantic() {
+    assert_eq!(MessageCapability::ALL.len(), 36);
+    assert_eq!(
+        schema_fields(
+            &Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).unwrap(),
+            "messageProperties"
+        )
+        .into_iter()
+        .filter(|field| field.starts_with("can_"))
+        .collect::<BTreeSet<_>>(),
+        enum_values(MessageCapability::ALL)
+    );
+    for capability in MessageCapability::ALL {
+        assert_eq!(
+            MessageCapability::try_from(capability.as_str()),
+            Ok(capability)
+        );
+    }
+    assert!(MessageCapability::try_from("need_show_statistics").is_err());
+
+    let one = MessageSubjectRef::One {
+        chat: ChatTargetRef::try_from("chat_id").expect("chat target"),
+        message: MessageIdRef::try_from("message_id").expect("message id"),
+    };
+    let each = MessageSubjectRef::Each {
+        chat: ChatTargetRef::try_from("supergroup_id").expect("supergroup target"),
+        messages: MessageIdsRef::try_from("message_ids").expect("message ids"),
+    };
+    assert_eq!(one.chat().argument().as_str(), "chat_id");
+    assert_eq!(one.message_argument().as_str(), "message_id");
+    assert_eq!(each.chat().argument().as_str(), "supergroup_id");
+    assert_eq!(each.message_argument().as_str(), "message_ids");
+    assert!(MessageIdRef::try_from("message_ids").is_err());
+    assert!(MessageIdsRef::try_from("message_id").is_err());
+
+    let requirement = RuntimeRequirement::MessageCapability {
+        subject: each,
+        capability: MessageCapability::CanReportSupergroupSpam,
+    };
+    assert_eq!(
+        requirement
+            .argument_refs()
+            .into_iter()
+            .map(ArgumentRef::as_str)
+            .collect::<Vec<_>>(),
+        ["supergroup_id", "message_ids"]
     );
 }
 
@@ -532,4 +582,9 @@ macro_rules! impl_capability_value {
     };
 }
 
-impl_capability_value!(ChatAdministratorRight, ChatMemberRight, BusinessBotRight);
+impl_capability_value!(
+    ChatAdministratorRight,
+    ChatMemberRight,
+    BusinessBotRight,
+    MessageCapability
+);

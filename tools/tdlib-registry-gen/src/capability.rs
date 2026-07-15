@@ -15,15 +15,15 @@ use telegram_core::method_capability::{
     BusinessConnectionRef, CapabilityDescriptor, ChatAdministratorRight, ChatKindCondition,
     ChatMemberRight, ChatTargetKind, ChatTargetRef, CurrentAccountEntitlement, DcEnvironment,
     ForumTopicRef, MAX_ATOMS_PER_METHOD, MAX_CLAUSES_PER_METHOD, MAX_PARAMETER_NOTICES_PER_METHOD,
-    MAX_SYNCHRONOUS_VALUES_PER_METHOD, ParameterCapabilityNotice, ParameterGate,
-    ParameterStringValue, RequirementAlternatives, ResolvedChatKind, RuntimeRequirement,
-    SynchronousCapability,
+    MAX_SYNCHRONOUS_VALUES_PER_METHOD, MessageCapability, MessageIdRef, MessageIdsRef,
+    MessageSubjectRef, ParameterCapabilityNotice, ParameterGate, ParameterStringValue,
+    RequirementAlternatives, ResolvedChatKind, RuntimeRequirement, SynchronousCapability,
 };
 use telegram_core::schema::{Definition, DefinitionKind, Parameter, Schema};
 
 use crate::engine;
 
-const FORMAT_VERSION: u32 = 2;
+const FORMAT_VERSION: u32 = 3;
 const MAX_MANIFEST_BYTES: usize = 64 * 1024;
 const MAX_SCHEMA_BYTES: usize = 2 * 1024 * 1024;
 const MAX_OWNER_POLICY_BYTES: usize = 4 * 1024 * 1024;
@@ -84,6 +84,7 @@ pub fn generate(
     validate_authorization_states(&schema)?;
     validate_right_vocabularies(&schema)?;
     validate_chat_type_vocabulary(&schema)?;
+    validate_message_properties_vocabulary(&schema)?;
 
     let policy: CapabilityPolicyDto =
         serde_json::from_slice(capability_policy_bytes).map_err(|error| {
@@ -507,6 +508,53 @@ fn parse_runtime_requirement(
                 right,
             })
         }
+        RuntimeRequirementDto::MessageCapability {
+            subject,
+            capability,
+        } => Ok(RuntimeRequirement::MessageCapability {
+            subject: parse_message_subject(method, subject)?,
+            capability: MessageCapability::try_from(capability.as_str())
+                .map_err(CapabilityGenerationError::from_model_value)?,
+        }),
+    }
+}
+
+fn parse_message_subject(
+    method: &Definition,
+    dto: MessageSubjectDto,
+) -> Result<MessageSubjectRef, CapabilityGenerationError> {
+    match dto {
+        MessageSubjectDto::One {
+            chat_argument,
+            message_argument,
+        } => Ok(MessageSubjectRef::One {
+            chat: parse_chat_target(method, chat_argument)?,
+            message: MessageIdRef::try_from(parse_role_argument(
+                method,
+                message_argument,
+                &["message_id"],
+                "int53",
+            )?)
+            .map_err(CapabilityGenerationError::from_model_value)?,
+        }),
+        MessageSubjectDto::Each {
+            chat_argument,
+            message_argument,
+        } => {
+            let messages = parse_argument(method, message_argument)?;
+            if messages.as_str() != "message_ids" {
+                return Err(CapabilityGenerationError::invalid_policy(format!(
+                    "method {:?} multi-message requirement needs semantic message_ids argument",
+                    method.name()
+                )));
+            }
+            require_vector_argument_type(method, &messages, "int53")?;
+            Ok(MessageSubjectRef::Each {
+                chat: parse_chat_target(method, chat_argument)?,
+                messages: MessageIdsRef::try_from(messages)
+                    .map_err(CapabilityGenerationError::from_model_value)?,
+            })
+        }
     }
 }
 
@@ -640,6 +688,30 @@ fn require_argument_type(
     Ok(())
 }
 
+fn require_vector_argument_type(
+    method: &Definition,
+    argument: &ArgumentRef,
+    element_type: &str,
+) -> Result<(), CapabilityGenerationError> {
+    let ty = field_type(method, argument.as_str()).ok_or_else(|| {
+        CapabilityGenerationError::invalid_policy(format!(
+            "method {:?} has no named field {:?}",
+            method.name(),
+            argument.as_str()
+        ))
+    })?;
+    let exact = ty.name() == "vector"
+        && matches!(ty.arguments(), [element] if element.name() == element_type && element.arguments().is_empty());
+    if !exact {
+        return Err(CapabilityGenerationError::invalid_policy(format!(
+            "method {:?} field {:?} must have exact type vector<{element_type}>",
+            method.name(),
+            argument.as_str()
+        )));
+    }
+    Ok(())
+}
+
 fn field_type<'a>(
     method: &'a Definition,
     argument: &str,
@@ -719,6 +791,63 @@ fn validate_chat_type_vocabulary(schema: &Schema) -> Result<(), CapabilityGenera
         return Err(CapabilityGenerationError::new(
             CapabilityGenerationErrorKind::SchemaDrift,
             "schema ChatType constructors differ from the exact pinned four-constructor shapes",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_message_properties_vocabulary(
+    schema: &Schema,
+) -> Result<(), CapabilityGenerationError> {
+    let mut expected_fields = MessageCapability::ALL
+        .iter()
+        .map(|capability| capability.as_str())
+        .collect::<Vec<_>>();
+    expected_fields.extend([
+        "has_protected_content_by_current_user",
+        "has_protected_content_by_other_user",
+        "need_show_statistics",
+    ]);
+    let expected_constructor = format!(
+        "messageProperties {} = MessageProperties;",
+        expected_fields
+            .into_iter()
+            .map(|field| format!("{field}:Bool"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+    let constructors = schema
+        .definitions()
+        .iter()
+        .filter(|definition| {
+            definition.kind() == DefinitionKind::Constructor
+                && definition.result().name() == "MessageProperties"
+        })
+        .collect::<Vec<_>>();
+    if !matches!(
+        constructors.as_slice(),
+        [constructor] if constructor.canonical_signature() == expected_constructor
+    ) {
+        return Err(CapabilityGenerationError::new(
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "schema MessageProperties constructors differ from the exact pinned shape",
+        ));
+    }
+
+    let methods = schema
+        .methods()
+        .iter()
+        .filter(|method| method.name() == "getMessageProperties")
+        .collect::<Vec<_>>();
+    if !matches!(
+        methods.as_slice(),
+        [method]
+            if method.canonical_signature()
+                == "getMessageProperties chat_id:int53 message_id:int53 = MessageProperties;"
+    ) {
+        return Err(CapabilityGenerationError::new(
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "schema getMessageProperties method differs from the exact pinned signature",
         ));
     }
     Ok(())
@@ -990,6 +1119,14 @@ fn documented_runtime_requirements(
     method: &Definition,
 ) -> Result<Option<RequirementAlternatives>, CapabilityGenerationError> {
     let description = normalized_text(&method_description(method));
+    let runtime_contract = reviewed_runtime_contract(method.name(), &description);
+    let message_contract = reviewed_message_capability_contract(method)?;
+    if runtime_contract.is_some() && message_contract.is_some() {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "multiple reviewed runtime contract families overlap",
+        ));
+    }
     let dispositions = documented_runtime_signal_dispositions(method)?;
     if dispositions
         .iter()
@@ -1001,7 +1138,7 @@ fn documented_runtime_requirements(
         ));
     }
 
-    let Some(contract) = reviewed_runtime_contract(method.name(), &description) else {
+    if runtime_contract.is_none() && message_contract.is_none() {
         if dispositions.iter().any(|(_, disposition)| {
             *disposition == RuntimeSignalDisposition::ConsumedByRuntimeRequirements
         }) {
@@ -1011,7 +1148,7 @@ fn documented_runtime_requirements(
             ));
         }
         return Ok(None);
-    };
+    }
     let consumed = dispositions
         .iter()
         .filter_map(|(key, disposition)| {
@@ -1019,102 +1156,118 @@ fn documented_runtime_requirements(
                 .then_some(key.clone())
         })
         .collect::<BTreeSet<_>>();
-    if consumed != contract.consumed_signal_keys() {
+    let mut expected_consumed = runtime_contract
+        .map(ReviewedRuntimeContract::consumed_signal_keys)
+        .unwrap_or_default();
+    if let Some(contract) = message_contract {
+        expected_consumed.extend(contract.consumed_signal_keys()?);
+    }
+    if consumed != expected_consumed {
         return Err(unsupported_runtime_documentation(
             method,
             "reviewed runtime requirements don't consume their exact signal set",
         ));
     }
-    let clauses = match contract {
-        ReviewedRuntimeContract::AdministratorInKinds(kinds) => {
-            let target = documented_chat_target(method)?;
-            chat_kind_clauses(&target, kinds, |target| {
-                RuntimeRequirement::ChatAdministrator {
-                    target: target.clone(),
-                }
-            })?
-        }
-        ReviewedRuntimeContract::AdministratorRightInKinds { right, kinds } => {
-            let target = documented_chat_target(method)?;
-            chat_kind_clauses(&target, kinds, |target| {
-                RuntimeRequirement::ChatAdministratorRight {
-                    target: target.clone(),
-                    right,
-                }
-            })?
-        }
-        ReviewedRuntimeContract::MemberRightInKinds { right, kinds } => {
-            let target = documented_chat_target(method)?;
-            chat_kind_clauses(&target, kinds, |target| {
-                RuntimeRequirement::ChatMemberRight {
-                    target: target.clone(),
-                    right,
-                }
-            })?
-        }
-        ReviewedRuntimeContract::OwnerInKind(kind) => {
-            let target = documented_chat_target(method)?;
-            vec![vec![
-                documented_chat_kind(&target, kind)?,
-                RuntimeRequirement::ChatOwner { target },
-            ]]
-        }
-        ReviewedRuntimeContract::AdministratorOrTopicCreator { right, kind } => {
-            let target = documented_chat_target(method)?;
-            let chat_kind = documented_chat_kind(&target, kind)?;
-            vec![
-                vec![
-                    chat_kind.clone(),
+    let clauses = if let Some(contract) = message_contract {
+        documented_message_capability_clauses(method, contract)?
+    } else {
+        let Some(contract) = runtime_contract else {
+            return Err(unsupported_runtime_documentation(
+                method,
+                "reviewed runtime contract disappeared during validation",
+            ));
+        };
+        match contract {
+            ReviewedRuntimeContract::AdministratorInKinds(kinds) => {
+                let target = documented_chat_target(method)?;
+                chat_kind_clauses(&target, kinds, |target| {
+                    RuntimeRequirement::ChatAdministrator {
+                        target: target.clone(),
+                    }
+                })?
+            }
+            ReviewedRuntimeContract::AdministratorRightInKinds { right, kinds } => {
+                let target = documented_chat_target(method)?;
+                chat_kind_clauses(&target, kinds, |target| {
                     RuntimeRequirement::ChatAdministratorRight {
                         target: target.clone(),
                         right,
-                    },
-                ],
-                vec![
-                    chat_kind,
-                    RuntimeRequirement::TopicCreator {
-                        target,
-                        topic: documented_forum_topic_argument(method)?,
-                    },
-                ],
-            ]
-        }
-        ReviewedRuntimeContract::ConditionalUnpin => {
-            let target = documented_chat_target(method)?;
-            vec![
-                vec![documented_chat_kind(&target, ResolvedChatKind::Private)?],
-                vec![documented_chat_kind(&target, ResolvedChatKind::Secret)?],
-                vec![
-                    documented_chat_kind(&target, ResolvedChatKind::BasicGroup)?,
+                    }
+                })?
+            }
+            ReviewedRuntimeContract::MemberRightInKinds { right, kinds } => {
+                let target = documented_chat_target(method)?;
+                chat_kind_clauses(&target, kinds, |target| {
                     RuntimeRequirement::ChatMemberRight {
                         target: target.clone(),
-                        right: ChatMemberRight::CanPinMessages,
-                    },
-                ],
+                        right,
+                    }
+                })?
+            }
+            ReviewedRuntimeContract::OwnerInKind(kind) => {
+                let target = documented_chat_target(method)?;
+                vec![vec![
+                    documented_chat_kind(&target, kind)?,
+                    RuntimeRequirement::ChatOwner { target },
+                ]]
+            }
+            ReviewedRuntimeContract::AdministratorOrTopicCreator { right, kind } => {
+                let target = documented_chat_target(method)?;
+                let chat_kind = documented_chat_kind(&target, kind)?;
                 vec![
-                    documented_chat_kind(&target, ResolvedChatKind::Supergroup)?,
-                    RuntimeRequirement::ChatMemberRight {
-                        target: target.clone(),
-                        right: ChatMemberRight::CanPinMessages,
-                    },
-                ],
+                    vec![
+                        chat_kind.clone(),
+                        RuntimeRequirement::ChatAdministratorRight {
+                            target: target.clone(),
+                            right,
+                        },
+                    ],
+                    vec![
+                        chat_kind,
+                        RuntimeRequirement::TopicCreator {
+                            target,
+                            topic: documented_forum_topic_argument(method)?,
+                        },
+                    ],
+                ]
+            }
+            ReviewedRuntimeContract::ConditionalUnpin => {
+                let target = documented_chat_target(method)?;
                 vec![
-                    documented_chat_kind(&target, ResolvedChatKind::Channel)?,
-                    RuntimeRequirement::ChatAdministratorRight {
-                        target,
-                        right: ChatAdministratorRight::CanEditMessages,
+                    vec![documented_chat_kind(&target, ResolvedChatKind::Private)?],
+                    vec![documented_chat_kind(&target, ResolvedChatKind::Secret)?],
+                    vec![
+                        documented_chat_kind(&target, ResolvedChatKind::BasicGroup)?,
+                        RuntimeRequirement::ChatMemberRight {
+                            target: target.clone(),
+                            right: ChatMemberRight::CanPinMessages,
+                        },
+                    ],
+                    vec![
+                        documented_chat_kind(&target, ResolvedChatKind::Supergroup)?,
+                        RuntimeRequirement::ChatMemberRight {
+                            target: target.clone(),
+                            right: ChatMemberRight::CanPinMessages,
+                        },
+                    ],
+                    vec![
+                        documented_chat_kind(&target, ResolvedChatKind::Channel)?,
+                        RuntimeRequirement::ChatAdministratorRight {
+                            target,
+                            right: ChatAdministratorRight::CanEditMessages,
+                        },
+                    ],
+                ]
+            }
+            ReviewedRuntimeContract::BusinessConnectionEnabledAndRight(right) => {
+                let connection = documented_business_connection_argument(method)?;
+                vec![vec![
+                    RuntimeRequirement::BusinessConnectionEnabled {
+                        connection: connection.clone(),
                     },
-                ],
-            ]
-        }
-        ReviewedRuntimeContract::BusinessConnectionEnabledAndRight(right) => {
-            let connection = documented_business_connection_argument(method)?;
-            vec![vec![
-                RuntimeRequirement::BusinessConnectionEnabled {
-                    connection: connection.clone(),
-                },
-                RuntimeRequirement::BusinessConnectionRight { connection, right },
-            ]]
+                    RuntimeRequirement::BusinessConnectionRight { connection, right },
+                ]]
+            }
         }
     };
     exact_runtime_alternatives(clauses).map(Some)
@@ -1230,6 +1383,399 @@ fn reviewed_runtime_contract(method: &str, description: &str) -> Option<Reviewed
             BusinessBotRight::CanReply,
         )),
         _ => None,
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ReviewedMessageSignalSource {
+    Description,
+    Argument(&'static str),
+}
+
+impl ReviewedMessageSignalSource {
+    fn runtime_source(self) -> Result<RuntimeSignalSource, CapabilityGenerationError> {
+        match self {
+            Self::Description => Ok(RuntimeSignalSource::Description),
+            Self::Argument(argument) => ArgumentRef::try_from(argument)
+                .map(RuntimeSignalSource::Argument)
+                .map_err(|error| {
+                    CapabilityGenerationError::new(
+                        CapabilityGenerationErrorKind::SchemaDrift,
+                        format!("reviewed message-property source isn't canonical: {error}"),
+                    )
+                }),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ReviewedMessageSubject {
+    One {
+        chat_argument: &'static str,
+        message_argument: &'static str,
+    },
+    Each {
+        chat_argument: &'static str,
+        message_argument: &'static str,
+    },
+}
+
+#[derive(Clone, Copy)]
+struct ReviewedMessageCapabilityContract {
+    source: ReviewedMessageSignalSource,
+    source_text: &'static str,
+    subject: ReviewedMessageSubject,
+    alternative_capabilities: &'static [MessageCapability],
+    requires_supergroup_administrator: bool,
+}
+
+impl ReviewedMessageCapabilityContract {
+    fn consumed_signal_keys(self) -> Result<BTreeSet<RuntimeSignalKey>, CapabilityGenerationError> {
+        let source = self.source.runtime_source()?;
+        let mut keys = [
+            RuntimeSignalFamily::MessagePropertiesFact,
+            RuntimeSignalFamily::CanFieldReference,
+        ]
+        .into_iter()
+        .map(|family| RuntimeSignalKey {
+            source: source.clone(),
+            family,
+        })
+        .collect::<BTreeSet<_>>();
+        if self.requires_supergroup_administrator {
+            keys.insert(RuntimeSignalKey {
+                source: RuntimeSignalSource::Description,
+                family: RuntimeSignalFamily::RequiresAdministrator,
+            });
+        }
+        Ok(keys)
+    }
+}
+
+fn reviewed_message_capability_contract(
+    method: &Definition,
+) -> Result<Option<ReviewedMessageCapabilityContract>, CapabilityGenerationError> {
+    use MessageCapability as Capability;
+    use ReviewedMessageSignalSource as Source;
+
+    const ONE: ReviewedMessageSubject = ReviewedMessageSubject::One {
+        chat_argument: "chat_id",
+        message_argument: "message_id",
+    };
+    const EACH_SPAM_MESSAGE: ReviewedMessageSubject = ReviewedMessageSubject::Each {
+        chat_argument: "supergroup_id",
+        message_argument: "message_ids",
+    };
+
+    let Some(contract) = (match method.name() {
+        "addChecklistTasks" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Argument("message_id"),
+            source_text: "identifier of the message containing the checklist. use messageproperties.can_add_tasks to check whether the tasks can be added",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanAddTasks],
+            requires_supergroup_administrator: false,
+        }),
+        "addOffer" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Argument("message_id"),
+            source_text: "identifier of the message in the chat which will be sent as suggested post. use messageproperties.can_add_offer to check whether an offer can be added or messageproperties.can_edit_suggested_post_info to check whether price or time of sending of the post can be changed",
+            subject: ONE,
+            alternative_capabilities: &[
+                Capability::CanAddOffer,
+                Capability::CanEditSuggestedPostInfo,
+            ],
+            requires_supergroup_administrator: false,
+        }),
+        "approveSuggestedPost" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Argument("message_id"),
+            source_text: "identifier of the message with the suggested post. use messageproperties.can_be_approved to check whether the suggested post can be approved",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanBeApproved],
+            requires_supergroup_administrator: false,
+        }),
+        "declineSuggestedPost" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Argument("message_id"),
+            source_text: "identifier of the message with the suggested post. use messageproperties.can_be_declined to check whether the suggested post can be declined",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanBeDeclined],
+            requires_supergroup_administrator: false,
+        }),
+        "deleteMessageReactionsFromSender" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Argument("message_id"),
+            source_text: "identifier of the message containing the reactions. use messageproperties.can_delete_reactions to check whether the method can be used for a message",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanDeleteReactions],
+            requires_supergroup_administrator: false,
+        }),
+        "editMessageCaption"
+        | "editMessageChecklist"
+        | "editMessageLiveLocation"
+        | "editMessageReplyMarkup"
+        | "editMessageText" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Argument("message_id"),
+            source_text: "identifier of the message. use messageproperties.can_be_edited to check whether the message can be edited",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanBeEdited],
+            requires_supergroup_administrator: false,
+        }),
+        "editMessageMedia" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Argument("message_id"),
+            source_text: "identifier of the message. use messageproperties.can_edit_media to check whether the message can be edited",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanEditMedia],
+            requires_supergroup_administrator: false,
+        }),
+        "editMessageSchedulingState" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Argument("message_id"),
+            source_text: "identifier of the message. use messageproperties.can_edit_scheduling_state to check whether the message is suitable",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanEditSchedulingState],
+            requires_supergroup_administrator: false,
+        }),
+        "getMessageAuthor" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Description,
+            source_text: "returns information about actual author of a message sent on behalf of a channel. the method can be called if messageproperties.can_get_author == true",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanGetAuthor],
+            requires_supergroup_administrator: false,
+        }),
+        "getMessageEmbeddingCode" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Description,
+            source_text: "returns an html code for embedding the message. available only if messageproperties.can_get_embedding_code",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanGetEmbeddingCode],
+            requires_supergroup_administrator: false,
+        }),
+        "getMessagePublicForwards" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Description,
+            source_text: "returns forwarded copies of a channel message to different public channels and public reposts as a story. can be used only if messageproperties.can_get_statistics == true. for optimal performance, the number of returned messages and stories is chosen by tdlib",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanGetStatistics],
+            requires_supergroup_administrator: false,
+        }),
+        "getMessageReadDate" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Description,
+            source_text: "returns read date of a recent outgoing message in a private chat. the method can be called if messageproperties.can_get_read_date == true",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanGetReadDate],
+            requires_supergroup_administrator: false,
+        }),
+        "getMessageStatistics" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Description,
+            source_text: "returns detailed statistics about a message. can be used only if messageproperties.can_get_statistics == true",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanGetStatistics],
+            requires_supergroup_administrator: false,
+        }),
+        "getMessageThread" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Description,
+            source_text: "returns information about a message thread. can be used only if messageproperties.can_get_message_thread == true",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanGetMessageThread],
+            requires_supergroup_administrator: false,
+        }),
+        "getMessageThreadHistory" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Description,
+            source_text: "returns messages in a message thread of a message. can be used only if messageproperties.can_get_message_thread == true. message thread of a channel message is in the channel's linked supergroup. the messages are returned in reverse chronological order (i.e., in order of decreasing message_id). for optimal performance, the number of returned messages is chosen by tdlib",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanGetMessageThread],
+            requires_supergroup_administrator: false,
+        }),
+        "getMessageViewers" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Description,
+            source_text: "returns viewers of a recent outgoing message in a basic group or a supergroup chat. for video notes and voice notes only users, opened content of the message, are returned. the method can be called if messageproperties.can_get_viewers == true",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanGetViewers],
+            requires_supergroup_administrator: false,
+        }),
+        "getPollVoteStatistics" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Argument("message_id"),
+            source_text: "identifier of the message containing the poll. use messageproperties.can_get_poll_vote_statistics to check whether the method can be used for a message",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanGetPollVoteStatistics],
+            requires_supergroup_administrator: false,
+        }),
+        "getVideoMessageAdvertisements" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Description,
+            source_text: "returns advertisements to be shown while a video from a message is watched. available only if messageproperties.can_get_video_advertisements",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanGetVideoAdvertisements],
+            requires_supergroup_administrator: false,
+        }),
+        "markChecklistTasksAsDone" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Argument("message_id"),
+            source_text: "identifier of the message containing the checklist. use messageproperties.can_mark_tasks_as_done to check whether the tasks can be marked as done or not done",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanMarkTasksAsDone],
+            requires_supergroup_administrator: false,
+        }),
+        "pinChatMessage" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Description,
+            source_text: "pins a message in a chat. a message can be pinned only if messageproperties.can_be_pinned",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanBePinned],
+            requires_supergroup_administrator: false,
+        }),
+        "recognizeSpeech" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Argument("message_id"),
+            source_text: "identifier of the message. use messageproperties.can_recognize_speech to check whether the message is suitable",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanRecognizeSpeech],
+            requires_supergroup_administrator: false,
+        }),
+        "reportMessageReactions" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Description,
+            source_text: "reports reactions set on a message to the telegram moderators. reactions on a message can be reported only if messageproperties.can_report_reactions",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanReportReactions],
+            requires_supergroup_administrator: false,
+        }),
+        "reportSupergroupSpam" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Argument("message_ids"),
+            source_text: "identifiers of messages to report. use messageproperties.can_report_supergroup_spam to check whether the message can be reported",
+            subject: EACH_SPAM_MESSAGE,
+            alternative_capabilities: &[Capability::CanReportSupergroupSpam],
+            requires_supergroup_administrator: true,
+        }),
+        "setMessageFactCheck" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Description,
+            source_text: "changes the fact-check of a message. can be only used if messageproperties.can_set_fact_check == true",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanSetFactCheck],
+            requires_supergroup_administrator: false,
+        }),
+        "stopPoll" => Some(ReviewedMessageCapabilityContract {
+            source: Source::Argument("message_id"),
+            source_text: "identifier of the message containing the poll. use messageproperties.can_be_edited to check whether the poll can be stopped",
+            subject: ONE,
+            alternative_capabilities: &[Capability::CanBeEdited],
+            requires_supergroup_administrator: false,
+        }),
+        _ => None,
+    }) else {
+        return Ok(None);
+    };
+
+    let source = contract.source.runtime_source()?;
+    if !signal_source_has_exact_text(method, &source, contract.source_text) {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed message-property source text drifted or disappeared",
+        ));
+    }
+    if contract.requires_supergroup_administrator
+        && !signal_source_has_exact_text(
+            method,
+            &RuntimeSignalSource::Description,
+            "reports messages in a supergroup as spam; requires administrator rights in the supergroup",
+        )
+    {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed supergroup-spam administrator source text drifted or disappeared",
+        ));
+    }
+    Ok(Some(contract))
+}
+
+fn documented_message_capability_clauses(
+    method: &Definition,
+    contract: ReviewedMessageCapabilityContract,
+) -> Result<Vec<Vec<RuntimeRequirement>>, CapabilityGenerationError> {
+    let subject = documented_message_subject(method, contract.subject)?;
+    let message_requirements = contract
+        .alternative_capabilities
+        .iter()
+        .copied()
+        .map(|capability| RuntimeRequirement::MessageCapability {
+            subject: subject.clone(),
+            capability,
+        })
+        .collect::<Vec<_>>();
+    if contract.requires_supergroup_administrator {
+        let [message_requirement] = message_requirements.as_slice() else {
+            return Err(unsupported_runtime_documentation(
+                method,
+                "administrator-scoped message contract needs exactly one message predicate",
+            ));
+        };
+        let target = subject.chat().clone();
+        return Ok(vec![vec![
+            documented_chat_kind(&target, ResolvedChatKind::Supergroup)?,
+            RuntimeRequirement::ChatAdministrator {
+                target: target.clone(),
+            },
+            message_requirement.clone(),
+        ]]);
+    }
+    Ok(message_requirements
+        .into_iter()
+        .map(|requirement| vec![requirement])
+        .collect())
+}
+
+fn documented_message_subject(
+    method: &Definition,
+    subject: ReviewedMessageSubject,
+) -> Result<MessageSubjectRef, CapabilityGenerationError> {
+    let target = documented_chat_target(method)?;
+    let (chat_argument, message_argument, each) = match subject {
+        ReviewedMessageSubject::One {
+            chat_argument,
+            message_argument,
+        } => (chat_argument, message_argument, false),
+        ReviewedMessageSubject::Each {
+            chat_argument,
+            message_argument,
+        } => (chat_argument, message_argument, true),
+    };
+    if target.argument().as_str() != chat_argument {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "message-property contract uses a different chat identifier space",
+        ));
+    }
+    let Some(ty) = field_type(method, message_argument) else {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "message-property contract is missing its semantic message argument",
+        ));
+    };
+    if each {
+        let exact = ty.name() == "vector"
+            && matches!(ty.arguments(), [element] if element.name() == "int53" && element.arguments().is_empty());
+        if !exact {
+            return Err(unsupported_runtime_documentation(
+                method,
+                "universal message-property contract requires exact vector<int53>",
+            ));
+        }
+        let messages = MessageIdsRef::try_from(message_argument).map_err(|error| {
+            CapabilityGenerationError::new(
+                CapabilityGenerationErrorKind::SchemaDrift,
+                error.to_string(),
+            )
+        })?;
+        Ok(MessageSubjectRef::Each {
+            chat: target,
+            messages,
+        })
+    } else {
+        if ty.name() != "int53" || !ty.arguments().is_empty() {
+            return Err(unsupported_runtime_documentation(
+                method,
+                "scalar message-property contract requires exact int53",
+            ));
+        }
+        let message = MessageIdRef::try_from(message_argument).map_err(|error| {
+            CapabilityGenerationError::new(
+                CapabilityGenerationErrorKind::SchemaDrift,
+                error.to_string(),
+            )
+        })?;
+        Ok(MessageSubjectRef::One {
+            chat: target,
+            message,
+        })
     }
 }
 
@@ -1506,9 +2052,12 @@ fn documented_runtime_signal_dispositions(
     method: &Definition,
 ) -> Result<Vec<(RuntimeSignalKey, RuntimeSignalDisposition)>, CapabilityGenerationError> {
     let description = normalized_text(&method_description(method));
-    let consumed = reviewed_runtime_contract(method.name(), &description)
+    let mut consumed = reviewed_runtime_contract(method.name(), &description)
         .map(ReviewedRuntimeContract::consumed_signal_keys)
         .unwrap_or_default();
+    if let Some(contract) = reviewed_message_capability_contract(method)? {
+        consumed.extend(contract.consumed_signal_keys()?);
+    }
     runtime_signal_dispositions_with_consumed(method, &consumed)
 }
 
@@ -1611,6 +2160,26 @@ fn normalized_signal_source_text(
         .iter()
         .find(|tag| tag.name() == tag_name)
         .map(|tag| normalized_text(tag.value()))
+}
+
+fn signal_source_has_exact_text(
+    method: &Definition,
+    source: &RuntimeSignalSource,
+    expected: &str,
+) -> bool {
+    let tag_name = match source {
+        RuntimeSignalSource::Description => "description",
+        RuntimeSignalSource::Argument(argument) => argument.as_str(),
+    };
+    let mut tags = method
+        .documentation()
+        .tags()
+        .iter()
+        .filter(|tag| tag.name() == tag_name);
+    let Some(tag) = tags.next() else {
+        return false;
+    };
+    tags.next().is_none() && normalized_text(tag.value()) == expected
 }
 
 fn runtime_signal_families(value: &str) -> BTreeSet<RuntimeSignalFamily> {
@@ -2077,6 +2646,23 @@ enum RuntimeRequirementDto {
         connection_argument: String,
         right: String,
     },
+    MessageCapability {
+        subject: MessageSubjectDto,
+        capability: String,
+    },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum MessageSubjectDto {
+    One {
+        chat_argument: String,
+        message_argument: String,
+    },
+    Each {
+        chat_argument: String,
+        message_argument: String,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -2307,6 +2893,10 @@ enum CanonicalRuntimeRequirement {
         connection_argument: String,
         right: &'static str,
     },
+    MessageCapability {
+        subject: CanonicalMessageSubject,
+        capability: &'static str,
+    },
 }
 
 impl CanonicalRuntimeRequirement {
@@ -2347,6 +2937,41 @@ impl CanonicalRuntimeRequirement {
                     right: right.as_str(),
                 }
             }
+            RuntimeRequirement::MessageCapability {
+                subject,
+                capability,
+            } => Self::MessageCapability {
+                subject: CanonicalMessageSubject::from_domain(subject),
+                capability: capability.as_str(),
+            },
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum CanonicalMessageSubject {
+    One {
+        chat: CanonicalChatTarget,
+        message_argument: String,
+    },
+    Each {
+        chat: CanonicalChatTarget,
+        message_argument: String,
+    },
+}
+
+impl CanonicalMessageSubject {
+    fn from_domain(value: &MessageSubjectRef) -> Self {
+        match value {
+            MessageSubjectRef::One { chat, message } => Self::One {
+                chat: CanonicalChatTarget::from_domain(chat),
+                message_argument: message.argument().as_str().to_owned(),
+            },
+            MessageSubjectRef::Each { chat, messages } => Self::Each {
+                chat: CanonicalChatTarget::from_domain(chat),
+                message_argument: messages.argument().as_str().to_owned(),
+            },
         }
     }
 }

@@ -81,3 +81,11 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Status: open; zero-open gate не достигнут.
 - Next check: добавить exact `MessageProperties` schema vocabulary и typed quantified message facts без premature consumption mixed contracts.
 - Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md).
+
+## [2026-07-15] open update | P-20260715-005 | MessageProperties family уменьшила open set до 156 methods
+
+- Evidence: [MessageProperties capability digest](../raw/2026-07-15-tdlib-message-properties-capabilities.md); schema-derived family exhaustive разделена на 29 complete и 4 deferred methods, 59 keys consumed, 11 mixed keys сохранены deferred.
+- Transition: exact ordered vocabulary, source text, identifier space и `One/Each` cardinality terminally disposition 29 methods. Terminal complete set теперь 37; open-set SHA-256 `e3ce3e31e2f024513cb1f04e5d4f116b05e31eca6483302532da1395197b8e54`.
+- Status: open; zero-open gate не достигнут, 156 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
+- Next check: отдельными reviewed tasks закрывать group-call/full-info/option/admin/object-field source families, сохраняя prerequisite/retry и mixed invocation lanes раздельными.
+- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-013](../decisions/decisions.md).

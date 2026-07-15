@@ -48,10 +48,11 @@
 - [TDLib video chat RTMP access capability](../raw/2026-07-15-tdlib-video-chat-rtmp-access-capability.md) — exact regular-user, three-kind `can_manage_video_chats` contract; dialog read access остаётся runtime boundary, open set 122.
 - [TDLib video chat RTMP replacement capability](../raw/2026-07-15-tdlib-video-chat-rtmp-replacement-capability.md) — exact regular-user, three-kind owner revoke contract; shared admin precheck не ослабляет public owner boundary, open set 121.
 - [TDLib video chat creation capability](../raw/2026-07-15-tdlib-video-chat-creation-capability.md) — exact regular-user, three-kind `can_manage_video_chats` contract; request values остаются server semantics, open set 120.
+- [TDLib delete-chat-messages-by-sender correction](../raw/2026-07-15-tdlib-delete-chat-messages-by-sender-correction.md) — old bot/direct-messages-group overclaim replaced by exact regular-user non-direct-messages-supergroup contract; counts remain 70/73/120.
 
 ## Current records
 
-- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option/username-owner/invite-link/chat-setting/supergroup-subtype/chat-event-log/video-chat semantics, planning-taxonomy/unpin corrections и macOS native pin закрыты через `W-20260715-033`; 120 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
+- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option/username-owner/invite-link/chat-setting/supergroup-subtype/chat-event-log/video-chat/message-moderation semantics, planning-taxonomy/unpin corrections и macOS native pin закрыты через `W-20260715-034`; 120 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
 - Native pin: [reviewed rebuild correction](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — exact source/schema и crash-safe macOS arm64 artifact закреплены; Linux/reproducibility остаются open.
 - Decision: [D-20260715-001](../decisions/archive/2026-07-15--2026-07-15-001.md) — раздельная memory model, rotation и secret boundary.
 - Decision: [D-20260715-002](../decisions/archive/2026-07-15--2026-07-15-002.md) — публичный GitHub remote принят как canonical `origin`.
@@ -82,9 +83,11 @@
 - Decision: [D-20260715-027](../decisions/decisions.md) — RTMP access pin-ит regular-user, chat-kind и `can_manage_video_chats` prerequisites без invented call-state gates.
 - Decision: [D-20260715-028](../decisions/decisions.md) — RTMP revoke использует stricter owner contract поверх shared local administrator precheck.
 - Decision: [D-20260715-029](../decisions/decisions.md) — video-chat creation использует existing administrator-right vocabulary; request values не расширяют capability DSL.
+- Decision correction: [D-20260715-030](../decisions/decisions.md) — delete-by-sender moderation требует pinned account и direct-messages subtype guards.
 - Open problem: [P-20260715-001](../problems/problems.md) — database key ещё не подключён к штатному gateway.
 - Open problem: [P-20260715-003](../problems/problems.md) — Linux x86_64 native artifact ещё не закреплён.
 - Open problem: [P-20260715-005](../problems/problems.md) — 120 pinned runtime-signal methods ещё не имеют typed disposition.
+- Resolved problem: [P-20260715-011](../problems/problems.md) — bot/direct-messages false-positive contract удалён.
 
 ## Operating rules
 

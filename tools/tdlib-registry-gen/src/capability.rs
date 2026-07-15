@@ -6,6 +6,7 @@
 mod chat_event_logs;
 mod chat_invite_links;
 mod chat_settings;
+mod message_moderation;
 mod supergroup_usernames;
 mod video_chats;
 
@@ -1258,6 +1259,7 @@ fn validate_documented_method_constraints(
     let description = method_description(method).to_ascii_lowercase();
     let runtime_contract = reviewed_runtime_contract(method.name(), &normalized_text(&description));
     let group_call_contract = reviewed_group_call_contract(method)?;
+    let message_moderation_contract = reviewed_message_moderation_contract(method)?;
     let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
     let boolean_option_contract = reviewed_runtime_boolean_option_contract(method)?;
     let chat_event_log_contract = reviewed_chat_event_log_contract(method)?;
@@ -1299,6 +1301,7 @@ fn validate_documented_method_constraints(
         runtime_contract,
         Some(ReviewedRuntimeContract::OwnerInKind(_))
     ) || group_call_contract.is_some()
+        || message_moderation_contract.is_some_and(|contract| contract.regular_user_only())
         || supergroup_full_info_contract.is_some()
         || boolean_option_contract.is_some_and(|contract| contract.regular_user_only)
         || chat_event_log_contract.is_some()
@@ -1362,6 +1365,7 @@ fn documented_runtime_requirements(
     let runtime_contract = reviewed_runtime_contract(method.name(), &description);
     let message_contract = reviewed_message_capability_contract(method)?;
     let group_call_contract = reviewed_group_call_contract(method)?;
+    let message_moderation_contract = reviewed_message_moderation_contract(method)?;
     let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
     let boolean_option_contract = reviewed_runtime_boolean_option_contract(method)?;
     let chat_event_log_contract = reviewed_chat_event_log_contract(method)?;
@@ -1373,6 +1377,7 @@ fn documented_runtime_requirements(
         runtime_contract.is_some(),
         message_contract.is_some(),
         group_call_contract.is_some(),
+        message_moderation_contract.is_some(),
         supergroup_full_info_contract.is_some(),
         boolean_option_contract.is_some(),
         chat_event_log_contract.is_some(),
@@ -1428,6 +1433,9 @@ fn documented_runtime_requirements(
     if let Some(contract) = group_call_contract {
         expected_consumed.extend(contract.consumed_signal_keys());
     }
+    if message_moderation_contract.is_some() {
+        expected_consumed.extend(message_moderation_consumed_signal_keys());
+    }
     if let Some(contract) = supergroup_full_info_contract {
         expected_consumed.extend(contract.consumed_signal_keys());
     }
@@ -1459,6 +1467,8 @@ fn documented_runtime_requirements(
         documented_message_capability_clauses(method, contract)?
     } else if let Some(contract) = group_call_contract {
         documented_group_call_clauses(method, contract)?
+    } else if let Some(contract) = message_moderation_contract {
+        documented_message_moderation_clauses(method, contract)?
     } else if let Some(contract) = supergroup_full_info_contract {
         documented_supergroup_full_info_clauses(method, contract)?
     } else if let Some(contract) = boolean_option_contract {
@@ -1689,6 +1699,32 @@ fn reviewed_chat_event_log_contract(
     Ok(Some(contract))
 }
 
+fn reviewed_message_moderation_contract(
+    method: &Definition,
+) -> Result<Option<&'static message_moderation::MessageModerationContract>, CapabilityGenerationError>
+{
+    let Some(contract) = message_moderation::reviewed_contract(method.name()) else {
+        return Ok(None);
+    };
+    if method.canonical_signature() != contract.canonical_signature() {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed message-moderation signature drifted",
+        ));
+    }
+    if !signal_source_has_exact_text(
+        method,
+        &RuntimeSignalSource::Description,
+        contract.source_text(),
+    ) {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed message-moderation source text drifted or disappeared",
+        ));
+    }
+    Ok(Some(contract))
+}
+
 fn reviewed_video_chat_contract(
     method: &Definition,
 ) -> Result<Option<&'static video_chats::VideoChatContract>, CapabilityGenerationError> {
@@ -1846,6 +1882,53 @@ fn chat_event_log_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
     .collect()
 }
 
+fn message_moderation_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
+    [
+        RuntimeSignalFamily::AdministratorRightPhrase,
+        RuntimeSignalFamily::RequiresRightPhrase,
+    ]
+    .into_iter()
+    .map(|family| RuntimeSignalKey {
+        source: RuntimeSignalSource::Description,
+        family,
+    })
+    .collect()
+}
+
+fn documented_message_moderation_clauses(
+    method: &Definition,
+    contract: &message_moderation::MessageModerationContract,
+) -> Result<Vec<Vec<RuntimeRequirement>>, CapabilityGenerationError> {
+    let target = documented_chat_target(method)?;
+    contract
+        .supported_chat_kinds()
+        .iter()
+        .copied()
+        .map(|kind| {
+            let mut clause = vec![documented_chat_kind(&target, kind)?];
+            if kind == ResolvedChatKind::Supergroup {
+                clause.extend(
+                    contract
+                        .required_supergroup_flags()
+                        .iter()
+                        .map(|&(flag, value)| {
+                            RuntimeRequirement::SupergroupFlag(SupergroupFlagCondition::new(
+                                target.clone(),
+                                flag,
+                                value,
+                            ))
+                        }),
+                );
+            }
+            clause.push(RuntimeRequirement::ChatAdministratorRight {
+                target: target.clone(),
+                right: contract.required_right(),
+            });
+            Ok(clause)
+        })
+        .collect()
+}
+
 fn video_chat_consumed_signal_keys(
     contract: &video_chats::VideoChatContract,
 ) -> BTreeSet<RuntimeSignalKey> {
@@ -1925,13 +2008,6 @@ fn reviewed_runtime_contract(method: &str, description: &str) -> Option<Reviewed
     use ReviewedRuntimeContract as Contract;
 
     match (method, description) {
-        (
-            "deleteChatMessagesBySender",
-            "deletes all messages sent by the specified message sender in a chat. supported only for supergroups; requires can_delete_messages administrator right",
-        ) => Some(Contract::AdministratorRightInKinds {
-            right: ChatAdministratorRight::CanDeleteMessages,
-            kinds: &[ResolvedChatKind::Supergroup],
-        }),
         (
             "upgradeBasicGroupChatToSupergroupChat",
             "creates a new supergroup from an existing basic group and sends a corresponding messagechatupgradeto and messagechatupgradefrom; requires owner privileges. deactivates the original basic group",
@@ -3099,6 +3175,9 @@ fn documented_runtime_signal_dispositions(
     if let Some(contract) = reviewed_group_call_contract(method)? {
         consumed.extend(contract.consumed_signal_keys());
     }
+    if reviewed_message_moderation_contract(method)?.is_some() {
+        consumed.extend(message_moderation_consumed_signal_keys());
+    }
     if let Some(contract) = reviewed_supergroup_full_info_contract(method)? {
         consumed.extend(contract.consumed_signal_keys());
     }
@@ -3634,6 +3713,10 @@ fn engine_source_sha256() -> String {
         (
             "capability/chat_settings.rs",
             include_bytes!("capability/chat_settings.rs").as_slice(),
+        ),
+        (
+            "capability/message_moderation.rs",
+            include_bytes!("capability/message_moderation.rs").as_slice(),
         ),
         (
             "capability/supergroup_usernames.rs",

@@ -76,7 +76,7 @@ flowchart LR
 
 | Phase | Результат | Status |
 |---|---|---|
-| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-033 |
+| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-034 |
 | P1 | Core transport, authorization и ordered updates | pending |
 | P2 | Singleton daemon и shared session lifecycle | pending |
 | P3 | Полный generated raw API | pending |
@@ -127,6 +127,7 @@ flowchart LR
   - [x] Exact video-chat RTMP access contract: `getVideoChatRtmpUrl` требует regular user и `basic_group|supergroup|channel AND can_manage_video_chats`; read-access freshness остаётся runtime boundary.
   - [x] Exact video-chat RTMP replacement contract: `replaceVideoChatRtmpUrl` требует regular user и `basic_group|supergroup|channel AND owner`; shared admin precheck не заменяет stricter revoke contract.
   - [x] Exact video-chat creation contract: `createVideoChat` требует regular user и `basic_group|supergroup|channel AND can_manage_video_chats`; request values и dialog freshness не превращаются в capability atoms.
+  - [x] Correction: `deleteChatMessagesBySender` требует regular user и non-direct-messages supergroup (`is_direct_messages_group=false`) сверх `can_delete_messages`; прежний broad contract удалён.
   - [ ] Reviewed canonical capability policy/artifact для всех 1010 methods.
 - [ ] Определить supported targets: macOS arm64 и Linux x86_64 минимум.
 - [ ] Перенести только доказанно reusable части `tg-analytics`; не переносить NATS/Postgres/analytics orchestration.
@@ -169,6 +170,7 @@ flowchart LR
 - `W-20260715-031`: semantic module `capability/video_chat_streaming.rs` закрепляет exact `getVideoChatRtmpUrl` signature/source и три DNF-ветки `basic_group|supergroup|channel AND ChatAdministratorRight(can_manage_video_chats)`. Pinned dispatcher требует regular user; handler требует dialog read access и chat/channel `can_manage_calls`, отклоняя private/secret без owner/active-call/RTMP-state gates. Bot policy, source/signature drift и extra argument signal fail closed. Supported 68, terminal 71, open 122 с SHA-256 `df35fcbf...e35da`; semantic SHA-256 `1c607a62...6b5268`. 86 workspace tests, Clippy/fmt/project gates green с `jobs=2`; target 151 MiB, processes 0, independent source/Rust review — `APPROVED`. Решение `D-20260715-027`; `P-20260715-005` open at 122.
 - `W-20260715-032`: `capability/video_chat_streaming.rs` расширен closed `RequiredAccess::Owner` для `replaceVideoChatRtmpUrl`. Exact schema owner contract строже shared local `can_manage_video_chats` precheck; DNF содержит regular user и три `chat kind AND ChatOwner` ветки без redundant admin-right/call-state atoms. Supported 69, terminal 72, open 121 с SHA-256 `f12c4e51...2faf0c`; semantic SHA-256 `4cf97a1d...6c40d3`. 87 workspace tests, Clippy/fmt/planning/diff green с `jobs=2`; independent source/Rust review — `APPROVED`. Решение `D-20260715-028`; `P-20260715-005` open at 121.
 - `W-20260715-033`: domain module переименован в `capability/video_chats.rs` и расширен exact `createVideoChat` contract. Pinned dispatcher требует regular user; handler — dialog read access и `can_manage_video_chats`; DNF содержит три `chat kind AND ChatAdministratorRight` ветки. `title`, `start_date`, `is_rtmp_stream` остаются value/RPC semantics, не capability atoms. Supported 70, terminal 73, open 120 с SHA-256 `c525212c...e4922d`; semantic SHA-256 `d050be73...370e`. 88 workspace tests, Clippy/fmt/project gates green с `jobs=2`; independent source/Rust review — `APPROVED`. Решение `D-20260715-029`; `P-20260715-005` open at 120.
+- `W-20260715-034`: correction переносит `deleteChatMessagesBySender` из generic table в `capability/message_moderation.rs`. Pinned dispatcher/deeper handler требуют regular user, supergroup, `is_direct_messages_group=false` и `can_delete_messages`; прежние bot-enabled и broad-supergroup descriptors теперь fail closed. Supported/terminal/open остаются 70/73/120, semantic SHA-256 `d050be73...370e`. 89 workspace tests и independent source/Rust review — `APPROVED`; решение `D-20260715-030`, `P-20260715-011` resolved.
 
 ## P1 — Core transport, authorization и ordered state
 

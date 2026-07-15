@@ -4891,6 +4891,168 @@ fn pinned_unpin_chat_message_remains_deferred_without_account_and_subtype_partit
 }
 
 #[test]
+fn pinned_delete_chat_messages_by_sender_is_regular_user_only() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let method = find_method(&schema, "deleteChatMessagesBySender");
+    assert_eq!(
+        method.canonical_signature(),
+        "deleteChatMessagesBySender chat_id:int53 sender_id:MessageSender = Ok;"
+    );
+    assert_eq!(
+        normalized_text(&super::method_description(method)),
+        "deletes all messages sent by the specified message sender in a chat. supported only for supergroups; requires can_delete_messages administrator right"
+    );
+    let requirements = documented_runtime_requirements(method)
+        .expect("reviewed delete-by-sender documentation")
+        .expect("delete-by-sender contract");
+    let target = ChatTargetRef::try_from("chat_id").expect("chat target");
+    let expected = RequirementAlternatives::try_new(vec![vec![
+        RuntimeRequirement::ChatKind(
+            ChatKindCondition::try_new(target.clone(), ResolvedChatKind::Supergroup)
+                .expect("supergroup kind"),
+        ),
+        RuntimeRequirement::SupergroupFlag(SupergroupFlagCondition::new(
+            target.clone(),
+            SupergroupFlag::IsDirectMessagesGroup,
+            false,
+        )),
+        RuntimeRequirement::ChatAdministratorRight {
+            target: target.clone(),
+            right: ChatAdministratorRight::CanDeleteMessages,
+        },
+    ]])
+    .expect("exact delete-by-sender requirements");
+    assert_eq!(requirements, expected);
+    assert_eq!(
+        documented_runtime_signal_dispositions(method).expect("delete-by-sender signals"),
+        [
+            RuntimeSignalFamily::AdministratorRightPhrase,
+            RuntimeSignalFamily::RequiresRightPhrase,
+        ]
+        .into_iter()
+        .map(|family| {
+            (
+                RuntimeSignalKey {
+                    source: RuntimeSignalSource::Description,
+                    family,
+                },
+                RuntimeSignalDisposition::ConsumedByRuntimeRequirements,
+            )
+        })
+        .collect::<Vec<_>>()
+    );
+
+    let regular_user = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        requirements.clone(),
+        Vec::new(),
+    )
+    .expect("regular-user descriptor");
+    validate_documented_method_constraints(method, &regular_user)
+        .expect("pinned regular-user account contract");
+    validate_documented_runtime_requirements(method, &regular_user)
+        .expect("pinned delete-by-sender runtime contract");
+
+    let broad_supergroup = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        RequirementAlternatives::try_new(vec![vec![
+            RuntimeRequirement::ChatKind(
+                ChatKindCondition::try_new(target.clone(), ResolvedChatKind::Supergroup)
+                    .expect("broad supergroup kind"),
+            ),
+            RuntimeRequirement::ChatAdministratorRight {
+                target,
+                right: ChatAdministratorRight::CanDeleteMessages,
+            },
+        ]])
+        .expect("structurally valid broad-supergroup requirements"),
+        Vec::new(),
+    )
+    .expect("structurally valid broad-supergroup descriptor");
+    assert_eq!(
+        validate_documented_runtime_requirements(method, &broad_supergroup)
+            .expect_err("direct-messages supergroups must remain excluded")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let bot_enabled = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser, AccountKind::Bot],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        requirements,
+        Vec::new(),
+    )
+    .expect("structurally valid bot-enabled descriptor");
+
+    assert_eq!(
+        validate_documented_method_constraints(method, &bot_enabled)
+            .expect_err("pinned CHECK_IS_USER must reject bot-enabled policy")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let source_drift = pinned.replacen(
+        "Deletes all messages sent by the specified message sender in a chat. Supported only for supergroups; requires can_delete_messages administrator right",
+        "Deletes all messages from the specified message sender in a chat. Supported only for supergroups; requires can_delete_messages administrator right",
+        1,
+    );
+    let source_drift = Schema::parse(&source_drift).expect("valid source drift");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&source_drift, "deleteChatMessagesBySender"))
+            .expect_err("message-moderation source drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let signature_drift = pinned.replacen(
+        "deleteChatMessagesBySender chat_id:int53 sender_id:MessageSender = Ok;",
+        "deleteChatMessagesBySender chat_id:int32 sender_id:MessageSender = Ok;",
+        1,
+    );
+    let signature_drift = Schema::parse(&signature_drift).expect("valid signature drift");
+    assert_eq!(
+        documented_runtime_requirements(find_method(
+            &signature_drift,
+            "deleteChatMessagesBySender",
+        ))
+        .expect_err("message-moderation signature drift must fail closed")
+        .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let additional_signal = pinned.replacen(
+        "@sender_id Identifier of the sender of messages to delete",
+        "@sender_id Identifier of the sender of messages to delete; requires can_delete_messages administrator right",
+        1,
+    );
+    let additional_signal = Schema::parse(&additional_signal).expect("valid additional signal");
+    assert_eq!(
+        documented_runtime_requirements(find_method(
+            &additional_signal,
+            "deleteChatMessagesBySender",
+        ))
+        .expect_err("unconsumed moderation argument signal must fail closed")
+        .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
 fn pinned_conditional_chat_kind_contracts_are_exact() {
     let schema =
         Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
@@ -4921,6 +5083,11 @@ fn pinned_conditional_chat_kind_contracts_are_exact() {
         "deleteChatMessagesBySender",
         vec![vec![
             kind(&chat_target, ResolvedChatKind::Supergroup),
+            RuntimeRequirement::SupergroupFlag(SupergroupFlagCondition::new(
+                chat_target.clone(),
+                SupergroupFlag::IsDirectMessagesGroup,
+                false,
+            )),
             administrator(&chat_target, ChatAdministratorRight::CanDeleteMessages),
         ]],
     );

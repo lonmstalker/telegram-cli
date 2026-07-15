@@ -2,21 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] open | P-20260715-008 | Member-only DNF теряла bot/basic-group administrator guard
-
-- Evidence: independent review и pinned `DialogManager.cpp`: `setChatTitle`/`setChatPhoto` требуют `is_appointed_chat_administrator()` для bot в basic group сверх effective `can_change_info`.
-- Impact: bot-member с разрешённым default `can_change_info` мог получить ложный supported verdict, хотя TDLib вернул бы `Not enough rights`.
-- Status: open at review discovery; current grammar не выражает account-conditioned basic-group implication.
-- Next check: удалить оба complete contracts или добавить closed account-sensitive requirement с runtime evidence до commit.
-- Related decisions: [D-20260715-021](../decisions/decisions.md).
-
-## [2026-07-15] resolved | P-20260715-008 | Account-conditioned title/photo methods возвращены в deferred
-
-- Evidence: [chat setting-right digest](../raw/2026-07-15-tdlib-chat-setting-right-capabilities.md), оба rows отсутствуют в `chat_settings::CONTRACTS`, exhaustive test включает их в deferred; post-fix reviewer verdict `APPROVED`.
-- Resolution: member-only false positive удалён; safe set сокращён до permissions/description/slow mode, oracles дают supported 66, terminal 69, open 124.
-- Status: resolved for current implementation. Будущий complete contract требует account/kind-conditioned prerequisite и current appointed-admin evidence.
-- Related decisions: [D-20260715-021](../decisions/decisions.md).
-
 ## [2026-07-15] open update | P-20260715-005 | Chat setting rights уменьшили open set до 124 methods
 
 - Evidence: [chat setting-right digest](../raw/2026-07-15-tdlib-chat-setting-right-capabilities.md); exact family разделена на 3 new complete, 1 prior complete и 12 deferred methods.
@@ -165,3 +150,21 @@ Active append-only problem lifecycle. Status changes добавляются но
 
 - [Problem shard 015](archive/2026-07-15--2026-07-15-015.md) ссылается на D020; canonical resolve: [base](../decisions/archive/2026-07-15--2026-07-15-022.md) + [accepted correction](../decisions/archive/2026-07-15--2026-07-15-023.md).
 - Status не изменён: latest open boundary — 120 methods.
+
+## [2026-07-15] open | P-20260715-011 | deleteChatMessagesBySender allowed bot and direct-messages false positives
+
+- Evidence: pinned dispatcher `CHECK_IS_USER`; deeper handler rejects monoforum before checking `can_delete_messages`; red bot descriptor returned `Ok`, broad DNF omitted subtype flag.
+- Impact: bot or direct-messages supergroup could receive a false supported verdict.
+- Next: replace generic row with exact account/kind/subtype/right contract before further coverage work.
+- Decision: [D-20260715-030](../decisions/decisions.md).
+
+## [2026-07-15] resolved | P-20260715-011 | Exact moderation contract replaces broad DNF
+
+- Evidence: [correction digest](../raw/2026-07-15-tdlib-delete-chat-messages-by-sender-correction.md); bot-enabled and broad-supergroup descriptors now fail, exact regular-user non-direct-messages-supergroup descriptor passes; reviewer `APPROVED`.
+- Resolution: semantic module pins signature/source/account/kind/subtype/right without changing 70/73/120 corpus counts.
+- Status: resolved for static contract; runtime freshness remains future daemon work.
+- Decision: [D-20260715-030](../decisions/decisions.md).
+
+## [2026-07-15] archive link map | P-20260715-011 | Rotated P008 lifecycle
+
+- [Problem shard 016](archive/2026-07-15--2026-07-15-016.md) содержит open/resolved P008; canonical [D021](../decisions/archive/2026-07-15--2026-07-15-023.md). Resolved status unchanged.

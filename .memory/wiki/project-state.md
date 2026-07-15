@@ -41,6 +41,7 @@
 - P0.5b17 добавляет exact `getVideoChatRtmpUrl` в semantic video-chat module: regular user и `basic_group|supergroup|channel AND can_manage_video_chats`. Pinned handler добавляет dialog read-access boundary, но не owner/active-call/RTMP-state gate; open set — 122, format остаётся `8`; review — Approved.
 - P0.5b18 расширяет video-chat module exact `replaceVideoChatRtmpUrl`: regular user и `basic_group|supergroup|channel AND owner`. Closed required access разделяет getter administrator right и revoke owner contract; open set — 121, format остаётся `8`; review — Approved.
 - P0.5b19 переименовывает broadened domain module в `capability/video_chats.rs` и добавляет exact `createVideoChat`: regular user и `basic_group|supergroup|channel AND can_manage_video_chats`. Request values не становятся capability atoms; open set — 120, format остаётся `8`; review — Approved.
+- P0.5b20 correction переносит `deleteChatMessagesBySender` в `capability/message_moderation.rs`: pinned contract требует regular user, supergroup, `is_direct_messages_group=false` и `can_delete_messages`. Counts остаются 70/73/120, format `8`; review — Approved.
 - Planning boundary gate с семью negative controls запрещает `FeatureId`, numeric planning IDs и owner-manifest taxonomy в runtime/tooling/machine contracts; real discovery проверяет scripts/all root machine files, file/root symlink fail closed.
 
 ## Not implemented
@@ -97,6 +98,7 @@
 - [TDLib video chat RTMP access capability digest](../raw/2026-07-15-tdlib-video-chat-rtmp-access-capability.md)
 - [TDLib video chat RTMP replacement capability digest](../raw/2026-07-15-tdlib-video-chat-rtmp-replacement-capability.md)
 - [TDLib video chat creation capability digest](../raw/2026-07-15-tdlib-video-chat-creation-capability.md)
+- [TDLib delete-chat-messages-by-sender correction](../raw/2026-07-15-tdlib-delete-chat-messages-by-sender-correction.md)
 - [TDLib getChatBoostLinkInfo lexical non-gate digest](../raw/2026-07-15-tdlib-chat-boost-link-non-gate.md)
 - [D-20260715-009](../decisions/archive/2026-07-15--2026-07-15-008.md)
 - [W-20260715-012](../logs/archive/2026-07-15--2026-07-15-011.md)
@@ -125,7 +127,7 @@
 - [D-20260715-021](../decisions/archive/2026-07-15--2026-07-15-023.md)
 - [W-20260715-025](../logs/archive/2026-07-15--2026-07-15-027.md)
 - [D-20260715-022](../decisions/decisions.md)
-- [W-20260715-026](../logs/work.md)
+- [W-20260715-026](../logs/archive/2026-07-15--2026-07-15-028.md)
 - [W-20260715-027](../logs/work.md)
 - [D-20260715-024](../decisions/decisions.md)
 - [W-20260715-028](../logs/work.md)
@@ -139,3 +141,5 @@
 - [W-20260715-032](../logs/work.md)
 - [D-20260715-029](../decisions/decisions.md)
 - [W-20260715-033](../logs/work.md)
+- [D-20260715-030](../decisions/decisions.md)
+- [W-20260715-034](../logs/work.md)

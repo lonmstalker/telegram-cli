@@ -107,3 +107,12 @@ Active append-only decision records. Изменение решения офор�
 - [Shard 023](archive/2026-07-15--2026-07-15-023.md) содержит current accepted correction D020 и accepted D021.
 - D020 resolve: [historical base](archive/2026-07-15--2026-07-15-022.md) + [accepted correction](archive/2026-07-15--2026-07-15-023.md). Historical active-path links immutable.
 - Shard-023 dependencies: canonical [D010](archive/2026-07-15--2026-07-15-009.md), [D012](archive/2026-07-15--2026-07-15-011.md), [D017](archive/2026-07-15--2026-07-15-019.md), D020 base shard 022 и correction/D021 shard 023.
+
+## [2026-07-15] accepted correction | D-20260715-030 | Message deletion needs account and subtype guards
+
+- Context: historical `deleteChatMessagesBySender` DNF copied public supergroup/right wording but pinned dispatcher and deeper handler also reject bots and monoforum.
+- Decision: `message_moderation.rs` requires `RegularUser + Supergroup + is_direct_messages_group=false + can_delete_messages`; exact signature/source are pinned. Broad generic row is removed.
+- Runtime rule: write/right/target/sender evidence must be current account/target/session-bound; missing, stale or gap-affected facts fail closed.
+- Evidence: [correction digest](../raw/2026-07-15-tdlib-delete-chat-messages-by-sender-correction.md), two red controls, exact drift/account/DNF tests and independent `APPROVED`.
+- Consequences: counts stay 70/73/120 and format `8`; false-positive capability path is removed without speculative predicates.
+- Supersedes: historical broad contract documented in W014/D011; extends closed subtype rule [D-20260715-023](decisions.md).

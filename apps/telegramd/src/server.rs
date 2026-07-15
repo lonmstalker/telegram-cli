@@ -22,8 +22,8 @@ use telegram_core::registry::{AccountKind, SymbolKind};
 use telegram_core::runtime::CoreRuntime;
 use telegram_core::workflows::{
     self, ChatSearchQuery, ChatTarget, ChatWorkflowError, DownloadQuery, HistoryQuery,
-    InputFileSource, MembersQuery, MembershipTarget, PageOptions, StickerFormat, WebAppMode,
-    WebAppRequest,
+    InputFileSource, MembersQuery, MembershipTarget, PageOptions, StickerFormat, UserTarget,
+    WebAppMode, WebAppRequest,
 };
 use telegram_protocol::{
     CommandErrorCode, DaemonRequest, DaemonResponse, EventKind, EventRecord, LeaseErrorCode,
@@ -38,6 +38,14 @@ const CLIENT_IO_TIMEOUT: Duration = Duration::from_secs(5);
 const CALL_TIMEOUT: Duration = Duration::from_secs(30);
 const EVENT_BUFFER_CAPACITY: usize = 1024;
 const WORKFLOWS: &[(&str, &str)] = &[
+    (
+        "user_profile",
+        r#"{"target":{"kind":"self"},"include_full_info":true}"#,
+    ),
+    (
+        "update_profile_name",
+        r#"{"first_name":"Name","last_name":""}"#,
+    ),
     ("resolve_chat", r#"{"kind":"id","chat_id":0}"#),
     ("ensure_membership", r#"{"kind":"chat_id","chat_id":0}"#),
     ("load_chat_list", r#"{"list":{"kind":"main"},"limit":100}"#),
@@ -624,6 +632,31 @@ fn run_workflow(
     deadline: Instant,
 ) -> Result<WorkflowOutput, WorkflowDispatchError> {
     match name {
+        "user_profile" => {
+            let input: UserProfileInput = parse(input)?;
+            output(
+                workflows::user_profile(
+                    runtime,
+                    policy,
+                    input.target.as_core(),
+                    input.include_full_info,
+                    deadline,
+                )?,
+                true,
+            )
+        }
+        "update_profile_name" => {
+            let input: ProfileNameInput = parse(input)?;
+            let result = workflows::update_profile_name(
+                runtime,
+                policy,
+                &input.first_name,
+                &input.last_name,
+                deadline,
+            )?;
+            let complete = result.complete;
+            output(result, complete)
+        }
         "resolve_chat" => {
             let input: TargetInput = parse(input)?;
             let result = workflows::resolve(runtime, policy, input.target(), deadline)?;
@@ -819,6 +852,43 @@ enum WorkflowDispatchError {
     Unknown,
     InvalidInput,
     Core(ChatWorkflowError),
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UserProfileInput {
+    target: UserTargetInput,
+    include_full_info: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum UserTargetInput {
+    #[serde(rename = "self")]
+    SelfUser,
+    Id {
+        user_id: i64,
+    },
+    PublicUsername {
+        username: String,
+    },
+}
+
+impl UserTargetInput {
+    fn as_core(&self) -> UserTarget<'_> {
+        match self {
+            Self::SelfUser => UserTarget::SelfUser,
+            Self::Id { user_id } => UserTarget::Id(*user_id),
+            Self::PublicUsername { username } => UserTarget::PublicUsername(username),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProfileNameInput {
+    first_name: String,
+    last_name: String,
 }
 
 impl From<ChatWorkflowError> for WorkflowDispatchError {
@@ -1078,7 +1148,8 @@ fn workflow_error(error: WorkflowDispatchError) -> CommandErrorCode {
             ChatWorkflowError::InvalidTarget
             | ChatWorkflowError::InvalidLimit
             | ChatWorkflowError::InvalidPageOptions
-            | ChatWorkflowError::InvalidFileTransfer,
+            | ChatWorkflowError::InvalidFileTransfer
+            | ChatWorkflowError::InvalidProfileInput,
         ) => CommandErrorCode::InvalidWorkflowInput,
         WorkflowDispatchError::Core(_) => CommandErrorCode::WorkflowFailed,
     }
@@ -1340,6 +1411,8 @@ mod tests {
         for (name, _) in WORKFLOWS {
             let input = workflow_input_example(name).unwrap();
             let valid = match *name {
+                "user_profile" => parse::<UserProfileInput>(input).is_ok(),
+                "update_profile_name" => parse::<ProfileNameInput>(input).is_ok(),
                 "resolve_chat" => parse::<TargetInput>(input).is_ok(),
                 "ensure_membership" => parse::<MembershipInput>(input).is_ok(),
                 "load_chat_list" => parse::<ChatListInput>(input).is_ok(),

@@ -326,6 +326,16 @@
       "retry": "safe_read"
     },
     {
+      "method": "getMe",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "safe_read"
+    },
+    {
       "method": "getMessageAuthor",
       "risk": "read",
       "accounts": [
@@ -440,6 +450,16 @@
         "regular_user"
       ],
       "runtime_requirements": "SupergroupFullInfoProperty { target: supergroup_id, property: CanGetMembers }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getUser",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
       "retry": "safe_read"
     },
     {
@@ -658,6 +678,15 @@
       ],
       "runtime_requirements": "AuthorizationState { state: Ready } AND ScopedLocalOrRemoteFile { target: sticker }",
       "retry": "reconcile"
+    },
+    {
+      "method": "setName",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "convergent"
     },
     {
       "method": "setChatDescription",

@@ -35,7 +35,7 @@ Canonical machine-readable source после P3 —
 - Generator создаёт descriptor для каждого pinned method. Reviewed rows получают эти
   поля, остальные — только `DefaultDeny` без угаданной классификации.
 
-## Reviewed contracts (95)
+## Reviewed contracts (98)
 
 | Method | Accounts | Runtime requirements |
 |---|---|---|
@@ -73,6 +73,7 @@ Canonical machine-readable source после P3 —
 | `getChatInviteLinkCounts` | regular_user | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatOwner { target: chat_id }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatOwner { target: chat_id }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatOwner { target: chat_id })` |
 | `getChatStatistics` | regular_user | `SupergroupFullInfoProperty { target: chat_id, property: CanGetStatistics }` |
 | `getCurrentState` | regular_user | `AuthorizationState { state: Ready }` |
+| `getMe` | regular_user, bot | `AuthorizationState { state: Ready }` |
 | `getMessageAuthor` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetAuthor }` |
 | `getMessageEmbeddingCode` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetEmbeddingCode }` |
 | `getMessagePublicForwards` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetStatistics }` |
@@ -85,6 +86,7 @@ Canonical machine-readable source после P3 —
 | `getStatisticalGraph` | regular_user | `ChatKnown { target: chat_id }` |
 | `getSupergroupFullInfo` | regular_user | `SupergroupKnown { target: supergroup_id }` |
 | `getSupergroupMembers` | regular_user | `SupergroupFullInfoProperty { target: supergroup_id, property: CanGetMembers }` |
+| `getUser` | regular_user, bot | `AuthorizationState { state: Ready }` |
 | `getUserChatBoosts` | bot | `ChatAdministrator { target: chat_id }` |
 | `getUserFullInfo` | regular_user | `UserKnown { target: user_id }` |
 | `getVideoChatRtmpUrl` | regular_user | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats })` |
@@ -107,6 +109,7 @@ Canonical machine-readable source после P3 —
 | `searchPublicChat` | regular_user | `AuthorizationState { state: Ready }` |
 | `sendBotStartMessage` | regular_user | `ChatKnown { target: chat_id } AND BotUserKnown { target: bot_user_id }` |
 | `sendGroupCallMessage` | regular_user, bot | `GroupCallProperty { group_call: group_call_id, property: CanSendMessages }` |
+| `setName` | regular_user | `AuthorizationState { state: Ready }` |
 | `setChatDescription` | regular_user, bot | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatMemberRight { target: chat_id, right: CanChangeInfo }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatMemberRight { target: chat_id, right: CanChangeInfo }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatMemberRight { target: chat_id, right: CanChangeInfo })` |
 | `setChatLocation` | regular_user | `SupergroupFullInfoProperty { target: chat_id, property: CanSetLocation }` |
 | `setChatPaidMessageStarCount` | regular_user | `ChatAdministratorRight { target: chat_id, right: CanRestrictMembers } AND SupergroupFullInfoProperty { target: chat_id, property: CanEnablePaidMessages }` |

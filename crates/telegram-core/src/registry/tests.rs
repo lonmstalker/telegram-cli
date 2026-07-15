@@ -38,7 +38,7 @@ fn reviewed_capabilities_are_data_and_everything_else_is_default_deny() {
         }
     ));
     assert_eq!(
-        capability("getMe").unwrap().disposition,
+        capability("testSquareInt").unwrap().disposition,
         CapabilityDisposition::DefaultDeny
     );
 }

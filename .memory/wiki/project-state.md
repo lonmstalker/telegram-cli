@@ -57,10 +57,11 @@
 - Седьмой Tasks-пункт P6 закрыт: `login tty` вводит phone/OTP/2FA/email/registration только через protected `/dev/tty`, связывает typed input с daemon challenge и не принимает secrets в flags/stdin/output ([D-20260715-072](../decisions/decisions.md)).
 - Восьмой Tasks-пункт и Acceptance P6 закрыты: compact skill использует JSON envelope и on-demand `workflow describe`/schema discovery; пять cold-context traces покрывают history/statistics/sticker/bot/Mini App handoff ([D-20260715-073](../decisions/decisions.md)).
 - P6 accepted: raw/workflow CLI parity, prose-free machine decisions и bounded cold-agent skill подтверждены protocol tests и eval artifact.
+- Первый подпункт P7/F007 закрыт: user resolver/profile view редактирует private fields, а `setName` завершается только по matching ordered `updateUser` ([D-20260715-074](../decisions/decisions.md)).
 
 ## Not implemented
 
-- Оставшиеся фазы P7–P10: domain workflows, optional MCP, packaging и live acceptance.
+- Оставшиеся подпункты P7/F008–F022 и фазы P8–P10: domain workflows, optional MCP, packaging и live acceptance.
 
 ## Active boundary
 
@@ -69,4 +70,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: первый Tasks-пункт P7, F007–F010 по feature harness.
+- Следующий implementation boundary: P7/F008 chats/folders/topics.

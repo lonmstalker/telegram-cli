@@ -9,8 +9,8 @@ telegram-cli workflow describe <workflow>
 telegram-cli workflow run <lease_id> <workflow> '<input-json>'
 ```
 
-Daemon публикует и исполняет все реализованные P4 workflows:
-`resolve_chat`, `ensure_membership`, `load_chat_list`, `inspect_chat`, `chat_history`,
+Daemon публикует и исполняет все реализованные core workflows:
+`user_profile`, `update_profile_name`, `resolve_chat`, `ensure_membership`, `load_chat_list`, `inspect_chat`, `chat_history`,
 `search_chat_messages`, `supergroup_members`, `chat_statistics`, `resync_after_gap`,
 `download_file`, `upload_sticker_file`, `start_bot`, `open_web_app`.
 
@@ -28,3 +28,7 @@ route, поэтому agent skill не хранит копию каталога.
 `open_web_app` выполняет scoped open/wait/close chain. Result содержит только terminal
 receipt и `require_same_origin`; sensitive launch URL не сериализуется и не покидает daemon.
 Browser handoff будет завершён domain slice F013 без ослабления этого redaction boundary.
+
+`user_profile` и `update_profile_name` описаны в
+[`user-profile-workflow.md`](user-profile-workflow.md); sensitive profile fields не входят
+в output template или result.

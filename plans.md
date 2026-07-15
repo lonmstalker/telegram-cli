@@ -248,7 +248,10 @@ flowchart LR
 
 Вертикальные slices, feature harness — intended-behavior source. Для каждого slice: schema mapping, capability/risk rules, success/error/cancellation/recovery tests, live proof только там, где права аккаунта позволяют.
 
-- [ ] F007 users/contacts/profile; F008 chats/folders/topics; F009 messages/search; F010 files/media.
+- [x] F007 users/contacts/profile.
+- [ ] F008 chats/folders/topics.
+- [ ] F009 messages/search.
+- [ ] F010 files/media.
 - [ ] F011 groups/channels/moderation; F012 bots/testing; F013 Mini Apps; F014 stickers/custom emoji.
 - [ ] F015 stories/calls/live; F016 account settings; F017 Business; F018 payments/digital assets.
 - [ ] F019 statistics/resources; F020 platform utilities; F021 reliability как сквозной contract; F022 agent skill.

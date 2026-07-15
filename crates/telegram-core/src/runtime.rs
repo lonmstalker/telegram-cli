@@ -4,7 +4,7 @@ use std::fmt;
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::time::Instant;
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use crate::reducer::{AppliedUpdate, ReducerError, StateReducer, UpdateGap};
 use crate::transport::{TdJsonBackend, TdJsonEvent, TdJsonTransport, TransportError};
@@ -567,7 +567,7 @@ mod tests {
             crate::raw_api::td_call(
                 &runtime,
                 &policy,
-                json!({"@type":"getMe"}),
+                json!({"@type":"testSquareInt","x":2}),
                 Instant::now() + Duration::from_secs(1),
             ),
             Err(crate::raw_api::RawApiError::Policy(

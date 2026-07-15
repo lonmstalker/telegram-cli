@@ -5,7 +5,7 @@ use crate::registry::{AccountKind, CapabilityDisposition, RiskClass, SymbolKind}
 fn discovery_uses_generated_registry_without_method_wrappers() {
     assert_eq!(capabilities().len(), registry::METHODS.len());
     assert!(matches!(
-        registry::capability("getMe").unwrap().disposition,
+        registry::capability("testSquareInt").unwrap().disposition,
         CapabilityDisposition::DefaultDeny
     ));
 
@@ -37,7 +37,10 @@ fn discovery_uses_generated_registry_without_method_wrappers() {
 fn policy_is_default_deny_and_requires_account_and_risk() {
     let read = RawPolicy::new(AccountKind::RegularUser, vec![RiskClass::Read]);
     assert_eq!(read.authorize("getChatStatistics"), Ok(()));
-    assert_eq!(read.authorize("getMe"), Err(PolicyError::DefaultDeny));
+    assert_eq!(
+        read.authorize("testSquareInt"),
+        Err(PolicyError::DefaultDeny)
+    );
     assert_eq!(
         RawPolicy::new(AccountKind::RegularUser, vec![]).authorize("getChatStatistics"),
         Err(PolicyError::RiskDenied {

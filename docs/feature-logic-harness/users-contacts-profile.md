@@ -28,7 +28,7 @@
 - SRC001: product.md; type: file; supports: purpose/trust; limits: none.
 - SRC002: HARNESS.md; type: file; supports: full API/update invariants; limits: none.
 - SRC003: pinned official `td_api.tl`; type: supplied; supports: method/type/update families; limits: source alone does not prove generated registry.
-- SRC004: plans.md P7; type: file; supports: delivery gate; limits: implementation absent.
+- SRC004: plans.md P7 и `telegram_core::workflows::{user_profile, update_profile_name}`; type: file/code; supports: delivery gate, resolver/redaction/verified mutation; limits: live contact/profile matrix absent.
 
 ## TDLib API Coverage
 
@@ -62,7 +62,10 @@ Regular/bot accounts and privacy rules differ. Private phone/identity fields req
 
 ## Live Verification Boundary
 
-Current live proof only confirms regular-user `getMe`; contact/profile workflows are not verified.
+P7 synthetic runtime подтверждает public-username resolution через ordered `updateUser`,
+optional full-info hydration, private-field canary redaction и `setName` completion только
+после matching update. Live proof по-прежнему ограничен returning `getMe`; реальный
+profile/contact mutation не выполнялся без disposable fixture.
 
 ## Scope
 
@@ -153,8 +156,8 @@ Current live proof only confirms regular-user `getMe`; contact/profile workflows
 
 ## Coverage Notes
 
-- Kernel coverage: identity/privacy/cache modeled.
-- Modeled: primary read/write flows.
-- Partial: exact schema classification and live rights matrix.
+- Kernel coverage: user resolution, safe profile view, ordered cache и verified name mutation implemented.
+- Modeled: contact import/remove и остальные profile mutations остаются universal raw/default-deny paths.
+- Partial: live rights/privacy matrix и disposable contact/profile fixtures.
 - Unknown: none blocking.
 - Not applicable: chat content and payments.

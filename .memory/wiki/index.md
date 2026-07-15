@@ -30,10 +30,11 @@
 - [TDLib ChatKind capability semantics](../raw/2026-07-15-tdlib-chat-kind-capability.md) — exact `ChatType` pin, six reviewed conditional contracts и 187-method open set.
 - [TDLib per-signal runtime disposition oracle](../raw/2026-07-15-tdlib-runtime-signal-dispositions.md) — exact 208 sources/398 keys, partial-consumption invariant и 185-method open set.
 - [TDLib MessageProperties capability semantics](../raw/2026-07-15-tdlib-message-properties-capabilities.md) — exact 39-field vocabulary, 29 typed contracts, four deferred mixed methods и 156-method open set.
+- [TDLib getChatBoostLinkInfo lexical non-gate](../raw/2026-07-15-tdlib-chat-boost-link-non-gate.md) — exact type-name vocabulary exception и 155-method open set.
 
 ## Current records
 
-- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, bounded owner generator, reviewed 1010-method owner corpus, capability foundation/ChatKind/per-signal/MessageProperties semantics и macOS native pin закрыты через `W-20260715-016`; 156 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
+- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, bounded owner generator, reviewed 1010-method owner corpus, capability foundation/ChatKind/per-signal/MessageProperties semantics и macOS native pin закрыты через `W-20260715-017`; 155 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
 - Native pin: [reviewed rebuild correction](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — exact source/schema и crash-safe macOS arm64 artifact закреплены; Linux/reproducibility остаются open.
 - Decision: [D-20260715-001](../decisions/archive/2026-07-15--2026-07-15-001.md) — раздельная memory model, rotation и secret boundary.
 - Decision: [D-20260715-002](../decisions/archive/2026-07-15--2026-07-15-002.md) — публичный GitHub remote принят как canonical `origin`.
@@ -50,7 +51,7 @@
 - Decision: [D-20260715-013](../decisions/decisions.md) — message-property capability требует exact source, identifier space и scalar/universal cardinality; mixed invocation semantics остаются deferred.
 - Open problem: [P-20260715-001](../problems/problems.md) — database key ещё не подключён к штатному gateway.
 - Open problem: [P-20260715-003](../problems/problems.md) — Linux x86_64 native artifact ещё не закреплён.
-- Open problem: [P-20260715-005](../problems/problems.md) — 156 pinned runtime-signal methods ещё не имеют typed disposition.
+- Open problem: [P-20260715-005](../problems/problems.md) — 155 pinned runtime-signal methods ещё не имеют typed disposition.
 
 ## Operating rules
 

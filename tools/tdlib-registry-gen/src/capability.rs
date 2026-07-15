@@ -2086,33 +2086,42 @@ fn runtime_signal_dispositions_with_consumed(
 }
 
 fn is_terminal_non_gate(method: &Definition, key: &RuntimeSignalKey) -> bool {
-    let source_text = normalized_signal_source_text(method, key.source());
     match (method.name(), key.source(), key.family()) {
         (
             "getChatBoostFeatures",
             RuntimeSignalSource::Description,
             RuntimeSignalFamily::BoostLevelPhrase,
-        ) => {
-            source_text.as_deref()
-                == Some(
-                    "returns the list of features available for different chat boost levels. this is an offline method",
-                )
-        }
+        ) => signal_source_has_exact_text(
+            method,
+            key.source(),
+            "returns the list of features available for different chat boost levels. this is an offline method",
+        ),
         (
             "getChatBoostLevelFeatures",
             RuntimeSignalSource::Description,
             RuntimeSignalFamily::BoostLevelPhrase,
-        ) => {
-            source_text.as_deref()
-                == Some(
-                    "returns the list of features available on the specific chat boost level. this is an offline method",
-                )
-        }
+        ) => signal_source_has_exact_text(
+            method,
+            key.source(),
+            "returns the list of features available on the specific chat boost level. this is an offline method",
+        ),
         (
             "getChatBoostLevelFeatures",
             RuntimeSignalSource::Argument(argument),
             RuntimeSignalFamily::BoostLevelPhrase,
-        ) => argument.as_str() == "level" && source_text.as_deref() == Some("chat boost level"),
+        ) => {
+            argument.as_str() == "level"
+                && signal_source_has_exact_text(method, key.source(), "chat boost level")
+        }
+        (
+            "getChatBoostLinkInfo",
+            RuntimeSignalSource::Description,
+            RuntimeSignalFamily::ChatBoostReference,
+        ) => signal_source_has_exact_text(
+            method,
+            key.source(),
+            "returns information about a link to boost a chat. can be called for any internal link of the type internallinktypechatboost",
+        ),
         _ => false,
     }
 }

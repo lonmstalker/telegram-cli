@@ -13,11 +13,12 @@ use telegram_core::schema::Schema;
 
 use super::{
     CapabilityGenerationErrorKind, DeferredSignalLane, MAX_CAPABILITY_POLICY_BYTES,
-    MAX_MANIFEST_BYTES, MAX_OWNER_POLICY_BYTES, MAX_SCHEMA_BYTES, RuntimeRequirementsDto,
-    RuntimeSignalDisposition, RuntimeSignalFamily, RuntimeSignalKey, RuntimeSignalSource,
-    documentation_sha256, documented_runtime_requirements, documented_runtime_signal_dispositions,
-    field_type, generate, has_runtime_gate_signal, method_documentation_text, normalized_text,
-    parse_runtime_requirements, runtime_signal_dispositions_with_consumed, runtime_signal_families,
+    MAX_MANIFEST_BYTES, MAX_OWNER_POLICY_BYTES, MAX_SCHEMA_BYTES, NonGateReason,
+    RuntimeRequirementsDto, RuntimeSignalDisposition, RuntimeSignalFamily, RuntimeSignalKey,
+    RuntimeSignalSource, documentation_sha256, documented_runtime_requirements,
+    documented_runtime_signal_dispositions, field_type, generate, has_runtime_gate_signal,
+    method_documentation_text, normalized_text, parse_runtime_requirements,
+    runtime_signal_dispositions_with_consumed, runtime_signal_families,
     serialize_pretty_with_limit, sha256_hex, validate_documented_authorization_states,
     validate_documented_method_constraints, validate_documented_parameter_notices,
     validate_documented_runtime_requirements, validate_message_properties_vocabulary,
@@ -502,8 +503,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(terminal_non_gates.clone()),
         (
-            2,
-            "6db93f2a315604af0e4d16bec5202f1528ecad5157625e62782923b84bb3f2b1".to_owned()
+            3,
+            "93add10667b68f96b5f8005668163b3627d1ed9eface6d7c06c5b5ab414cbdc0".to_owned()
         ),
         "terminal lexical non-gate set drift"
     );
@@ -511,8 +512,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            37,
-            "43535e24511a033a1e62c27c1e52dcd007d66186fd57254754c08ba5e31ee8a0".to_owned()
+            38,
+            "cc79495102cf0d22c42f412154433e46b5ba1c1559d880a724627aba17893115".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -521,12 +522,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        156,
+        155,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "e3ce3e31e2f024513cb1f04e5d4f116b05e31eca6483302532da1395197b8e54",
+        "4ed02dd1adbb3c87c61b4f6fccc009e331670c22fa7ac0c406e782d917ef9c1b",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -603,7 +604,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "f3deda49ce421e04ebe35c1745635299c20f46ceaff1caa85791483ceb28165d"
+        "9261d9aa49c7bb6dd37a973029a356efb6f44381f59be4ed5a4766ec14b681f7"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -1459,7 +1460,11 @@ fn pinned_chat_boost_vocabulary_is_terminal_non_gate_documentation() {
     let schema =
         Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
 
-    for method in ["getChatBoostFeatures", "getChatBoostLevelFeatures"] {
+    for method in [
+        "getChatBoostFeatures",
+        "getChatBoostLevelFeatures",
+        "getChatBoostLinkInfo",
+    ] {
         assert_eq!(
             documented_runtime_requirements(find_method(&schema, method))
                 .expect("reviewed lexical non-gate"),
@@ -1467,24 +1472,59 @@ fn pinned_chat_boost_vocabulary_is_terminal_non_gate_documentation() {
             "{method}"
         );
     }
+    assert_eq!(
+        documented_runtime_signal_dispositions(find_method(&schema, "getChatBoostLinkInfo"))
+            .expect("exact link-info disposition"),
+        vec![(
+            RuntimeSignalKey {
+                source: RuntimeSignalSource::Description,
+                family: RuntimeSignalFamily::ChatBoostReference,
+            },
+            RuntimeSignalDisposition::NotRuntimeGate(NonGateReason::ChatBoostVocabulary),
+        )]
+    );
 }
 
 #[test]
 fn chat_boost_non_gate_requires_exact_reviewed_wording() {
-    let schema = Schema::parse(&include_str!("../../../../vendor/tdlib/td_api.tl").replace(
-        "Returns the list of features available for different chat boost levels. This is an offline method",
-        "Requires boost level 1 before returning the list of features",
-    ))
-    .expect("same-family semantic drift fixture");
-
-    let error = documented_runtime_requirements(find_method(&schema, "getChatBoostFeatures"))
-        .expect_err("same lexical family must not inherit terminal non-gate status");
-    assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
-    assert!(
-        error
-            .to_string()
-            .contains("at least one runtime signal still needs a typed disposition")
-    );
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    for (method, family, original, replacement) in [
+        (
+            "getChatBoostFeatures",
+            RuntimeSignalFamily::BoostLevelPhrase,
+            "Returns the list of features available for different chat boost levels. This is an offline method",
+            "Requires boost level 1 before returning the list of features",
+        ),
+        (
+            "getChatBoostLinkInfo",
+            RuntimeSignalFamily::ChatBoostReference,
+            "Returns information about a link to boost a chat. Can be called for any internal link of the type internalLinkTypeChatBoost",
+            "Returns information about a link to boost a chat. Can be called only after chatBoost activation",
+        ),
+    ] {
+        let schema = Schema::parse(&pinned.replace(original, replacement))
+            .expect("same-family semantic drift fixture");
+        let method = find_method(&schema, method);
+        assert_eq!(
+            documented_runtime_signal_dispositions(method).expect("mutated disposition"),
+            vec![(
+                RuntimeSignalKey {
+                    source: RuntimeSignalSource::Description,
+                    family,
+                },
+                RuntimeSignalDisposition::Deferred(DeferredSignalLane::UnclassifiedDescription),
+            )],
+            "mutation must preserve exactly one lexical family"
+        );
+        let error = documented_runtime_requirements(method)
+            .expect_err("same lexical family must not inherit terminal non-gate status");
+        assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
+        assert!(
+            error
+                .to_string()
+                .contains("at least one runtime signal still needs a typed disposition")
+        );
+    }
 }
 
 #[test]

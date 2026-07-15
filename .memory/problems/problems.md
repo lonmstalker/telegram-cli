@@ -89,3 +89,10 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Status: open; zero-open gate не достигнут, 156 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
 - Next check: отдельными reviewed tasks закрывать group-call/full-info/option/admin/object-field source families, сохраняя prerequisite/retry и mixed invocation lanes раздельными.
 - Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-013](../decisions/decisions.md).
+
+## [2026-07-15] open update | P-20260715-005 | ChatBoost link vocabulary уменьшила open set до 155 methods
+
+- Evidence: [exact lexical digest](../raw/2026-07-15-tdlib-chat-boost-link-non-gate.md); один `ChatBoostReference` key terminally classified без capability claim.
+- Transition: `getChatBoostLinkInfo` выходит из open set; terminal complete set 38, open-set SHA-256 `4ed02dd1adbb3c87c61b4f6fccc009e331670c22fa7ac0c406e782d917ef9c1b`.
+- Status: open; 155 methods остаются deferred. Next: typed group-call/object-field families.
+- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md).

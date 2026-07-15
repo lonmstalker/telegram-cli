@@ -35,7 +35,7 @@ Canonical machine-readable source после P3 —
 - Generator создаёт descriptor для каждого pinned method. Reviewed rows получают эти
   поля, остальные — только `DefaultDeny` без угаданной классификации.
 
-## Reviewed contracts (85)
+## Reviewed contracts (87)
 
 | Method | Accounts | Runtime requirements |
 |---|---|---|
@@ -65,6 +65,7 @@ Canonical machine-readable source после P3 —
 | `endGroupCallRecording` | regular_user, bot | `GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }` |
 | `getBasicGroupFullInfo` | regular_user | `BasicGroupKnown { target: basic_group_id }` |
 | `getChat` | regular_user | `AuthorizationState { state: Ready }` |
+| `getChatHistory` | regular_user | `ChatKnown { target: chat_id }` |
 | `getChatBoosts` | regular_user | `ChatAdministrator { target: chat_id }` |
 | `getChatEventLog` | regular_user | `(ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministrator { target: chat_id }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatAdministrator { target: chat_id })` |
 | `getChatInviteLinkCounts` | regular_user | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatOwner { target: chat_id }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatOwner { target: chat_id }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatOwner { target: chat_id })` |
@@ -96,6 +97,7 @@ Canonical machine-readable source после P3 —
 | `reportMessageReactions` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanReportReactions }` |
 | `reportSupergroupSpam` | regular_user, bot | `ChatKind { target: supergroup_id, kind: Supergroup } AND ChatAdministrator { target: supergroup_id } AND MessageCapability { subject: Each { chat: supergroup_id, messages: message_ids }, capability: CanReportSupergroupSpam }` |
 | `revokeGroupCallInviteLink` | regular_user, bot | `(GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }) OR (GroupCallKind { group_call: group_call_id, kind: Unbound } AND GroupCallProperty { group_call: group_call_id, property: IsOwned })` |
+| `searchChatMessages` | regular_user | `ChatKnown { target: chat_id } AND MessageDatabaseEnabled` |
 | `searchPublicChat` | regular_user | `AuthorizationState { state: Ready }` |
 | `sendGroupCallMessage` | regular_user, bot | `GroupCallProperty { group_call: group_call_id, property: CanSendMessages }` |
 | `setChatDescription` | regular_user, bot | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatMemberRight { target: chat_id, right: CanChangeInfo }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatMemberRight { target: chat_id, right: CanChangeInfo }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatMemberRight { target: chat_id, right: CanChangeInfo })` |

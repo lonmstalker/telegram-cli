@@ -193,7 +193,7 @@ flowchart LR
 - [x] Разделить `resolve` и `ensure_membership`.
 - [x] Chat list: повторный `loadChats`, ordered position cache, documented terminal condition.
 - [x] Chat workflow: resolve username/link/invite, wait cache, optional `openChat` lease, full info.
-- [ ] History/search: pagination по returned cursor до count/date/no-progress boundary.
+- [x] History/search: pagination по returned cursor до count/date/no-progress boundary.
 - [ ] Members/statistics: capability fields, async graph tokens, freshness rules.
 - [ ] File/sticker/bot/Web App workflows с ожиданием terminal updates.
 - [ ] Gap marker и обязательный resync после update lag.

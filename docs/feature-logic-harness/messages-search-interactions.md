@@ -61,7 +61,9 @@ Chat permissions, protected content, paid reactions/messages and bot/account typ
 
 ## Live Verification Boundary
 
-No new live message was sent. Existing session access only was verified; mutations await disposable-target approval.
+P4 history/search paginator проверен deterministic pages: short history продолжает chain,
+returned search cursor управляет следующим call, date/count/exhausted/no-progress различаются.
+Live message read/send не выполнялся; mutations await disposable-target approval.
 
 ## Scope
 
@@ -152,7 +154,7 @@ No new live message was sent. Existing session access only was verified; mutatio
 
 ## Coverage Notes
 
-- Kernel coverage: read/write/pagination/uncertainty modeled.
+- Kernel coverage: history/chat-search pagination implemented; write/uncertainty modeled.
 - Modeled: major message families and safety.
 - Partial: exact 1.8.66 rich/AI/ephemeral mapping.
 - Unknown: live permission matrix.

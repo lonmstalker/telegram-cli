@@ -1,5 +1,6 @@
 //! Curated stateful workflows поверх общего TDJSON call.
 
+use std::collections::BTreeSet;
 use std::error::Error;
 use std::fmt;
 use std::time::Instant;
@@ -84,6 +85,42 @@ pub struct ChatInspection {
     pub cached_chat: Option<Value>,
     pub full_info: Option<TdObject>,
     pub used_open_lease: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PageOptions {
+    pub count: usize,
+    pub min_date: Option<i32>,
+    pub page_limit: i32,
+}
+
+pub struct HistoryQuery {
+    pub chat_id: i64,
+    pub only_local: bool,
+    pub page: PageOptions,
+}
+
+pub struct ChatSearchQuery<'query> {
+    pub chat_id: i64,
+    pub query: &'query str,
+    pub page: PageOptions,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PageBoundary {
+    Count,
+    Date,
+    Exhausted,
+    NoProgress,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MessagePage {
+    pub messages: Vec<Value>,
+    pub pages: usize,
+    pub next_from_message_id: Option<i64>,
+    pub boundary: PageBoundary,
+    pub complete: bool,
 }
 
 impl ChatInspection {
@@ -190,6 +227,216 @@ pub fn inspect_chat(
         full_info: Some(full_info),
         used_open_lease: open,
     })
+}
+
+pub fn chat_history(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    query: HistoryQuery,
+    deadline: Instant,
+) -> Result<MessagePage, ChatWorkflowError> {
+    chat_history_with(query, |request| {
+        invoke(runtime, policy, "getChatHistory", request, deadline)
+    })
+}
+
+pub fn search_chat_messages(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    query: ChatSearchQuery<'_>,
+    deadline: Instant,
+) -> Result<MessagePage, ChatWorkflowError> {
+    search_chat_messages_with(query, |request| {
+        invoke(runtime, policy, "searchChatMessages", request, deadline)
+    })
+}
+
+fn chat_history_with(
+    query: HistoryQuery,
+    mut call: impl FnMut(Value) -> Result<TdObject, ChatWorkflowError>,
+) -> Result<MessagePage, ChatWorkflowError> {
+    validate_page_options(query.page)?;
+    let mut cursor = 0;
+    let mut pages = 0;
+    let mut messages = Vec::new();
+    let mut seen = BTreeSet::new();
+    let mut seen_cursors = BTreeSet::from([0]);
+    loop {
+        let response = call(json!({
+            "@type":"getChatHistory",
+            "chat_id":query.chat_id,
+            "from_message_id":cursor,
+            "offset":0,
+            "limit":query.page.page_limit,
+            "only_local":query.only_local
+        }))?;
+        pages += 1;
+        let page = message_values(&response, "messages", "getChatHistory")?;
+        let progress = append_messages(page, query.page, &mut seen, &mut messages)?;
+        if let Some(boundary) = progress.boundary {
+            return Ok(message_page(messages, pages, progress.cursor, boundary));
+        }
+        let Some(next) = progress.cursor else {
+            return Ok(message_page(
+                messages,
+                pages,
+                None,
+                PageBoundary::NoProgress,
+            ));
+        };
+        if !seen_cursors.insert(next) || !progress.advanced {
+            return Ok(message_page(
+                messages,
+                pages,
+                Some(next),
+                PageBoundary::NoProgress,
+            ));
+        }
+        cursor = next;
+    }
+}
+
+fn search_chat_messages_with(
+    query: ChatSearchQuery<'_>,
+    mut call: impl FnMut(Value) -> Result<TdObject, ChatWorkflowError>,
+) -> Result<MessagePage, ChatWorkflowError> {
+    validate_page_options(query.page)?;
+    let mut cursor = 0;
+    let mut pages = 0;
+    let mut messages = Vec::new();
+    let mut seen = BTreeSet::new();
+    let mut seen_cursors = BTreeSet::from([0]);
+    loop {
+        let response = call(json!({
+            "@type":"searchChatMessages",
+            "chat_id":query.chat_id,
+            "topic_id":null,
+            "query":query.query,
+            "sender_id":null,
+            "from_message_id":cursor,
+            "offset":0,
+            "limit":query.page.page_limit,
+            "filter":null
+        }))?;
+        pages += 1;
+        let page = message_values(&response, "foundChatMessages", "searchChatMessages")?;
+        let progress = append_messages(page, query.page, &mut seen, &mut messages)?;
+        let next = required_i64(
+            response.as_value(),
+            "next_from_message_id",
+            "searchChatMessages",
+        )?;
+        if let Some(boundary) = progress.boundary {
+            return Ok(message_page(messages, pages, Some(next), boundary));
+        }
+        if next == 0 {
+            return Ok(message_page(messages, pages, None, PageBoundary::Exhausted));
+        }
+        if !seen_cursors.insert(next) {
+            return Ok(message_page(
+                messages,
+                pages,
+                Some(next),
+                PageBoundary::NoProgress,
+            ));
+        }
+        cursor = next;
+    }
+}
+
+struct PageProgress {
+    cursor: Option<i64>,
+    boundary: Option<PageBoundary>,
+    advanced: bool,
+}
+
+fn append_messages(
+    page: &[Value],
+    options: PageOptions,
+    seen: &mut BTreeSet<i64>,
+    messages: &mut Vec<Value>,
+) -> Result<PageProgress, ChatWorkflowError> {
+    let mut cursor = None;
+    let mut advanced = false;
+    for message in page {
+        if message["@type"] != "message" {
+            return Err(ChatWorkflowError::InvalidResult {
+                method: "message page",
+                field: "messages[].@type",
+            });
+        }
+        let id = required_i64(message, "id", "message page")?;
+        let date = i32::try_from(required_i64(message, "date", "message page")?).map_err(|_| {
+            ChatWorkflowError::InvalidResult {
+                method: "message page",
+                field: "messages[].date",
+            }
+        })?;
+        cursor = Some(cursor.map_or(id, |known: i64| known.min(id)));
+        if options.min_date.is_some_and(|minimum| date < minimum) {
+            return Ok(PageProgress {
+                cursor,
+                boundary: Some(PageBoundary::Date),
+                advanced,
+            });
+        }
+        if seen.insert(id) {
+            messages.push(message.clone());
+            advanced = true;
+            if messages.len() == options.count {
+                return Ok(PageProgress {
+                    cursor,
+                    boundary: Some(PageBoundary::Count),
+                    advanced,
+                });
+            }
+        }
+    }
+    Ok(PageProgress {
+        cursor,
+        boundary: None,
+        advanced,
+    })
+}
+
+fn message_values<'response>(
+    response: &'response TdObject,
+    expected: &'static str,
+    method: &'static str,
+) -> Result<&'response [Value], ChatWorkflowError> {
+    if response.as_value()["@type"] != expected {
+        return Err(ChatWorkflowError::UnexpectedResult { method });
+    }
+    match response.as_value().get("messages") {
+        Some(Value::Array(messages)) => Ok(messages),
+        Some(Value::Null) => Ok(&[]),
+        _ => Err(ChatWorkflowError::InvalidResult {
+            method,
+            field: "messages",
+        }),
+    }
+}
+
+fn validate_page_options(options: PageOptions) -> Result<(), ChatWorkflowError> {
+    if options.count == 0 || !(1..=100).contains(&options.page_limit) {
+        return Err(ChatWorkflowError::InvalidPageOptions);
+    }
+    Ok(())
+}
+
+fn message_page(
+    messages: Vec<Value>,
+    pages: usize,
+    next_from_message_id: Option<i64>,
+    boundary: PageBoundary,
+) -> MessagePage {
+    MessagePage {
+        messages,
+        pages,
+        next_from_message_id,
+        boundary,
+        complete: boundary != PageBoundary::NoProgress,
+    }
 }
 
 fn load_until_terminal(
@@ -548,6 +795,7 @@ pub enum ChatWorkflowError {
     },
     InvalidTarget,
     InvalidLimit,
+    InvalidPageOptions,
 }
 
 impl fmt::Display for ChatWorkflowError {
@@ -567,6 +815,9 @@ impl fmt::Display for ChatWorkflowError {
             }
             Self::InvalidTarget => formatter.write_str("chat target is invalid or ambiguous"),
             Self::InvalidLimit => formatter.write_str("chat list load limit must be positive"),
+            Self::InvalidPageOptions => {
+                formatter.write_str("message count and page limit must be within bounds")
+            }
         }
     }
 }
@@ -581,7 +832,8 @@ impl Error for ChatWorkflowError {
             | Self::InvalidResult { .. }
             | Self::UnexpectedResult { .. }
             | Self::InvalidTarget
-            | Self::InvalidLimit => None,
+            | Self::InvalidLimit
+            | Self::InvalidPageOptions => None,
         }
     }
 }
@@ -592,6 +844,10 @@ mod tests {
     use crate::registry::{CapabilityDisposition, RiskClass, capability};
 
     fn object(value: Value) -> Result<TdObject, RawApiError> {
+        Ok(TdObject::from_value(value).unwrap())
+    }
+
+    fn workflow_object(value: Value) -> Result<TdObject, ChatWorkflowError> {
         Ok(TdObject::from_value(value).unwrap())
     }
 
@@ -730,5 +986,138 @@ mod tests {
                 expected
             );
         }
+    }
+
+    #[test]
+    fn short_history_page_continues_until_requested_count() {
+        let mut cursors = Vec::new();
+        let mut page = 0;
+        let result = chat_history_with(
+            HistoryQuery {
+                chat_id: 7,
+                only_local: false,
+                page: PageOptions {
+                    count: 3,
+                    min_date: None,
+                    page_limit: 100,
+                },
+            },
+            |request| {
+                cursors.push(request["from_message_id"].as_i64().unwrap());
+                page += 1;
+                workflow_object(if page == 1 {
+                    json!({"@type":"messages","total_count":9,"messages":[
+                        {"@type":"message","id":5,"date":50},
+                        {"@type":"message","id":4,"date":40}
+                    ]})
+                } else {
+                    json!({"@type":"messages","total_count":9,"messages":[
+                        {"@type":"message","id":4,"date":40},
+                        {"@type":"message","id":3,"date":30}
+                    ]})
+                })
+            },
+        )
+        .unwrap();
+
+        assert_eq!(cursors, [0, 4]);
+        assert_eq!(result.pages, 2);
+        assert_eq!(result.boundary, PageBoundary::Count);
+        assert!(result.complete);
+        assert_eq!(
+            result
+                .messages
+                .iter()
+                .map(|message| message["id"].as_i64().unwrap())
+                .collect::<Vec<_>>(),
+            [5, 4, 3]
+        );
+    }
+
+    #[test]
+    fn search_uses_returned_cursor_and_repeated_cursor_is_partial() {
+        let mut cursors = Vec::new();
+        let result = search_chat_messages_with(
+            ChatSearchQuery {
+                chat_id: 7,
+                query: "query",
+                page: PageOptions {
+                    count: 10,
+                    min_date: None,
+                    page_limit: 100,
+                },
+            },
+            |request| {
+                let cursor = request["from_message_id"].as_i64().unwrap();
+                cursors.push(cursor);
+                workflow_object(if cursor == 0 {
+                    json!({"@type":"foundChatMessages","total_count":9,"messages":[
+                        {"@type":"message","id":9,"date":90}
+                    ],"next_from_message_id":7})
+                } else {
+                    json!({"@type":"foundChatMessages","total_count":9,"messages":[
+                        {"@type":"message","id":7,"date":70}
+                    ],"next_from_message_id":7})
+                })
+            },
+        )
+        .unwrap();
+
+        assert_eq!(cursors, [0, 7]);
+        assert_eq!(result.boundary, PageBoundary::NoProgress);
+        assert!(!result.complete);
+    }
+
+    #[test]
+    fn search_date_and_exhausted_cursors_are_complete_boundaries() {
+        let options = PageOptions {
+            count: 10,
+            min_date: Some(20),
+            page_limit: 100,
+        };
+        let dated = search_chat_messages_with(
+            ChatSearchQuery {
+                chat_id: 7,
+                query: "query",
+                page: options,
+            },
+            |_| {
+                workflow_object(json!({
+                    "@type":"foundChatMessages",
+                    "total_count":2,
+                    "messages":[
+                        {"@type":"message","id":2,"date":20},
+                        {"@type":"message","id":1,"date":19}
+                    ],
+                    "next_from_message_id":1
+                }))
+            },
+        )
+        .unwrap();
+        assert_eq!(dated.boundary, PageBoundary::Date);
+        assert!(dated.complete);
+        assert_eq!(dated.messages.len(), 1);
+
+        let exhausted = search_chat_messages_with(
+            ChatSearchQuery {
+                chat_id: 7,
+                query: "query",
+                page: PageOptions {
+                    min_date: None,
+                    ..options
+                },
+            },
+            |_| {
+                workflow_object(json!({
+                    "@type":"foundChatMessages",
+                    "total_count":0,
+                    "messages":[],
+                    "next_from_message_id":0
+                }))
+            },
+        )
+        .unwrap();
+        assert_eq!(exhausted.boundary, PageBoundary::Exhausted);
+        assert!(exhausted.complete);
     }
 }

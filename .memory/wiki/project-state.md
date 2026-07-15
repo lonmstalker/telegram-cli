@@ -36,10 +36,11 @@
 - Первый пункт P4 закрыт: Rust target enums разделяют read-only `resolve` и explicit `ensure_membership`; join outcomes сохраняют pending/approval/declined без ложного membership proof ([D-20260715-053](../decisions/decisions.md)).
 - Второй пункт P4 закрыт: chat-list loader повторяет `loadChats` до documented `404`, применяет ordered updates через response boundary и выдаёт positions по `(order, chat_id)` descending ([D-20260715-054](../decisions/decisions.md)).
 - Третий пункт P4 закрыт: chat inspection нормализует username/public link/invite, ждёт authoritative cache, выбирает full-info call по `ChatType` и парно закрывает optional open lease ([D-20260715-055](../decisions/decisions.md)).
+- Четвёртый пункт P4 закрыт: history/search pager продолжает short pages, следует returned/derived cursors и различает complete count/date/exhausted от partial no-progress ([D-20260715-056](../decisions/decisions.md)).
 
 ## Not implemented
 
-- Остаток P4 и P5–P10: history/search и остальные workflows, reliability/policy expansion, CLI, MCP и packaging.
+- Остаток P4 и P5–P10: members/statistics и остальные workflows, reliability/policy expansion, CLI, MCP и packaging.
 
 ## Active boundary
 
@@ -48,4 +49,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: четвёртый Tasks-пункт P4 — history/search pagination по returned cursor до count/date/no-progress boundary.
+- Следующий implementation boundary: пятый Tasks-пункт P4 — members/statistics capability fields, async graph tokens и freshness rules.

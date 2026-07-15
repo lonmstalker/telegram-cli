@@ -254,6 +254,15 @@
       "retry": "safe_read"
     },
     {
+      "method": "getChatHistory",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKnown { target: chat_id }",
+      "retry": "safe_read"
+    },
+    {
       "method": "getChatBoosts",
       "risk": "read",
       "accounts": [
@@ -548,6 +557,15 @@
       ],
       "runtime_requirements": "(GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }) OR (GroupCallKind { group_call: group_call_id, kind: Unbound } AND GroupCallProperty { group_call: group_call_id, property: IsOwned })",
       "retry": "reconcile"
+    },
+    {
+      "method": "searchChatMessages",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKnown { target: chat_id } AND MessageDatabaseEnabled",
+      "retry": "safe_read"
     },
     {
       "method": "searchPublicChat",

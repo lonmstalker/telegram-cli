@@ -61,7 +61,8 @@ Secret chats/user accounts, forum/admin operations and folder limits depend on a
 
 ## Live Verification Boundary
 
-No new implementation; official semantics and prior false-not-found evidence define intended behavior.
+Первый P4 slice реализует отдельные read-only `resolve` и explicit `ensure_membership` с
+mocked TDJSON behavior evidence. Cache wait/list/open/full-info и live evidence ещё отсутствуют.
 
 ## Scope
 
@@ -152,7 +153,7 @@ No new implementation; official semantics and prior false-not-found evidence def
 
 ## Coverage Notes
 
-- Kernel coverage: list/resolve/topic/open lifecycle modeled.
+- Kernel coverage: resolve/membership boundary implemented; list/topic/open lifecycle modeled.
 - Modeled: completion and side-effect boundaries.
 - Partial: exact folder/topic method mapping.
 - Unknown: none blocking.

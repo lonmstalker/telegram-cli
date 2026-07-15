@@ -61,7 +61,8 @@ Owner/admin/member/bot capability matrix is explicit; cannot-get-members/statist
 
 ## Live Verification Boundary
 
-No channel mutation performed. Future live tests use disposable chats/channels and cleanup evidence.
+Core отделяет read-only `resolve` от explicit `ensure_membership` и сохраняет pending join
+outcome. Live join не выполнялся; будущие тесты используют disposable chats/channels и cleanup evidence.
 
 ## Scope
 
@@ -153,7 +154,7 @@ No channel mutation performed. Future live tests use disposable chats/channels a
 
 ## Coverage Notes
 
-- Kernel coverage: rights/config/membership/uncertainty modeled.
+- Kernel coverage: resolve/membership dispatch boundary implemented; rights/config/uncertainty modeled.
 - Modeled: routine administration and moderation boundaries.
 - Partial: exact method classification and live matrix.
 - Unknown: account-specific available rights.

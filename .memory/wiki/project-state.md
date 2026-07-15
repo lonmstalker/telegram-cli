@@ -33,10 +33,11 @@
 - Четвёртый пункт P3 закрыт: единственный `td_call` требует `RawPolicy` и отклоняет unreviewed method/account/risk mismatch до transport; runtime requirements остаются честным prerequisite, не guessed proof ([D-20260715-051](../decisions/decisions.md)).
 - Пятый пункт P3 и Acceptance закрыты: generated coverage block раздельно показывает manifest и registry/core counts, constructor/update/auth coverage и reviewed/default-deny disposition ([D-20260715-052](../decisions/decisions.md)).
 - P3 accepted: exact registry, capability data, universal raw API, policy-before-send и generated coverage report закрывают все Acceptance-критерии фазы.
+- Первый пункт P4 закрыт: Rust target enums разделяют read-only `resolve` и explicit `ensure_membership`; join outcomes сохраняют pending/approval/declined без ложного membership proof ([D-20260715-053](../decisions/decisions.md)).
 
 ## Not implemented
 
-- P4–P10: workflows, reliability/policy expansion, CLI, MCP и packaging.
+- Остаток P4 и P5–P10: chat list и остальные workflows, reliability/policy expansion, CLI, MCP и packaging.
 
 ## Active boundary
 
@@ -45,4 +46,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: первый Tasks-пункт P4 — разделить `resolve` и `ensure_membership`.
+- Следующий implementation boundary: второй Tasks-пункт P4 — chat list через повторный `loadChats`, ordered position cache и documented terminal condition.

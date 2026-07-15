@@ -190,7 +190,7 @@ flowchart LR
 
 ### Tasks
 
-- [ ] Разделить `resolve` и `ensure_membership`.
+- [x] Разделить `resolve` и `ensure_membership`.
 - [ ] Chat list: повторный `loadChats`, ordered position cache, documented terminal condition.
 - [ ] Chat workflow: resolve username/link/invite, wait cache, optional `openChat` lease, full info.
 - [ ] History/search: pagination по returned cursor до count/date/no-progress boundary.

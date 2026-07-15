@@ -46,7 +46,7 @@
 
 ## Current records
 
-- Implementation: P0–P3 accepted; следующий пункт — P4 `resolve` отдельно от `ensure_membership`; см. [project-state.md](project-state.md).
+- Implementation: P0–P3 accepted; P4 `resolve`/`ensure_membership` закрыт, следующий пункт — chat list engine; см. [project-state.md](project-state.md).
 - Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -67,6 +67,7 @@
 - Core discovery/call: [D-20260715-050](../decisions/decisions.md), [W-20260715-055](../logs/work.md), [`docs/core-raw-api.md`](../../docs/core-raw-api.md).
 - Raw policy-before-send: [D-20260715-051](../decisions/decisions.md), [W-20260715-056](../logs/work.md), [`docs/core-raw-api.md`](../../docs/core-raw-api.md).
 - Generated coverage report и P3 Acceptance: [D-20260715-052](../decisions/decisions.md), [W-20260715-057](../logs/work.md), [`docs/tdlib-api-coverage.md`](../../docs/tdlib-api-coverage.md).
+- Chat resolve/membership boundary: [D-20260715-053](../decisions/decisions.md), [W-20260715-058](../logs/work.md), [`docs/chat-resolution-membership.md`](../../docs/chat-resolution-membership.md).
 
 ## Operating rules
 

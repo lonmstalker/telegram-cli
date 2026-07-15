@@ -12,6 +12,7 @@ pub mod registry;
 pub mod runtime;
 pub mod schema;
 pub mod transport;
+pub mod workflows;
 
 #[allow(unsafe_code)]
 mod tdjson_native;

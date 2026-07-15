@@ -41,6 +41,15 @@
       "retry": "convergent"
     },
     {
+      "method": "checkChatInviteLink",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "safe_read"
+    },
+    {
       "method": "createChatInviteLink",
       "risk": "admin",
       "accounts": [
@@ -218,6 +227,15 @@
       "retry": "convergent"
     },
     {
+      "method": "getChat",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "safe_read"
+    },
+    {
       "method": "getChatBoosts",
       "risk": "read",
       "accounts": [
@@ -372,6 +390,24 @@
       "retry": "safe_read"
     },
     {
+      "method": "joinChat",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKnown { target: chat_id }",
+      "retry": "reconcile"
+    },
+    {
+      "method": "joinChatByInviteLink",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "reconcile"
+    },
+    {
       "method": "markChecklistTasksAsDone",
       "risk": "reversible_mutation",
       "accounts": [
@@ -458,6 +494,15 @@
       ],
       "runtime_requirements": "(GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }) OR (GroupCallKind { group_call: group_call_id, kind: Unbound } AND GroupCallProperty { group_call: group_call_id, property: IsOwned })",
       "retry": "reconcile"
+    },
+    {
+      "method": "searchPublicChat",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "safe_read"
     },
     {
       "method": "sendGroupCallMessage",

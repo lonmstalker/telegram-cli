@@ -12,17 +12,18 @@ use sha2::{Digest, Sha256};
 use telegram_core::feature::FeatureId;
 use telegram_core::method_capability::{
     AccountKind, ApplicationRequirement, ArgumentRef, AuthorizationState, BusinessBotRight,
-    BusinessConnectionRef, CapabilityDescriptor, ChatAdministratorRight, ChatMemberRight,
-    ChatTargetKind, ChatTargetRef, CurrentAccountEntitlement, DcEnvironment, ForumTopicRef,
-    MAX_ATOMS_PER_METHOD, MAX_CLAUSES_PER_METHOD, MAX_PARAMETER_NOTICES_PER_METHOD,
+    BusinessConnectionRef, CapabilityDescriptor, ChatAdministratorRight, ChatKindCondition,
+    ChatMemberRight, ChatTargetKind, ChatTargetRef, CurrentAccountEntitlement, DcEnvironment,
+    ForumTopicRef, MAX_ATOMS_PER_METHOD, MAX_CLAUSES_PER_METHOD, MAX_PARAMETER_NOTICES_PER_METHOD,
     MAX_SYNCHRONOUS_VALUES_PER_METHOD, ParameterCapabilityNotice, ParameterGate,
-    ParameterStringValue, RequirementAlternatives, RuntimeRequirement, SynchronousCapability,
+    ParameterStringValue, RequirementAlternatives, ResolvedChatKind, RuntimeRequirement,
+    SynchronousCapability,
 };
 use telegram_core::schema::{Definition, DefinitionKind, Parameter, Schema};
 
 use crate::engine;
 
-const FORMAT_VERSION: u32 = 1;
+const FORMAT_VERSION: u32 = 2;
 const MAX_MANIFEST_BYTES: usize = 64 * 1024;
 const MAX_SCHEMA_BYTES: usize = 2 * 1024 * 1024;
 const MAX_OWNER_POLICY_BYTES: usize = 4 * 1024 * 1024;
@@ -82,6 +83,7 @@ pub fn generate(
     })?;
     validate_authorization_states(&schema)?;
     validate_right_vocabularies(&schema)?;
+    validate_chat_type_vocabulary(&schema)?;
 
     let policy: CapabilityPolicyDto =
         serde_json::from_slice(capability_policy_bytes).map_err(|error| {
@@ -427,6 +429,17 @@ fn parse_runtime_requirement(
     method: &Definition,
 ) -> Result<RuntimeRequirement, CapabilityGenerationError> {
     match dto {
+        RuntimeRequirementDto::ChatKind {
+            target_argument,
+            value,
+        } => {
+            let target = parse_chat_target(method, target_argument)?;
+            let kind = ResolvedChatKind::try_from(value.as_str())
+                .map_err(CapabilityGenerationError::from_model_value)?;
+            let condition = ChatKindCondition::try_new(target, kind)
+                .map_err(CapabilityGenerationError::from_model_value)?;
+            Ok(RuntimeRequirement::ChatKind(condition))
+        }
         RuntimeRequirementDto::ChatAdministrator { target_argument } => {
             Ok(RuntimeRequirement::ChatAdministrator {
                 target: parse_chat_target(method, target_argument)?,
@@ -685,6 +698,32 @@ fn validate_right_vocabularies(schema: &Schema) -> Result<(), CapabilityGenerati
     )
 }
 
+fn validate_chat_type_vocabulary(schema: &Schema) -> Result<(), CapabilityGenerationError> {
+    let expected = BTreeSet::from([
+        "chatTypePrivate user_id:int53 = ChatType;",
+        "chatTypeBasicGroup basic_group_id:int53 = ChatType;",
+        "chatTypeSupergroup supergroup_id:int53 is_channel:Bool = ChatType;",
+        "chatTypeSecret secret_chat_id:int32 user_id:int53 = ChatType;",
+    ]);
+    let actual = schema
+        .definitions()
+        .iter()
+        .filter(|definition| {
+            definition.kind() == DefinitionKind::Constructor
+                && definition.result().name() == "ChatType"
+        })
+        .map(|definition| definition.canonical_signature())
+        .collect::<BTreeSet<_>>();
+
+    if actual != expected {
+        return Err(CapabilityGenerationError::new(
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "schema ChatType constructors differ from the exact pinned four-constructor shapes",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_bool_constructor(
     schema: &Schema,
     constructor_name: &str,
@@ -894,7 +933,10 @@ fn validate_documented_method_constraints(
             _
         ))
     );
-    let runtime_regular_only = matches!(runtime_contract, Some(ReviewedRuntimeContract::Owner));
+    let runtime_regular_only = matches!(
+        runtime_contract,
+        Some(ReviewedRuntimeContract::OwnerInKind(_))
+    );
     let expected_ready = if bot_only || runtime_bot_only {
         vec![AccountKind::Bot]
     } else if regular_only || runtime_regular_only || !expected_entitlements.is_empty() {
@@ -970,52 +1012,85 @@ fn documented_runtime_requirements(
         return Ok(None);
     };
     let clauses = match contract {
-        ReviewedRuntimeContract::Administrator => {
+        ReviewedRuntimeContract::AdministratorInKinds(kinds) => {
             let target = documented_chat_target(method)?;
-            vec![vec![RuntimeRequirement::ChatAdministrator { target }]]
-        }
-        ReviewedRuntimeContract::AdministratorRight(right) => {
-            let target = documented_chat_target(method)?;
-            vec![vec![RuntimeRequirement::ChatAdministratorRight {
-                target,
-                right,
-            }]]
-        }
-        ReviewedRuntimeContract::MemberRight(right) => {
-            let target = documented_chat_target(method)?;
-            vec![vec![RuntimeRequirement::ChatMemberRight { target, right }]]
-        }
-        ReviewedRuntimeContract::Owner => {
-            let target = documented_chat_target(method)?;
-            vec![vec![RuntimeRequirement::ChatOwner { target }]]
-        }
-        ReviewedRuntimeContract::AdministratorOrMember {
-            administrator,
-            member,
-        } => {
-            let target = documented_chat_target(method)?;
-            vec![
-                vec![RuntimeRequirement::ChatAdministratorRight {
+            chat_kind_clauses(&target, kinds, |target| {
+                RuntimeRequirement::ChatAdministrator {
                     target: target.clone(),
-                    right: administrator,
-                }],
-                vec![RuntimeRequirement::ChatMemberRight {
-                    target,
-                    right: member,
-                }],
-            ]
+                }
+            })?
         }
-        ReviewedRuntimeContract::AdministratorOrTopicCreator(right) => {
+        ReviewedRuntimeContract::AdministratorRightInKinds { right, kinds } => {
             let target = documented_chat_target(method)?;
-            vec![
-                vec![RuntimeRequirement::ChatAdministratorRight {
+            chat_kind_clauses(&target, kinds, |target| {
+                RuntimeRequirement::ChatAdministratorRight {
                     target: target.clone(),
                     right,
-                }],
-                vec![RuntimeRequirement::TopicCreator {
-                    target,
-                    topic: documented_forum_topic_argument(method)?,
-                }],
+                }
+            })?
+        }
+        ReviewedRuntimeContract::MemberRightInKinds { right, kinds } => {
+            let target = documented_chat_target(method)?;
+            chat_kind_clauses(&target, kinds, |target| {
+                RuntimeRequirement::ChatMemberRight {
+                    target: target.clone(),
+                    right,
+                }
+            })?
+        }
+        ReviewedRuntimeContract::OwnerInKind(kind) => {
+            let target = documented_chat_target(method)?;
+            vec![vec![
+                documented_chat_kind(&target, kind)?,
+                RuntimeRequirement::ChatOwner { target },
+            ]]
+        }
+        ReviewedRuntimeContract::AdministratorOrTopicCreator { right, kind } => {
+            let target = documented_chat_target(method)?;
+            let chat_kind = documented_chat_kind(&target, kind)?;
+            vec![
+                vec![
+                    chat_kind.clone(),
+                    RuntimeRequirement::ChatAdministratorRight {
+                        target: target.clone(),
+                        right,
+                    },
+                ],
+                vec![
+                    chat_kind,
+                    RuntimeRequirement::TopicCreator {
+                        target,
+                        topic: documented_forum_topic_argument(method)?,
+                    },
+                ],
+            ]
+        }
+        ReviewedRuntimeContract::ConditionalUnpin => {
+            let target = documented_chat_target(method)?;
+            vec![
+                vec![documented_chat_kind(&target, ResolvedChatKind::Private)?],
+                vec![documented_chat_kind(&target, ResolvedChatKind::Secret)?],
+                vec![
+                    documented_chat_kind(&target, ResolvedChatKind::BasicGroup)?,
+                    RuntimeRequirement::ChatMemberRight {
+                        target: target.clone(),
+                        right: ChatMemberRight::CanPinMessages,
+                    },
+                ],
+                vec![
+                    documented_chat_kind(&target, ResolvedChatKind::Supergroup)?,
+                    RuntimeRequirement::ChatMemberRight {
+                        target: target.clone(),
+                        right: ChatMemberRight::CanPinMessages,
+                    },
+                ],
+                vec![
+                    documented_chat_kind(&target, ResolvedChatKind::Channel)?,
+                    RuntimeRequirement::ChatAdministratorRight {
+                        target,
+                        right: ChatAdministratorRight::CanEditMessages,
+                    },
+                ],
             ]
         }
         ReviewedRuntimeContract::BusinessConnectionEnabledAndRight(right) => {
@@ -1033,15 +1108,21 @@ fn documented_runtime_requirements(
 
 #[derive(Clone, Copy)]
 enum ReviewedRuntimeContract {
-    Administrator,
-    AdministratorRight(ChatAdministratorRight),
-    MemberRight(ChatMemberRight),
-    Owner,
-    AdministratorOrMember {
-        administrator: ChatAdministratorRight,
-        member: ChatMemberRight,
+    AdministratorInKinds(&'static [ResolvedChatKind]),
+    AdministratorRightInKinds {
+        right: ChatAdministratorRight,
+        kinds: &'static [ResolvedChatKind],
     },
-    AdministratorOrTopicCreator(ChatAdministratorRight),
+    MemberRightInKinds {
+        right: ChatMemberRight,
+        kinds: &'static [ResolvedChatKind],
+    },
+    OwnerInKind(ResolvedChatKind),
+    AdministratorOrTopicCreator {
+        right: ChatAdministratorRight,
+        kind: ResolvedChatKind,
+    },
+    ConditionalUnpin,
     BusinessConnectionEnabledAndRight(BusinessBotRight),
 }
 
@@ -1052,40 +1133,49 @@ fn reviewed_runtime_contract(method: &str, description: &str) -> Option<Reviewed
         (
             "deleteChatMessagesBySender",
             "deletes all messages sent by the specified message sender in a chat. supported only for supergroups; requires can_delete_messages administrator right",
-        ) => Some(Contract::AdministratorRight(
-            ChatAdministratorRight::CanDeleteMessages,
-        )),
+        ) => Some(Contract::AdministratorRightInKinds {
+            right: ChatAdministratorRight::CanDeleteMessages,
+            kinds: &[ResolvedChatKind::Supergroup],
+        }),
         (
             "addChatMember",
             "adds a new member to a chat; requires can_invite_users member right. members can't be added to private or secret chats. returns information about members that weren't added",
-        ) => Some(Contract::MemberRight(ChatMemberRight::CanInviteUsers)),
+        ) => Some(Contract::MemberRightInKinds {
+            right: ChatMemberRight::CanInviteUsers,
+            kinds: &[
+                ResolvedChatKind::BasicGroup,
+                ResolvedChatKind::Supergroup,
+                ResolvedChatKind::Channel,
+            ],
+        }),
         (
             "upgradeBasicGroupChatToSupergroupChat",
             "creates a new supergroup from an existing basic group and sends a corresponding messagechatupgradeto and messagechatupgradefrom; requires owner privileges. deactivates the original basic group",
-        ) => Some(Contract::Owner),
+        ) => Some(Contract::OwnerInKind(ResolvedChatKind::BasicGroup)),
         (
             "setSupergroupStickerSet",
             "changes the sticker set of a supergroup; requires can_change_info administrator right",
-        ) => Some(Contract::AdministratorRight(
-            ChatAdministratorRight::CanChangeInfo,
-        )),
+        ) => Some(Contract::AdministratorRightInKinds {
+            right: ChatAdministratorRight::CanChangeInfo,
+            kinds: &[ResolvedChatKind::Supergroup],
+        }),
         (
             "requireSyntheticSupergroupAdministrator",
             "requires synthetic administrator evidence in a supergroup",
-        ) => Some(Contract::Administrator),
+        ) => Some(Contract::AdministratorInKinds(&[
+            ResolvedChatKind::Supergroup,
+        ])),
         (
             "toggleForumTopicIsClosed",
             "toggles whether a topic is closed in a forum supergroup chat; requires can_manage_topics administrator right in the supergroup unless the user is creator of the topic",
-        ) => Some(Contract::AdministratorOrTopicCreator(
-            ChatAdministratorRight::CanManageTopics,
-        )),
+        ) => Some(Contract::AdministratorOrTopicCreator {
+            right: ChatAdministratorRight::CanManageTopics,
+            kind: ResolvedChatKind::Supergroup,
+        }),
         (
             "unpinChatMessage",
-            "removes a pinned message from a synthetic chat; requires can_pin_messages member right or can_edit_messages administrator right",
-        ) => Some(Contract::AdministratorOrMember {
-            administrator: ChatAdministratorRight::CanEditMessages,
-            member: ChatMemberRight::CanPinMessages,
-        }),
+            "removes a pinned message from a chat; requires can_pin_messages member right if the chat is a basic group or supergroup, or can_edit_messages administrator right if the chat is a channel",
+        ) => Some(Contract::ConditionalUnpin),
         (
             "sendBusinessMessage",
             "sends on behalf of a business account; for bots only; requires an enabled business connection with can_reply right",
@@ -1094,6 +1184,32 @@ fn reviewed_runtime_contract(method: &str, description: &str) -> Option<Reviewed
         )),
         _ => None,
     }
+}
+
+fn documented_chat_kind(
+    target: &ChatTargetRef,
+    kind: ResolvedChatKind,
+) -> Result<RuntimeRequirement, CapabilityGenerationError> {
+    ChatKindCondition::try_new(target.clone(), kind)
+        .map(RuntimeRequirement::ChatKind)
+        .map_err(|error| {
+            CapabilityGenerationError::new(
+                CapabilityGenerationErrorKind::SchemaDrift,
+                format!("documented chat-kind gate isn't canonical: {error}"),
+            )
+        })
+}
+
+fn chat_kind_clauses(
+    target: &ChatTargetRef,
+    kinds: &[ResolvedChatKind],
+    trailing: impl Fn(&ChatTargetRef) -> RuntimeRequirement,
+) -> Result<Vec<Vec<RuntimeRequirement>>, CapabilityGenerationError> {
+    kinds
+        .iter()
+        .copied()
+        .map(|kind| Ok(vec![documented_chat_kind(target, kind)?, trailing(target)]))
+        .collect()
 }
 
 fn exact_runtime_alternatives(
@@ -1566,6 +1682,10 @@ struct RequirementClauseDto {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum RuntimeRequirementDto {
+    ChatKind {
+        target_argument: String,
+        value: String,
+    },
     ChatAdministrator {
         target_argument: String,
     },
@@ -1792,6 +1912,10 @@ struct CanonicalClause {
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum CanonicalRuntimeRequirement {
+    ChatKind {
+        target: CanonicalChatTarget,
+        value: &'static str,
+    },
     ChatAdministrator {
         target: CanonicalChatTarget,
     },
@@ -1822,6 +1946,10 @@ enum CanonicalRuntimeRequirement {
 impl CanonicalRuntimeRequirement {
     fn from_domain(value: &RuntimeRequirement) -> Self {
         match value {
+            RuntimeRequirement::ChatKind(condition) => Self::ChatKind {
+                target: CanonicalChatTarget::from_domain(condition.target()),
+                value: condition.kind().as_str(),
+            },
             RuntimeRequirement::ChatAdministrator { target } => Self::ChatAdministrator {
                 target: CanonicalChatTarget::from_domain(target),
             },

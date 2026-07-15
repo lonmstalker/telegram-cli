@@ -111,6 +111,20 @@ string_enum!(
 );
 
 string_enum!(
+    /// Разрешённый runtime `ChatType` для конкретного chat target.
+    ResolvedChatKind,
+    5,
+    "resolved chat kind",
+    {
+        Private => "private",
+        BasicGroup => "basic_group",
+        Supergroup => "supergroup",
+        Channel => "channel",
+        Secret => "secret",
+    }
+);
+
+string_enum!(
     /// Exact pinned TDLib authorization-state inventory.
     ///
     /// `WaitTdlibParameters` также представляет созданный client до вызова
@@ -302,6 +316,44 @@ impl TryFrom<&String> for ChatTargetRef {
     }
 }
 
+/// Условие на resolved chat kind с сохранением identifier space target.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ChatKindCondition {
+    target: ChatTargetRef,
+    kind: ResolvedChatKind,
+}
+
+impl ChatKindCondition {
+    pub fn try_new(
+        target: ChatTargetRef,
+        kind: ResolvedChatKind,
+    ) -> Result<Self, CapabilityModelError> {
+        if target.kind() == ChatTargetKind::SupergroupId
+            && !matches!(
+                kind,
+                ResolvedChatKind::Supergroup | ResolvedChatKind::Channel
+            )
+        {
+            return Err(CapabilityModelError::new(
+                CapabilityModelErrorKind::IncompatibleChatKindTarget,
+                format!(
+                    "supergroup_id can resolve only to supergroup or channel, not {}",
+                    kind.as_str()
+                ),
+            ));
+        }
+        Ok(Self { target, kind })
+    }
+
+    pub fn target(&self) -> &ChatTargetRef {
+        &self.target
+    }
+
+    pub fn kind(&self) -> ResolvedChatKind {
+        self.kind
+    }
+}
+
 /// Exact `forum_topic_id` argument role.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ForumTopicRef(ArgumentRef);
@@ -457,6 +509,7 @@ impl SynchronousStringValues {
 /// Runtime evidence, которое capability evaluator обязан получить отдельно.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum RuntimeRequirement {
+    ChatKind(ChatKindCondition),
     ChatAdministrator {
         target: ChatTargetRef,
     },
@@ -487,6 +540,7 @@ pub enum RuntimeRequirement {
 impl RuntimeRequirement {
     pub fn argument_refs(&self) -> Vec<&ArgumentRef> {
         match self {
+            Self::ChatKind(condition) => vec![condition.target().argument()],
             Self::ChatAdministrator { target }
             | Self::ChatAdministratorRight { target, .. }
             | Self::ChatMemberRight { target, .. }
@@ -559,6 +613,23 @@ impl RequirementAlternatives {
                 ));
             }
             canonicalize_unique(clause, "runtime requirement")?;
+            if clause.iter().enumerate().any(|(left_index, left)| {
+                let RuntimeRequirement::ChatKind(left) = left else {
+                    return false;
+                };
+                clause.iter().skip(left_index + 1).any(|right| {
+                    matches!(
+                        right,
+                        RuntimeRequirement::ChatKind(right)
+                            if left.target() == right.target() && left.kind() != right.kind()
+                    )
+                })
+            }) {
+                return Err(CapabilityModelError::new(
+                    CapabilityModelErrorKind::ContradictoryClause,
+                    "runtime requirement clause assigns multiple chat kinds to one target",
+                ));
+            }
         }
         canonicalize_unique(&mut clauses, "runtime requirement clause")?;
         if clauses.iter().enumerate().any(|(left_index, left)| {
@@ -899,6 +970,7 @@ pub enum CapabilityModelErrorKind {
     DuplicateValue,
     InvalidIdentifier,
     InvalidSemanticArgument,
+    IncompatibleChatKindTarget,
     InconsistentReadyAccounts,
     IncompatibleEntitlement,
     IncompatibleRuntimeRequirement,
@@ -906,6 +978,7 @@ pub enum CapabilityModelErrorKind {
     VacuousParameterGate,
     InvalidParameterValue,
     RedundantClause,
+    ContradictoryClause,
     IncompatibleParameterGate,
     RedundantParameterGate,
     TerminalAuthorizationState,

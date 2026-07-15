@@ -4,18 +4,21 @@ use std::fmt::Write as _;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use telegram_core::method_capability::{
-    AccountKind, ApplicationRequirement, AuthorizationState, CapabilityDescriptor, DcEnvironment,
-    RequirementAlternatives, SynchronousCapability,
+    AccountKind, ApplicationRequirement, AuthorizationState, CapabilityDescriptor,
+    ChatAdministratorRight, ChatKindCondition, ChatMemberRight, ChatTargetRef, DcEnvironment,
+    ForumTopicRef, RequirementAlternatives, ResolvedChatKind, RuntimeRequirement,
+    SynchronousCapability,
 };
 use telegram_core::schema::Schema;
 
 use super::{
     CapabilityGenerationErrorKind, MAX_CAPABILITY_POLICY_BYTES, MAX_MANIFEST_BYTES,
-    MAX_OWNER_POLICY_BYTES, MAX_SCHEMA_BYTES, documentation_sha256,
+    MAX_OWNER_POLICY_BYTES, MAX_SCHEMA_BYTES, RuntimeRequirementsDto, documentation_sha256,
     documented_runtime_requirements, field_type, generate, has_runtime_gate_signal,
-    method_documentation_text, normalized_text, serialize_pretty_with_limit, sha256_hex,
-    validate_documented_authorization_states, validate_documented_method_constraints,
-    validate_documented_parameter_notices, validate_documented_runtime_requirements,
+    method_documentation_text, normalized_text, parse_runtime_requirements,
+    serialize_pretty_with_limit, sha256_hex, validate_documented_authorization_states,
+    validate_documented_method_constraints, validate_documented_parameter_notices,
+    validate_documented_runtime_requirements,
 };
 
 type PolicyMutation = Box<dyn Fn(&mut Value)>;
@@ -40,6 +43,11 @@ authorizationStateReady = AuthorizationState;
 authorizationStateLoggingOut = AuthorizationState;
 authorizationStateClosing = AuthorizationState;
 authorizationStateClosed = AuthorizationState;
+
+chatTypePrivate user_id:int53 = ChatType;
+chatTypeBasicGroup basic_group_id:int53 = ChatType;
+chatTypeSupergroup supergroup_id:int53 is_channel:Bool = ChatType;
+chatTypeSecret secret_chat_id:int32 user_id:int53 = ChatType;
 
 chatAdministratorRights is_anonymous:Bool can_manage_chat:Bool can_change_info:Bool can_post_messages:Bool can_edit_messages:Bool can_delete_messages:Bool can_invite_users:Bool can_restrict_members:Bool can_pin_messages:Bool can_manage_topics:Bool can_promote_members:Bool can_manage_video_chats:Bool can_post_stories:Bool can_edit_stories:Bool can_delete_stories:Bool can_manage_direct_messages:Bool can_manage_tags:Bool = ChatAdministratorRights;
 chatPermissions can_send_basic_messages:Bool can_send_audios:Bool can_send_documents:Bool can_send_photos:Bool can_send_videos:Bool can_send_video_notes:Bool can_send_voice_notes:Bool can_send_polls:Bool can_send_other_messages:Bool can_add_link_previews:Bool can_react_to_messages:Bool can_edit_tag:Bool can_change_info:Bool can_invite_users:Bool can_pin_messages:Bool can_create_topics:Bool = ChatPermissions;
@@ -68,7 +76,7 @@ submitStorePayment = Ok;
 //@description Sends a request in Test DC only
 testNetworkRequest = Ok;
 
-//@description Removes a pinned message from a synthetic chat; requires can_pin_messages member right or can_edit_messages administrator right @chat_id Chat identifier @message_id Message identifier @reason Diagnostic fixture
+//@description Removes a pinned message from a chat; requires can_pin_messages member right if the chat is a basic group or supergroup, or can_edit_messages administrator right if the chat is a channel @chat_id Chat identifier @message_id Message identifier @reason Diagnostic fixture
 unpinChatMessage chat_id:int53 message_id:int53 reason:string = Ok;
 
 //@description Toggles whether a topic is closed in a forum supergroup chat; requires can_manage_topics administrator right in the supergroup unless the user is creator of the topic @chat_id Chat identifier @forum_topic_id Forum topic identifier @other_topic_id Unrelated same-type identifier @is_closed New closed state
@@ -120,6 +128,7 @@ fn canonical_generation_is_pure_and_independent_of_policy_order() {
     assert_eq!(first, second);
     assert_eq!(first.last(), Some(&b'\n'));
     let artifact: Value = serde_json::from_slice(&first).expect("artifact JSON");
+    assert_eq!(artifact["format_version"], super::FORMAT_VERSION);
     assert_eq!(artifact["counts"]["schema_methods"], 16);
     assert_eq!(artifact["counts"]["capability_methods"], 16);
     let methods = artifact["methods"].as_array().expect("method rows");
@@ -133,6 +142,17 @@ fn canonical_generation_is_pure_and_independent_of_policy_order() {
     assert_eq!(configure["parameter_notices"].as_array().unwrap().len(), 7);
     let unpin = method_row(&artifact, "unpinChatMessage");
     assert_eq!(unpin["runtime_requirements"]["kind"], "any_of");
+    let unpin_clauses = unpin["runtime_requirements"]["clauses"]
+        .as_array()
+        .expect("unpin clauses");
+    assert_eq!(unpin_clauses.len(), 5);
+    assert_eq!(
+        unpin_clauses
+            .iter()
+            .map(|clause| clause["all_of"][0]["value"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["private", "basic_group", "supergroup", "channel", "secret"]
+    );
     assert_eq!(
         method_row(&artifact, "setSupergroupStickerSet")["runtime_requirements"]["clauses"][0]["all_of"]
             [0]["target"]["kind"],
@@ -176,6 +196,28 @@ fn requires_exact_schema_derived_right_vocabularies_at_generation_time() {
         let fixture = Fixture::new(&schema);
         assert_eq!(
             fixture.generate().expect_err("rights drift").kind(),
+            CapabilityGenerationErrorKind::SchemaDrift
+        );
+    }
+}
+
+#[test]
+fn requires_the_exact_pinned_chat_type_vocabulary() {
+    for schema in [
+        SCHEMA.replace("is_channel:Bool", "is_channel:int32"),
+        SCHEMA.replace("chatTypeSecret secret_chat_id:int32 user_id:int53 = ChatType;\n", ""),
+        SCHEMA.replace(
+            "chatTypeSecret secret_chat_id:int32 user_id:int53 = ChatType;",
+            "chatTypeSecret secret_chat_id:int32 user_id:int53 = ChatType;\nchatTypeUnknown = ChatType;",
+        ),
+        SCHEMA.replace(
+            "chatTypeSecret secret_chat_id:int32 user_id:int53 = ChatType;",
+            "chatTypeSecret user_id:int53 secret_chat_id:int32 = ChatType;",
+        ),
+    ] {
+        let fixture = Fixture::new(&schema);
+        assert_eq!(
+            fixture.generate().expect_err("ChatType drift").kind(),
             CapabilityGenerationErrorKind::SchemaDrift
         );
     }
@@ -384,8 +426,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            5,
-            "fe9034c9b7022707b3b29090ea6891209130cfb1b3acf69642bfbab652ee286d".to_owned()
+            6,
+            "ea3222e73264dc7188935067c81fdb459ef3566a5081a65e6660b47f48e899a9".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -394,13 +436,147 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        188,
+        187,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "c9e5131cd86d5ebe7eb697f409953d4090c58a4c21ba9e442075701c6d950a34",
+        "beea6c14d42a85c8ec6bd3fe322b3d05fa7e3b7f916d134877bea54746e13c03",
         "reviewed runtime-disposition boundary hash drift"
+    );
+}
+
+#[test]
+fn parses_schema_bound_chat_kind_atoms() {
+    let schema = Schema::parse(SCHEMA).expect("fixture schema");
+    let dto: RuntimeRequirementsDto = serde_json::from_value(json!({
+        "kind": "any_of",
+        "clauses": [{"all_of": [{
+            "kind": "chat_kind",
+            "target_argument": "chat_id",
+            "value": "channel"
+        }]}]
+    }))
+    .expect("closed chat-kind DTO");
+    let requirements = parse_runtime_requirements(dto, find_method(&schema, "unpinChatMessage"))
+        .expect("schema-bound chat-kind atom");
+    assert!(matches!(
+        requirements.clauses(),
+        [clause]
+            if matches!(
+                clause.as_slice(),
+                [RuntimeRequirement::ChatKind(condition)]
+                    if condition.kind() == ResolvedChatKind::Channel
+                        && condition.target().argument().as_str() == "chat_id"
+            )
+    ));
+}
+
+#[test]
+fn pinned_conditional_chat_kind_contracts_are_exact() {
+    let schema =
+        Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
+    let chat_target = ChatTargetRef::try_from("chat_id").expect("chat target");
+    let supergroup_target = ChatTargetRef::try_from("supergroup_id").expect("supergroup target");
+    let kind = |target: &ChatTargetRef, value| {
+        RuntimeRequirement::ChatKind(
+            ChatKindCondition::try_new(target.clone(), value).expect("chat kind"),
+        )
+    };
+    let member = |target: &ChatTargetRef, right| RuntimeRequirement::ChatMemberRight {
+        target: target.clone(),
+        right,
+    };
+    let administrator =
+        |target: &ChatTargetRef, right| RuntimeRequirement::ChatAdministratorRight {
+            target: target.clone(),
+            right,
+        };
+    let assert_contract = |method: &str, clauses| {
+        let expected = RequirementAlternatives::try_new(clauses).expect("exact contract");
+        assert_eq!(
+            documented_runtime_requirements(find_method(&schema, method))
+                .expect("reviewed pinned documentation")
+                .expect("runtime contract"),
+            expected,
+            "{method}"
+        );
+    };
+
+    assert_contract(
+        "deleteChatMessagesBySender",
+        vec![vec![
+            kind(&chat_target, ResolvedChatKind::Supergroup),
+            administrator(&chat_target, ChatAdministratorRight::CanDeleteMessages),
+        ]],
+    );
+    assert_contract(
+        "addChatMember",
+        [
+            ResolvedChatKind::BasicGroup,
+            ResolvedChatKind::Supergroup,
+            ResolvedChatKind::Channel,
+        ]
+        .into_iter()
+        .map(|value| {
+            vec![
+                kind(&chat_target, value),
+                member(&chat_target, ChatMemberRight::CanInviteUsers),
+            ]
+        })
+        .collect(),
+    );
+    assert_contract(
+        "upgradeBasicGroupChatToSupergroupChat",
+        vec![vec![
+            kind(&chat_target, ResolvedChatKind::BasicGroup),
+            RuntimeRequirement::ChatOwner {
+                target: chat_target.clone(),
+            },
+        ]],
+    );
+    assert_contract(
+        "setSupergroupStickerSet",
+        vec![vec![
+            kind(&supergroup_target, ResolvedChatKind::Supergroup),
+            administrator(&supergroup_target, ChatAdministratorRight::CanChangeInfo),
+        ]],
+    );
+    let topic = ForumTopicRef::try_from("forum_topic_id").expect("topic target");
+    assert_contract(
+        "toggleForumTopicIsClosed",
+        vec![
+            vec![
+                kind(&chat_target, ResolvedChatKind::Supergroup),
+                administrator(&chat_target, ChatAdministratorRight::CanManageTopics),
+            ],
+            vec![
+                kind(&chat_target, ResolvedChatKind::Supergroup),
+                RuntimeRequirement::TopicCreator {
+                    target: chat_target.clone(),
+                    topic,
+                },
+            ],
+        ],
+    );
+    assert_contract(
+        "unpinChatMessage",
+        vec![
+            vec![kind(&chat_target, ResolvedChatKind::Private)],
+            vec![kind(&chat_target, ResolvedChatKind::Secret)],
+            vec![
+                kind(&chat_target, ResolvedChatKind::BasicGroup),
+                member(&chat_target, ChatMemberRight::CanPinMessages),
+            ],
+            vec![
+                kind(&chat_target, ResolvedChatKind::Supergroup),
+                member(&chat_target, ChatMemberRight::CanPinMessages),
+            ],
+            vec![
+                kind(&chat_target, ResolvedChatKind::Channel),
+                administrator(&chat_target, ChatAdministratorRight::CanEditMessages),
+            ],
+        ],
     );
 }
 
@@ -425,6 +601,18 @@ fn requires_an_exact_capability_partition() {
     let mut unknown = baseline;
     unknown["methods"][0]["method"] = json!("unknownMethod");
     assert_policy_error(&fixture, unknown, CapabilityGenerationErrorKind::Coverage);
+}
+
+#[test]
+fn rejects_the_previous_capability_policy_format() {
+    let fixture = Fixture::new(SCHEMA);
+    let mut policy = fixture.capability_value();
+    policy["format_version"] = json!(super::FORMAT_VERSION - 1);
+    assert_policy_error(
+        &fixture,
+        policy,
+        CapabilityGenerationErrorKind::InvalidPolicy,
+    );
 }
 
 #[test]
@@ -558,6 +746,19 @@ fn validates_runtime_alternatives_rights_and_argument_types() {
             }]}]}),
         ),
         (
+            "unknown chat kind",
+            json!({"kind": "any_of", "clauses": [{"all_of": [{
+                "kind": "chat_kind", "target_argument": "chat_id", "value": "group"
+            }]}]}),
+        ),
+        (
+            "contradictory chat kinds",
+            json!({"kind": "any_of", "clauses": [{"all_of": [
+                {"kind": "chat_kind", "target_argument": "chat_id", "value": "private"},
+                {"kind": "chat_kind", "target_argument": "chat_id", "value": "channel"}
+            ]}]}),
+        ),
+        (
             "missing argument",
             json!({"kind": "any_of", "clauses": [{"all_of": [{
                 "kind": "chat_owner", "target_argument": "missing_id"
@@ -586,6 +787,21 @@ fn validates_runtime_alternatives_rights_and_argument_types() {
             "{name}"
         );
     }
+
+    let mut incompatible_kind_target = fixture.capability_value();
+    method_row_mut(&mut incompatible_kind_target, "setSupergroupStickerSet")["runtime_requirements"] = json!({
+        "kind": "any_of",
+        "clauses": [{"all_of": [{
+            "kind": "chat_kind",
+            "target_argument": "supergroup_id",
+            "value": "private"
+        }]}]
+    });
+    assert_policy_error(
+        &fixture,
+        incompatible_kind_target,
+        CapabilityGenerationErrorKind::InvalidPolicy,
+    );
 
     let mut wrong_business_role = fixture.capability_value();
     method_row_mut(&mut wrong_business_role, "sendBusinessMessage")["runtime_requirements"] = json!({"kind": "any_of", "clauses": [{"all_of": [{
@@ -1060,6 +1276,7 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
         "toggleForumTopicIsClosed",
         "upgradeBasicGroupChatToSupergroupChat",
         "setSupergroupStickerSet",
+        "unpinChatMessage",
     ] {
         let error =
             validate_documented_runtime_requirements(find_method(&schema, method), &unrestricted)
@@ -1068,7 +1285,6 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
     }
 
     for method in [
-        "unpinChatMessage",
         "createForumTopic",
         "editForumTopic",
         "deleteForumTopic",
@@ -1257,7 +1473,7 @@ impl Fixture {
             .map(|method| capability_row(method, owner_by_method[method.name()]))
             .collect::<Vec<_>>();
         let capability_policy = serde_json::to_vec(&json!({
-            "format_version": 1,
+            "format_version": super::FORMAT_VERSION,
             "schema_sha256": sha256_hex(&schema_bytes),
             "owner_mapping_sha256": owner["mapping_sha256"],
             "methods": methods
@@ -1338,16 +1554,20 @@ fn capability_row(method: &telegram_core::schema::Definition, feature_id: &str) 
             row["runtime_requirements"] = json!({
                 "kind": "any_of",
                 "clauses": [
-                    {"all_of": [{
-                        "kind": "chat_member_right",
-                        "target_argument": "chat_id",
-                        "right": "can_pin_messages"
-                    }]},
-                    {"all_of": [{
-                        "kind": "chat_administrator_right",
-                        "target_argument": "chat_id",
-                        "right": "can_edit_messages"
-                    }]}
+                    {"all_of": [chat_kind("chat_id", "private")]},
+                    {"all_of": [chat_kind("chat_id", "secret")]},
+                    {"all_of": [
+                        chat_kind("chat_id", "basic_group"),
+                        chat_member_right("chat_id", "can_pin_messages")
+                    ]},
+                    {"all_of": [
+                        chat_kind("chat_id", "supergroup"),
+                        chat_member_right("chat_id", "can_pin_messages")
+                    ]},
+                    {"all_of": [
+                        chat_kind("chat_id", "channel"),
+                        chat_administrator_right("chat_id", "can_edit_messages")
+                    ]}
                 ]
             });
         }
@@ -1355,46 +1575,53 @@ fn capability_row(method: &telegram_core::schema::Definition, feature_id: &str) 
             row["runtime_requirements"] = json!({
                 "kind": "any_of",
                 "clauses": [
-                    {"all_of": [{
-                        "kind": "chat_administrator_right",
-                        "target_argument": "chat_id",
-                        "right": "can_manage_topics"
-                    }]},
-                    {"all_of": [{
-                        "kind": "topic_creator",
-                        "target_argument": "chat_id",
-                        "topic_argument": "forum_topic_id"
-                    }]}
+                    {"all_of": [
+                        chat_kind("chat_id", "supergroup"),
+                        chat_administrator_right("chat_id", "can_manage_topics")
+                    ]},
+                    {"all_of": [
+                        chat_kind("chat_id", "supergroup"),
+                        {
+                            "kind": "topic_creator",
+                            "target_argument": "chat_id",
+                            "topic_argument": "forum_topic_id"
+                        }
+                    ]}
                 ]
             });
         }
         "setSupergroupStickerSet" => {
             row["runtime_requirements"] = json!({
                 "kind": "any_of",
-                "clauses": [{"all_of": [{
-                    "kind": "chat_administrator_right",
-                    "target_argument": "supergroup_id",
-                    "right": "can_change_info"
-                }]}]
+                "clauses": [{"all_of": [
+                    chat_kind("supergroup_id", "supergroup"),
+                    chat_administrator_right("supergroup_id", "can_change_info")
+                ]}]
             });
         }
         "requireSyntheticSupergroupAdministrator" => {
             row["runtime_requirements"] = json!({
                 "kind": "any_of",
-                "clauses": [{"all_of": [{
-                    "kind": "chat_administrator",
-                    "target_argument": "supergroup_id"
-                }]}]
+                "clauses": [{"all_of": [
+                    chat_kind("supergroup_id", "supergroup"),
+                    {
+                        "kind": "chat_administrator",
+                        "target_argument": "supergroup_id"
+                    }
+                ]}]
             });
         }
         "upgradeBasicGroupChatToSupergroupChat" => {
             row["ready_accounts"] = json!(["regular_user"]);
             row["runtime_requirements"] = json!({
                 "kind": "any_of",
-                "clauses": [{"all_of": [{
-                    "kind": "chat_owner",
-                    "target_argument": "chat_id"
-                }]}]
+                "clauses": [{"all_of": [
+                    chat_kind("chat_id", "basic_group"),
+                    {
+                        "kind": "chat_owner",
+                        "target_argument": "chat_id"
+                    }
+                ]}]
             });
         }
         "sendBusinessMessage" => {
@@ -1463,6 +1690,30 @@ fn post_initialization_authorization_states() -> Vec<&'static str> {
 
 fn notice(parameter: &str, kind: &str, value: &str) -> Value {
     json!({"parameter": parameter, "gate": {"kind": kind, "value": value}})
+}
+
+fn chat_kind(target_argument: &str, value: &str) -> Value {
+    json!({
+        "kind": "chat_kind",
+        "target_argument": target_argument,
+        "value": value
+    })
+}
+
+fn chat_administrator_right(target_argument: &str, right: &str) -> Value {
+    json!({
+        "kind": "chat_administrator_right",
+        "target_argument": target_argument,
+        "right": right
+    })
+}
+
+fn chat_member_right(target_argument: &str, right: &str) -> Value {
+    json!({
+        "kind": "chat_member_right",
+        "target_argument": target_argument,
+        "right": right
+    })
 }
 
 fn owner_policy(schema: &Schema, schema_bytes: &[u8]) -> Vec<u8> {

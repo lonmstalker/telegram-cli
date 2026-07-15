@@ -5,10 +5,11 @@ use crate::schema::{DefinitionKind, Parameter, Schema};
 use super::{
     AccountKind, ApplicationRequirement, ArgumentRef, AuthorizationState, BusinessBotRight,
     BusinessConnectionRef, CapabilityDescriptor, CapabilityModelErrorKind, ChatAdministratorRight,
-    ChatMemberRight, ChatTargetRef, CurrentAccountEntitlement, DcEnvironment, ForumTopicRef,
-    MAX_ATOMS_PER_METHOD, MAX_CLAUSES_PER_METHOD, MAX_PARAMETER_NOTICES_PER_METHOD,
+    ChatKindCondition, ChatMemberRight, ChatTargetRef, CurrentAccountEntitlement, DcEnvironment,
+    ForumTopicRef, MAX_ATOMS_PER_METHOD, MAX_CLAUSES_PER_METHOD, MAX_PARAMETER_NOTICES_PER_METHOD,
     MAX_SYNCHRONOUS_VALUES_PER_METHOD, ParameterCapabilityNotice, ParameterGate,
-    ParameterStringValue, RequirementAlternatives, RuntimeRequirement, SynchronousCapability,
+    ParameterStringValue, RequirementAlternatives, ResolvedChatKind, RuntimeRequirement,
+    SynchronousCapability,
 };
 
 #[test]
@@ -340,6 +341,42 @@ fn runtime_alternatives_and_parameter_notices_are_bounded_and_unambiguous() {
         .expect_err("the whole method is already Test-only")
         .kind(),
         CapabilityModelErrorKind::RedundantParameterGate
+    );
+}
+
+#[test]
+fn chat_kind_conditions_are_closed_semantic_and_non_contradictory() {
+    assert_eq!(ResolvedChatKind::ALL.len(), 5);
+    for kind in ResolvedChatKind::ALL {
+        assert_eq!(ResolvedChatKind::try_from(kind.as_str()), Ok(kind));
+    }
+    assert!(ResolvedChatKind::try_from("group").is_err());
+
+    let chat = ChatTargetRef::try_from("chat_id").expect("chat target");
+    let private = ChatKindCondition::try_new(chat.clone(), ResolvedChatKind::Private)
+        .expect("chat_id can resolve to a private chat");
+    assert_eq!(private.target(), &chat);
+    assert_eq!(private.kind(), ResolvedChatKind::Private);
+
+    let supergroup = ChatTargetRef::try_from("supergroup_id").expect("supergroup target");
+    assert!(ChatKindCondition::try_new(supergroup.clone(), ResolvedChatKind::Supergroup).is_ok());
+    assert!(ChatKindCondition::try_new(supergroup.clone(), ResolvedChatKind::Channel).is_ok());
+    assert_eq!(
+        ChatKindCondition::try_new(supergroup, ResolvedChatKind::Private)
+            .expect_err("supergroup_id can't address a private chat")
+            .kind(),
+        CapabilityModelErrorKind::IncompatibleChatKindTarget
+    );
+
+    let private_atom = RuntimeRequirement::ChatKind(private);
+    let channel_atom = RuntimeRequirement::ChatKind(
+        ChatKindCondition::try_new(chat, ResolvedChatKind::Channel).expect("chat condition"),
+    );
+    assert_eq!(
+        RequirementAlternatives::try_new(vec![vec![private_atom, channel_atom]])
+            .expect_err("one target can't resolve to two chat kinds in one AND clause")
+            .kind(),
+        CapabilityModelErrorKind::ContradictoryClause
     );
 }
 

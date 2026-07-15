@@ -76,7 +76,7 @@ flowchart LR
 
 | Phase | Результат | Status |
 |---|---|---|
-| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-012 |
+| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-014 |
 | P1 | Core transport, authorization и ordered updates | pending |
 | P2 | Singleton daemon и shared session lifecycle | pending |
 | P3 | Полный generated raw API | pending |
@@ -111,7 +111,8 @@ flowchart LR
 - [ ] Зафиксировать capability matrix: regular user, bot, Business/Premium, admin-gated, official-only.
   - [x] Closed bounded domain model и pure fail-closed generator для schema-bound capability policy.
   - [x] Exact real-schema capability-signal baseline и all-tag authorization evidence.
-  - [ ] Closed typed dispositions для 188 распознанных, но ещё unsupported runtime-signal methods.
+  - [x] Closed `ChatKind` predicate и exact conditional DNF для первой reviewed source family.
+  - [ ] Closed typed dispositions для 187 распознанных, но ещё unsupported runtime-signal methods.
   - [ ] Reviewed canonical capability policy/artifact для всех 1010 methods.
 - [ ] Определить supported targets: macOS arm64 и Linux x86_64 минимум.
 - [ ] Перенести только доказанно reusable части `tg-analytics`; не переносить NATS/Postgres/analytics orchestration.
@@ -135,6 +136,7 @@ flowchart LR
 - `W-20260715-011`: exact schema-bound owner policy из 17 rules, 252 atoms и 372 reviewed overlap overrides генерирует canonical owner-only artifact для 1010/1010 methods. Semantic audit исправил broad-name ошибки на границах group-call/messages, auth/platform, giveaway/payment, TON/withdrawal/revenue, rich text, auto-delete и network state/statistics. Corpus gate сверяет exact method set, schema signatures/source lines, 22 per-feature count/hash oracles, независимый method-owner digest и adversarial owners; real temp-root test доказывает byte-identical `check`/`generate`, read-only drift detection, fail-closed policy evidence и cleanup единственного temp. 19 generator и 14 core tests, Clippy, fmt, workspace gates и independent final review green. Решение: `D-20260715-008`. Capability/risk/retry, constructor/update/auth-state registry/codec/router parity и runtime остаются незавершёнными.
 - `W-20260715-012`: P0.5a закрепляет closed static capability model и pure schema/owner-bound generator foundation без runtime claims. Exact auth/account/Premium/Business/application/DC axes, additive synchronous path, typed bounded DNF runtime evidence и parameter-value notices fail closed сверяются с signature/documentation hashes и exact reviewed wording; распознанные capability/runtime gate signals вне exact reviewed corpus дают schema drift, а лишнее сужение policy отклоняется. Public core constructors наследуют caps: 16 clauses, 32 atoms, 32 notices и 16 sync values; business evidence совместимо только с bot alternatives, owner evidence — с regular-user alternatives. С `CARGO_BUILD_JOBS=2 RUST_TEST_THREADS=2` green: 34 generator и 20 core tests, Clippy, fmt, workspace gate и два independent reviews; `target` 144 MiB, temp/background leftovers отсутствуют. Решение: `D-20260715-009`. Полный 1010-method capability policy/artifact, runtime evaluator, risk/prerequisite/retry и live acceptance остаются open.
 - `W-20260715-013`: exact corpus gate связывает 193 methods с capability-like documentation set SHA-256 `cbe074...8706` и сохраняет fail-closed open set из 188 methods с SHA-256 `c9e513...0a34`; authorization recognizer читает все structured documentation tags, учитывает `setCustomLanguagePack.@info` и закрепляет exact 73-method non-Ready set. 37 generator и 20 core tests, Clippy/fmt/workspace/wiki/diff gates green с bounded `jobs=2`; independent review — `Approved`. Решение `D-20260715-010`, open boundary `P-20260715-005`. Ни один из 188 methods не считается capability coverage до typed disposition.
+- `W-20260715-014`: closed `ResolvedChatKind`/`ChatKindCondition`, exact four-constructor `ChatType` pin и capability format `2` закрепляют conditional DNF шести real methods. `unpinChatMessage` имеет five-branch private/secret/basic-group/supergroup/channel contract; пять прежних contracts также явно сужены по kind. Signal set остаётся 193; supported set — 6, open set — 187 с SHA-256 `beea6c...3c03`. 41 generator и 21 core tests, whole workspace, Clippy/fmt/boundary/pin/diff gates green с `jobs=2`; два final reviewer verdict — `Approved`. Решение `D-20260715-011`; `P-20260715-005` остаётся open до zero-open gate.
 
 ## P1 — Core transport, authorization и ordered state
 

@@ -65,3 +65,11 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Status: open; baseline измерен, typed source families ещё не реализованы.
 - Next check: добавить exact per-signal disposition oracle и bounded `ChatKind` atom для conditional chat rights, затем closed `MessageProperties` facts; после каждого reviewed task пересчитать exact open set. Закрытие требует zero-open gate и independent semantic review.
 - Related decisions: [D-20260715-009](../decisions/decisions.md), [D-20260715-010](../decisions/decisions.md).
+
+## [2026-07-15] open update | P-20260715-005 | Exact open set уменьшен до 187 methods
+
+- Evidence: [ChatKind capability digest](../raw/2026-07-15-tdlib-chat-kind-capability.md); exact 193-method signal set не изменился, supported set вырос до 6 с SHA-256 `ea3222...99a9`, open set теперь 187 с SHA-256 `beea6c...3c03`.
+- Transition: `unpinChatMessage` получил complete typed disposition через five-branch `ChatKind` DNF и больше не входит в open set. Остальные 187 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
+- Status: open; zero-open gate не достигнут.
+- Next check: добавить exact per-signal disposition artifact и следующую closed source family (`MessageProperties`/object-field facts), не смешивая runtime capability с prerequisite/retry/lexical lanes.
+- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-011](../decisions/decisions.md).

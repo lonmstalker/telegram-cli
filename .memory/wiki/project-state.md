@@ -22,10 +22,11 @@
 - Exact owner corpus закреплён для 1010/1010 methods: 17 rules, 252 atoms, 372 reviewed overlap overrides; schema-derived signatures, 22 per-feature hashes, independent exact owner digest и adversarial semantic boundaries проверяются corpus gate. Canonical artifact остаётся owner-only; independent final review — Approved.
 - P0.5a capability foundation закрепляет closed account/auth/entitlement/application/DC vocabularies, additive synchronous path, typed bounded runtime DNF и parameter notices. Pure generator требует exact schema/owner/method/signature/documentation evidence, отклоняет распознанные unsupported capability/runtime gate signals и скрытое policy-сужение; два independent reviews — Approved.
 - P0.5b0 evidence baseline связывает current recognizer с exact 193-method signal set и 188-method fail-closed open set. Authorization validation читает все structured documentation tags; `setCustomLanguagePack.@info` больше не теряет pre-authorization contract. Open rows не считаются capability coverage.
+- P0.5b1 добавляет closed `ResolvedChatKind`/`ChatKindCondition`, exact four-constructor `ChatType` pin и conditional DNF для шести real methods. `unpinChatMessage` полностью dispositioned; exact open set уменьшен до 187 без расширения recognizer. Capability policy format — `2`; independent reviews — Approved.
 
 ## Not implemented
 
-- Linux x86_64 TDLib artifact, typed dispositions для 188 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
+- Linux x86_64 TDLib artifact, typed dispositions для 187 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
 - Stateful request-chain engine, retry/reconciliation, policy, metrics и agent skill остаются планом.
 
 ## Active boundary
@@ -38,7 +39,7 @@
 ## Evidence
 
 - [Bootstrap digest](../raw/2026-07-15-project-bootstrap.md)
-- [D-20260715-001](../decisions/decisions.md)
+- [D-20260715-001](../decisions/archive/2026-07-15--2026-07-15-001.md)
 - [D-20260715-002](../decisions/decisions.md)
 - [W-20260715-005](../logs/work.md)
 - [D-20260715-003](../decisions/decisions.md)
@@ -58,6 +59,9 @@
 - [W-20260715-011](../logs/work.md)
 - [TDLib capability generator foundation digest](../raw/2026-07-15-tdlib-capability-generator-foundation.md)
 - [TDLib capability evidence baseline](../raw/2026-07-15-tdlib-capability-evidence-baseline.md)
+- [TDLib ChatKind capability semantics](../raw/2026-07-15-tdlib-chat-kind-capability.md)
 - [D-20260715-009](../decisions/decisions.md)
 - [W-20260715-012](../logs/work.md)
 - [W-20260715-013](../logs/work.md)
+- [D-20260715-011](../decisions/decisions.md)
+- [W-20260715-014](../logs/work.md)

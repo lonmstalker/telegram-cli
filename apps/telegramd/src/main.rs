@@ -4,10 +4,14 @@ use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+pub mod lease;
 pub mod ownership;
+pub mod server;
 pub mod socket;
 
+use lease::LeaseManager;
 use ownership::ProfileDatabaseLock;
+use server::LeaseServer;
 use socket::DaemonSocket;
 
 fn main() -> ExitCode {
@@ -31,15 +35,18 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let _socket = match DaemonSocket::bind(&_ownership) {
+    let socket = match DaemonSocket::bind(&_ownership) {
         Ok(socket) => socket,
         Err(error) => {
             eprintln!("telegramd: {error}");
             return ExitCode::FAILURE;
         }
     };
-    eprintln!("telegramd: profile socket bound; service protocol ещё не реализован");
-    loop {
-        std::thread::park();
+    eprintln!("telegramd: lease service ready; TDLib runtime ещё не реализован");
+    let mut server = LeaseServer::new(LeaseManager::new());
+    if let Err(error) = server.run(socket.listener()) {
+        eprintln!("telegramd: {error}");
+        return ExitCode::FAILURE;
     }
+    ExitCode::SUCCESS
 }

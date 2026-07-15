@@ -23,10 +23,11 @@
 - P1 accepted: transport correlation, authorization, protected key, ordered/lossless state и bounded startup runtime закрывают все Acceptance-критерии фазы.
 - P2 ownership [D-20260715-043](../decisions/decisions.md): configured `telegramd` canonicalize-ит absolute DB directory и удерживает safe `0600` non-blocking OS lock; symlink aliases/второй process отклоняются, после exit lock reacquire-ится.
 - P2 socket [D-20260715-044](../decisions/decisions.md): owner-lock winner bind-ит `/tmp/telegramd-<uid>-<profile>.sock` exact mode `0600`; live/unsafe entries fail closed, current-user refused socket восстанавливается как stale.
+- P2 leases [D-20260715-045](../decisions/decisions.md): bounded JSONL socket protocol выдаёт boot-unique lease ID, хранит principal/opaque scopes и TTL, поддерживает matching-principal heartbeat/release и fail-closed expiry.
 
 ## Not implemented
 
-- Остальной P2–P10 runtime: leases, scheduler/lifecycle, generated registry, capability-таблица, workflows, policy, CLI, MCP и packaging.
+- Остальной P2–P10 runtime: fair queue, lifecycle/TDLib wiring, generated registry, capability-таблица, workflows, policy, CLI, MCP и packaging.
 
 ## Active boundary
 
@@ -35,4 +36,4 @@
 - Core key provider готов; wiring в штатный daemon всё ещё открыт как [P-20260715-001](../problems/problems.md).
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: третий Tasks-пункт P2 — lease ID, principal/scopes, TTL, heartbeat и explicit release.
+- Следующий implementation boundary: четвёртый Tasks-пункт P2 — fair per-account queue, bounded concurrent reads и serialized mutations.

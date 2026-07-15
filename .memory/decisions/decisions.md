@@ -91,3 +91,9 @@ Active append-only decision records. Изменение решения офор�
 - Socket identity строится из effective UID и validated bounded profile slug в коротком `/tmp` namespace; canonical DB lock остаётся authoritative startup election и должен быть получен раньше socket mutation.
 - Unix socket создаётся с restrictive startup umask и exact mode `0600`. Existing live listener, symlink/non-socket, foreign owner и неоднозначная probe error fail closed и не удаляются.
 - Только current-user socket с `ConnectionRefused` считается stale. Normal Drop удаляет path лишь при совпадении captured device/inode; crash оставляет inode для следующего bounded recovery.
+
+## [2026-07-15] accepted | D-20260715-045 | Lease identity живёт один daemon boot и продлевается heartbeat
+
+- Lease ID объединяет boot epoch и monotonic counter; state in-memory и намеренно не переносится между daemon restarts. Stale client ID поэтому не совпадает с новым lease.
+- Local principal пока self-asserted внутри same-user `0600` socket; heartbeat/release требуют exact principal match. Scopes остаются opaque sorted data, а не преждевременной risk taxonomy P5.
+- Client выбирает bounded TTL `1..=60000` ms; heartbeat продлевает исходный TTL, release удаляет сразу, expired entry fail-closed удаляется при lease operation. Background idle consumer принадлежит lifecycle Tasks-пункту P2.

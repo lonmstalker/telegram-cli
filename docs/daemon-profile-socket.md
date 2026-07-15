@@ -21,7 +21,7 @@ Atomicity опирается на canonical DB lock: одновременно so
 
 ## Current runtime boundary
 
-Configured daemon держит lock и listener, но пока не принимает protocol requests и честно сообщает `service protocol ещё не реализован`. Lease protocol принадлежит следующему Tasks-пункту.
+Configured daemon держит lock/listener и обслуживает [lease JSONL protocol](daemon-leases.md). TDLib calls, fair request queue и lifecycle runtime ещё не подключены.
 
 ## Verification
 

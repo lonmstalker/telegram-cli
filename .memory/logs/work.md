@@ -104,3 +104,12 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Process-level synthetic gate подтвердил mode `0600`, denial конкурентного start и replacement bind после SIGTERM/stale inode. Contract: [D-20260715-044](../decisions/decisions.md), synthesis: [`docs/daemon-profile-socket.md`](../../docs/daemon-profile-socket.md).
 - Verification перед коммитом: обязательные workspace tests, Clippy, все `scripts/check-*.py` и wiki rotation gate.
 - Следующий Tasks-пункт P2: lease ID, principal/scopes, TTL, heartbeat, explicit release.
+
+## [2026-07-15] completed | W-20260715-050 | Реализован local lease protocol
+
+- Закрыт третий Tasks-пункт P2: `telegram-protocol` получил stable lease acquire/heartbeat/release types и error codes; configured daemon теперь обслуживает один bounded JSONL request/response на connection.
+- `LeaseManager` выдаёт boot-unique IDs, валидирует principal/opaque scopes, ограничивает TTL до 60 seconds, продлевает heartbeat, проверяет principal при renew/release и удаляет expired entries fail closed.
+- Real socket test прошёл acquire -> heartbeat -> release; process-level synthetic daemon gate дополнительно подтвердил normalized scopes и `lease_expired`. TDLib и `.env.local` не использовались.
+- Principal остаётся честно self-asserted local identity; fair queue, TDLib dispatch и lifecycle timer не заявлены раньше своих следующих Tasks-пунктов. Contract: [D-20260715-045](../decisions/decisions.md), synthesis: [`docs/daemon-leases.md`](../../docs/daemon-leases.md).
+- Verification перед коммитом: обязательные workspace tests, Clippy, все `scripts/check-*.py` и wiki rotation gate.
+- Следующий Tasks-пункт P2: fair per-account queue, bounded concurrent reads, serialized mutations.

@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: purpose/users/rules; limits: none.
 - SRC002: HARNESS.md; type: file; supports: feature boundary/invariants; limits: none.
-- SRC003: plans.md, `telegramd::ownership` и `telegramd::socket`; type: file/code; supports: lifecycle architecture, canonical DB identity, exclusive OS owner lock, socket election и stale recovery; limits: protocol/leases/lifecycle runtime отсутствуют.
+- SRC003: plans.md, `telegramd::{ownership,socket,lease,server}` и `telegram-protocol`; type: file/code; supports: canonical ownership/election и lease ID/principal/scopes/TTL/heartbeat/release; limits: fair queue и lifecycle runtime отсутствуют.
 - SRC004: official TDLib `close`/`authorizationStateClosed`; type: supplied; supports: C002/I002; limits: daemon protocol is local design.
 
 ## TDLib API Coverage
@@ -62,7 +62,7 @@ Any authenticated principal may hold a scoped lease; force-stop, logout and dest
 
 ## Live Verification Boundary
 
-Account/session model принят до runtime в `D-20260715-036`. Свежий protected P1 live gate proves encrypted returning session can reach Ready, `getMe` and Closed без нового login input. P2 process gate теперь доказывает canonical DB election, private socket `0600`, denial второго owner и stale-socket recovery после process exit. Client convergence, leases, runtime wiring и idle restart остаются недоказанными.
+Account/session model принят до runtime в `D-20260715-036`. Свежий protected P1 live gate proves encrypted returning session can reach Ready, `getMe` and Closed без нового login input. P2 process gates доказывают canonical DB election, private socket `0600`, stale recovery и lease acquire/heartbeat/release/expiry. Client autostart convergence, fair queue, TDLib runtime wiring и idle restart остаются недоказанными.
 
 ## Scope
 
@@ -157,6 +157,6 @@ Account/session model принят до runtime в `D-20260715-036`. Свежи�
 
 - Kernel coverage: lifecycle/concurrency/recovery modeled.
 - Modeled: intended session semantics.
-- Partial: macOS/Linux canonical owner lock и private socket/election реализованы; client convergence, leases и lifecycle runtime отсутствуют.
+- Partial: canonical owner/socket и local lease protocol реализованы; client convergence, fair queue и lifecycle runtime отсутствуют.
 - Unknown: default timeout.
 - Not applicable: Telegram domain data operations.

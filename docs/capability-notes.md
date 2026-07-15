@@ -35,7 +35,7 @@ Canonical machine-readable source после P3 —
 - Generator создаёт descriptor для каждого pinned method. Reviewed rows получают эти
   поля, остальные — только `DefaultDeny` без угаданной классификации.
 
-## Reviewed contracts (98)
+## Reviewed contracts (100)
 
 | Method | Accounts | Runtime requirements |
 |---|---|---|
@@ -73,6 +73,8 @@ Canonical machine-readable source после P3 —
 | `getChatInviteLinkCounts` | regular_user | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatOwner { target: chat_id }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatOwner { target: chat_id }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatOwner { target: chat_id })` |
 | `getChatStatistics` | regular_user | `SupergroupFullInfoProperty { target: chat_id, property: CanGetStatistics }` |
 | `getCurrentState` | regular_user | `AuthorizationState { state: Ready }` |
+| `getForumTopic` | regular_user, bot | `ChatKnown { target: chat_id }` |
+| `getForumTopics` | regular_user, bot | `ChatKnown { target: chat_id }` |
 | `getMe` | regular_user, bot | `AuthorizationState { state: Ready }` |
 | `getMessageAuthor` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetAuthor }` |
 | `getMessageEmbeddingCode` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetEmbeddingCode }` |

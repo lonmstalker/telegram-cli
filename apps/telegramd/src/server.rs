@@ -7,9 +7,9 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde::de::DeserializeOwned;
+use serde_json::{Value, json};
 use telegram_core::authorization::{
     AuthorizationChallengeKind, AuthorizationError, AuthorizationInput, AuthorizationMachine,
     AuthorizationRequest, AuthorizationStep, ChallengeId, SensitiveString,
@@ -21,9 +21,9 @@ use telegram_core::reducer::{AppliedUpdate, CachedUpdateKind, ChatList};
 use telegram_core::registry::{AccountKind, SymbolKind};
 use telegram_core::runtime::CoreRuntime;
 use telegram_core::workflows::{
-    self, ChatSearchQuery, ChatTarget, ChatWorkflowError, DownloadQuery, HistoryQuery,
-    InputFileSource, MembersQuery, MembershipTarget, PageOptions, StickerFormat, UserTarget,
-    WebAppMode, WebAppRequest,
+    self, ChatSearchQuery, ChatTarget, ChatWorkflowError, DownloadQuery, ForumTopicsQuery,
+    HistoryQuery, InputFileSource, MembersQuery, MembershipTarget, PageOptions, StickerFormat,
+    UserTarget, WebAppMode, WebAppRequest,
 };
 use telegram_protocol::{
     CommandErrorCode, DaemonRequest, DaemonResponse, EventKind, EventRecord, LeaseErrorCode,
@@ -52,6 +52,14 @@ const WORKFLOWS: &[(&str, &str)] = &[
     (
         "inspect_chat",
         r#"{"target":{"kind":"id","chat_id":0},"open":false}"#,
+    ),
+    (
+        "forum_topics",
+        r#"{"chat_id":0,"query":"","count":100,"page_limit":100}"#,
+    ),
+    (
+        "set_forum_topic_closed",
+        r#"{"chat_id":0,"topic_id":0,"is_closed":true}"#,
     ),
     (
         "chat_history",
@@ -694,6 +702,35 @@ fn run_workflow(
             let complete = result.complete();
             output(result, complete)
         }
+        "forum_topics" => {
+            let input: ForumTopicsInput = parse(input)?;
+            let result = workflows::forum_topics(
+                runtime,
+                policy,
+                ForumTopicsQuery {
+                    chat_id: input.chat_id,
+                    query: &input.query,
+                    count: input.count,
+                    page_limit: input.page_limit,
+                },
+                deadline,
+            )?;
+            let complete = result.complete;
+            output(result, complete)
+        }
+        "set_forum_topic_closed" => {
+            let input: ForumTopicMutationInput = parse(input)?;
+            let result = workflows::set_forum_topic_closed(
+                runtime,
+                policy,
+                input.chat_id,
+                input.topic_id,
+                input.is_closed,
+                deadline,
+            )?;
+            let complete = result.complete;
+            output(result, complete)
+        }
         "chat_history" => {
             let input: HistoryInput = parse(input)?;
             let result = workflows::chat_history(
@@ -963,6 +1000,23 @@ impl From<ChatListKind> for ChatList {
 struct InspectInput {
     target: TargetInput,
     open: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ForumTopicsInput {
+    chat_id: i64,
+    query: String,
+    count: usize,
+    page_limit: i32,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ForumTopicMutationInput {
+    chat_id: i64,
+    topic_id: i32,
+    is_closed: bool,
 }
 
 #[derive(Deserialize)]
@@ -1339,12 +1393,14 @@ mod tests {
                 }),
             }
         );
-        assert!(parse::<TargetInput>(json!({
-            "kind": "id",
-            "chat_id": 7,
-            "unexpected": true,
-        }))
-        .is_err());
+        assert!(
+            parse::<TargetInput>(json!({
+                "kind": "id",
+                "chat_id": 7,
+                "unexpected": true,
+            }))
+            .is_err()
+        );
         assert_eq!(server.leases.active_count(), 0);
 
         drop(socket);
@@ -1417,6 +1473,8 @@ mod tests {
                 "ensure_membership" => parse::<MembershipInput>(input).is_ok(),
                 "load_chat_list" => parse::<ChatListInput>(input).is_ok(),
                 "inspect_chat" => parse::<InspectInput>(input).is_ok(),
+                "forum_topics" => parse::<ForumTopicsInput>(input).is_ok(),
+                "set_forum_topic_closed" => parse::<ForumTopicMutationInput>(input).is_ok(),
                 "chat_history" => parse::<HistoryInput>(input).is_ok(),
                 "search_chat_messages" => parse::<SearchInput>(input).is_ok(),
                 "supergroup_members" => parse::<MembersInput>(input).is_ok(),

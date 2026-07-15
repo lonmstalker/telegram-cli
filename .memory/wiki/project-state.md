@@ -9,7 +9,7 @@
 - Pinned schema: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`; 1010 functions, 2168 definitions, 184 updates, 13 auth states; gate `scripts/check-tdlib-pin.py`.
 - Strict schema parser в `telegram-core::schema` (12 тестов, без внешних dependencies).
 - macOS arm64 и Linux x86_64 `tdjson` с provenance в content-addressed cache; общий gate `scripts/check-tdlib-native-pin.py`, локальная проверка обоих artifacts — с `--require-local-artifact`.
-- Ручное capability-ревью: 95 reviewed и 915 default-deny методов сохранены в canonical data table и `docs/capability-notes.md`. Recognizer engine удалён ([D-20260715-035](../decisions/decisions.md)); классификация — данные с default-deny.
+- Ручное capability-ревью: 100 reviewed и 910 default-deny методов сохранены в canonical data table и `docs/capability-notes.md`. Recognizer engine удалён ([D-20260715-035](../decisions/decisions.md)); классификация — данные с default-deny.
 - Свежий protected live gate существующей зашифрованной сессии прошёл `WaitTdlibParameters -> Ready -> getMe -> close -> Closed` без нового login input; `.env.local` contract (mode `0600`, protected loader) соблюдён.
 - Canonical GitHub remote: `https://github.com/lonmstalker/telegram-cli.git` (public, принято пользователем).
 - P0 accepted: `tg-analytics@e35c54ce213aa170fb0b411eab614485424b3e60` audited from clean archive (97 tests); phase-neutral patterns перенесены, runtime contracts распределены по owner-фазам в `docs/tg-analytics-reuse.md`.
@@ -58,10 +58,11 @@
 - Восьмой Tasks-пункт и Acceptance P6 закрыты: compact skill использует JSON envelope и on-demand `workflow describe`/schema discovery; пять cold-context traces покрывают history/statistics/sticker/bot/Mini App handoff ([D-20260715-073](../decisions/decisions.md)).
 - P6 accepted: raw/workflow CLI parity, prose-free machine decisions и bounded cold-agent skill подтверждены protocol tests и eval artifact.
 - Первый подпункт P7/F007 закрыт: user resolver/profile view редактирует private fields, а `setName` завершается только по matching ordered `updateUser` ([D-20260715-074](../decisions/decisions.md)).
+- Второй подпункт P7/F008 закрыт: main/archive/folder используют один terminal-correct loader; forum topics следуют returned cursor, а close/reopen завершается только после desired-state probe ([D-20260715-075](../decisions/decisions.md)).
 
 ## Not implemented
 
-- Оставшиеся подпункты P7/F008–F022 и фазы P8–P10: domain workflows, optional MCP, packaging и live acceptance.
+- Оставшиеся подпункты P7/F009–F022 и фазы P8–P10: domain workflows, optional MCP, packaging и live acceptance.
 
 ## Active boundary
 
@@ -70,4 +71,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: P7/F008 chats/folders/topics.
+- Следующий implementation boundary: P7/F009 messages/search.

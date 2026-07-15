@@ -28,7 +28,7 @@
 - SRC001: product.md; type: file; supports: complete-result rule; limits: none.
 - SRC002: HARNESS.md; type: file; supports: update/pagination invariants; limits: none.
 - SRC003: pinned official schema/getting-started; type: supplied; supports: chat list/update semantics; limits: source alone does not prove generated registry.
-- SRC004: plans.md P4/P7; type: file; supports: chain acceptance; limits: implementation absent.
+- SRC004: plans.md P4/P7 и `telegram_core::workflows`; type: file/code; supports: list/open/topic chain acceptance; limits: live topic/admin fixture absent.
 
 ## TDLib API Coverage
 
@@ -61,9 +61,9 @@ Secret chats/user accounts, forum/admin operations and folder limits depend on a
 
 ## Live Verification Boundary
 
-P4 реализует отдельные read-only `resolve`/explicit `ensure_membership`, terminal-correct
-chat-list loader и chat inspection: public-link normalization, ordered cache wait, typed
-full-info branch и paired optional open lease. Live evidence ещё отсутствует.
+P4/P7 реализуют отдельные read-only `resolve`/explicit `ensure_membership`, terminal-correct
+main/archive/folder loader, paired chat inspection/open lease, cursor-safe forum topic list
+и desired-state close/reopen с post-timeout state probe. Live evidence ещё отсутствует.
 
 ## Scope
 
@@ -154,8 +154,8 @@ full-info branch и paired optional open lease. Live evidence ещё отсут�
 
 ## Coverage Notes
 
-- Kernel coverage: resolve/membership, list loading и inspection/open lifecycle implemented; topic lifecycle modeled.
-- Modeled: completion and side-effect boundaries.
-- Partial: exact folder/topic method mapping.
+- Kernel coverage: resolve/membership, main/archive/folder loading, inspection/open и forum-topic read/close lifecycle implemented.
+- Modeled: chat/private/secret creation, Saved/direct topics и folder CRUD остаются universal raw/default-deny paths.
+- Partial: live rights matrix и disposable forum/folder fixtures.
 - Unknown: none blocking.
 - Not applicable: message payload semantics.

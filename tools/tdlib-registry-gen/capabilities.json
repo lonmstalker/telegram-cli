@@ -326,6 +326,26 @@
       "retry": "safe_read"
     },
     {
+      "method": "getForumTopic",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "ChatKnown { target: chat_id }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getForumTopics",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "ChatKnown { target: chat_id }",
+      "retry": "safe_read"
+    },
+    {
       "method": "getMe",
       "risk": "read",
       "accounts": [

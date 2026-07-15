@@ -1163,8 +1163,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            66,
-            "38b1a2788216e889db327c13e26995db8f28f155862b6b993042689af536bb24".to_owned()
+            67,
+            "dde02998c0f1cd47b9dc30383c11b8d7e815e128a39e9ab53f0c0f772574a417".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -1180,8 +1180,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            69,
-            "75ecdb99e460dd373f11f4eafc7eb85b0d8d874d5e182c17a9f4f9dbaa3d6554".to_owned()
+            70,
+            "d859cc0a687bca878d715900e5750cc208a335e7ada8621c44e77c423b23dedf".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -1190,12 +1190,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        124,
+        123,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "ffd5fe2eed81664bc9e2d07d80582faf5a19531c553c36e92fd5096cfe759fb1",
+        "38dd369d689f9924166f54934b1e4207ddfd9fec692e3f4219b76dac4ee19fbb",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -1272,7 +1272,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "15f4aba28980b7e0b14b0a0e90636aeab7d5bdc4115a7c732b5403da07253fa2"
+        "841d9b9e16822b6e264b814401f4583e8559a06f786181bb28636c783c11f14f"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -3314,8 +3314,13 @@ fn pinned_supergroup_username_owner_contracts_are_exact() {
         .iter()
         .map(|(method, _, _)| *method)
         .collect::<std::collections::BTreeSet<_>>();
-    let deferred = [
+    let prior = [
         "getChatInviteLinkCounts",
+        "upgradeBasicGroupChatToSupergroupChat",
+    ]
+    .into_iter()
+    .collect::<std::collections::BTreeSet<_>>();
+    let deferred = [
         "getChatOwnerAfterLeaving",
         "getChatRevenueWithdrawalUrl",
         "getUpgradedGiftWithdrawalUrl",
@@ -3338,13 +3343,19 @@ fn pinned_supergroup_username_owner_contracts_are_exact() {
         sha256_hex(payload.as_bytes())
     };
     assert!(safe.is_disjoint(&deferred));
+    assert!(safe.is_disjoint(&prior));
+    assert!(prior.is_disjoint(&deferred));
     assert_eq!(
         hash_rows(safe.iter().map(ToString::to_string).collect()),
         "b093777061da4be0622087c24d81db5116ff19c06d2028d228d369adf916d185"
     );
     assert_eq!(
+        hash_rows(prior.iter().map(ToString::to_string).collect()),
+        "bef27a6821a6dcd45f7732d0ae6be331a0fcfae58c1b428cca9fc05034f41ef1"
+    );
+    assert_eq!(
         hash_rows(deferred.iter().map(ToString::to_string).collect()),
-        "f94f95c9e369c9e00b48492827522039251657a4a64ae9f33332d843449d461e"
+        "3c22771e5b5d291c0bc183dbd46072a32c0038b477f14bd0605dee511c52073f"
     );
 
     let derived = schema
@@ -3362,7 +3373,7 @@ fn pinned_supergroup_username_owner_contracts_are_exact() {
         .union(&deferred)
         .copied()
         .collect::<std::collections::BTreeSet<_>>();
-    expected_family.insert("upgradeBasicGroupChatToSupergroupChat");
+    expected_family.extend(prior);
     assert_eq!(
         expected_family, derived,
         "owner-signal partition must be exhaustive"
@@ -3654,6 +3665,134 @@ fn pinned_chat_invite_link_creation_contracts_are_exact() {
         documented_runtime_requirements(find_method(&additional_signal, "createChatInviteLink"))
             .expect_err("unconsumed invite-link argument signal must fail closed")
             .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
+fn pinned_chat_invite_link_counts_contract_is_exact() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let method = find_method(&schema, "getChatInviteLinkCounts");
+    assert_eq!(
+        method.canonical_signature(),
+        "getChatInviteLinkCounts chat_id:int53 = ChatInviteLinkCounts;"
+    );
+    assert_eq!(
+        normalized_text(&super::method_description(method)),
+        "returns the list of chat administrators with number of their invite links. requires owner privileges in the chat"
+    );
+
+    let target = ChatTargetRef::try_from("chat_id").expect("chat target");
+    let expected = RequirementAlternatives::try_new(
+        [
+            ResolvedChatKind::BasicGroup,
+            ResolvedChatKind::Supergroup,
+            ResolvedChatKind::Channel,
+        ]
+        .into_iter()
+        .map(|kind| {
+            vec![
+                RuntimeRequirement::ChatKind(
+                    ChatKindCondition::try_new(target.clone(), kind).expect("chat kind"),
+                ),
+                RuntimeRequirement::ChatOwner {
+                    target: target.clone(),
+                },
+            ]
+        })
+        .collect(),
+    )
+    .expect("invite-link-count alternatives");
+    assert_eq!(
+        documented_runtime_requirements(method)
+            .expect("reviewed invite-link-count documentation")
+            .expect("invite-link-count contract"),
+        expected
+    );
+
+    let descriptor = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        expected.clone(),
+        Vec::new(),
+    )
+    .expect("invite-link-count descriptor");
+    validate_documented_method_constraints(method, &descriptor).expect("regular-user contract");
+    validate_documented_runtime_requirements(method, &descriptor).expect("runtime contract");
+    assert_eq!(
+        documented_runtime_signal_dispositions(method).expect("invite-link-count signals"),
+        vec![(
+            RuntimeSignalKey {
+                source: RuntimeSignalSource::Description,
+                family: RuntimeSignalFamily::RequiresOwnerPrivileges,
+            },
+            RuntimeSignalDisposition::ConsumedByRuntimeRequirements,
+        )]
+    );
+
+    let bot_enabled = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser, AccountKind::Bot],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        RequirementAlternatives::always(),
+        Vec::new(),
+    )
+    .expect("structurally valid bot-enabled descriptor");
+    assert_eq!(
+        validate_documented_method_constraints(method, &bot_enabled)
+            .expect_err("invite-link counts must remain regular-user-only")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let source_drift = pinned.replacen(
+        "Returns the list of chat administrators with number of their invite links. Requires owner privileges in the chat",
+        "Returns the list of chat administrators with number of their invite links. Requires exact owner privileges in the chat",
+        1,
+    );
+    let source_drift = Schema::parse(&source_drift).expect("valid count source drift schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&source_drift, "getChatInviteLinkCounts",))
+            .expect_err("invite-link-count source drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let signature_drift = pinned.replacen(
+        "getChatInviteLinkCounts chat_id:int53 = ChatInviteLinkCounts;",
+        "getChatInviteLinkCounts chat_id:int32 = ChatInviteLinkCounts;",
+        1,
+    );
+    let signature_drift =
+        Schema::parse(&signature_drift).expect("valid count signature drift schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&signature_drift, "getChatInviteLinkCounts",))
+            .expect_err("invite-link-count signature drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let additional_signal = pinned.replacen(
+        "Requires owner privileges in the chat @chat_id Chat identifier\ngetChatInviteLinkCounts",
+        "Requires owner privileges in the chat @chat_id Chat identifier; requires administrator rights\ngetChatInviteLinkCounts",
+        1,
+    );
+    let additional_signal =
+        Schema::parse(&additional_signal).expect("valid additional count signal schema");
+    assert_eq!(
+        documented_runtime_requirements(
+            find_method(&additional_signal, "getChatInviteLinkCounts",)
+        )
+        .expect_err("unconsumed count argument signal must fail closed")
+        .kind(),
         CapabilityGenerationErrorKind::SchemaDrift
     );
 }

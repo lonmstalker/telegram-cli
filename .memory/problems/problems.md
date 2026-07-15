@@ -2,30 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] resolved | P-20260715-006 | Runtime contracts отвязаны от planning inventory
-
-- Evidence: [planning-taxonomy removal correction](../raw/2026-07-15-planning-taxonomy-removal.md), green `python3 scripts/check-planning-boundary.py`, 69 Rust tests, Clippy and repeat implementation audit.
-- Resolution: numeric type, owner engine/CLI/policy/artifact и capability owner field удалены; schema identity и семантические modules являются current boundary.
-- Status: resolved; seven negative controls покрывают matcher, real discovery, root/script formats и file/root symlink fail-closed.
-- Remaining boundary: documentation IDs остаются навигацией; full registry/runtime всё ещё open и не заявляется.
-- Related decisions: [D-20260715-017](../decisions/decisions.md).
-
-## [2026-07-15] open update | P-20260715-005 | Username owner family уменьшила open set до 133 methods
-
-- Evidence: [supergroup username owner digest](../raw/2026-07-15-tdlib-supergroup-username-owner-capabilities.md); exact owner-signal family исчерпывающе разделена на 4 new complete, 1 prior complete и 13 mixed/deferred methods.
-- Transition: четыре username-management methods получают exact `ChatKind AND ChatOwner` DNF. Supported typed set теперь 57, terminal complete set 60, open-set SHA-256 `cd2b13cc68f18956f113592b505ec4469c564e3f7ce4298e7e4093b172e5a914`.
-- Status: open; zero-open gate не достигнут, 133 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
-- Next check: отдельными reviewed tasks закрывать следующие exact semantic families; runtime evaluator обязан fail closed на stale/unknown owner evidence.
-- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-018](../decisions/decisions.md).
-
-## [2026-07-15] open update | P-20260715-005 | Invite-link creation уменьшила open set до 131 methods
-
-- Evidence: [chat invite-link creation digest](../raw/2026-07-15-tdlib-chat-invite-link-creation-capabilities.md); exact triple-signal family разделена на 2 complete create/replace methods и 9 mixed own/other-link methods.
-- Transition: два methods получают three-kind `ChatAdministratorRight(CanInviteUsers)` DNF. Supported typed set теперь 59, terminal complete set 62, open-set SHA-256 `49480a48f3c072d8b3621c5d8e64ada2f1eacb13c697feed31279490e8886fbf`.
-- Status: open; zero-open gate не достигнут, 131 method по-прежнему дают `SchemaDrift` и не считаются capability coverage.
-- Next check: отдельными reviewed tasks закрывать следующие exact semantic families; runtime evaluator обязан fail closed на stale/unknown administrator-right evidence.
-- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-019](../decisions/decisions.md).
-
 ## [2026-07-15] open update | P-20260715-005 | Supergroup setting rights уменьшили open set до 126 methods
 
 - Evidence: [supergroup setting-right digest](../raw/2026-07-15-tdlib-supergroup-setting-right-capabilities.md); exact family разделена на 5 new complete, 1 prior complete и 3 boost/guard-input deferred methods.
@@ -156,3 +132,27 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Immutable source entry: [runtime boolean option update](archive/2026-07-15--2026-07-15-008.md).
 - Canonical decision target after rotation: [D-20260715-010](../decisions/archive/2026-07-15--2026-07-15-009.md). The archived relative link remains historical and is not rewritten.
 - Status: no change; latest open boundary remains 124 methods in the preceding correction entry.
+
+## [2026-07-15] open update | P-20260715-005 | Invite-link counts contract уменьшил open set до 123 methods
+
+- Evidence: [invite-link counts digest](../raw/2026-07-15-tdlib-chat-invite-link-counts-capability.md); supported 67, terminal 70, open-set SHA-256 `38dd369d689f9924166f54934b1e4207ddfd9fec692e3f4219b76dac4ee19fbb`.
+- Transition: `getChatInviteLinkCounts` получил exact regular-user, three-kind owner contract; format остался `8`.
+- Status: open; 123 methods дают `SchemaDrift` и не считаются capability coverage.
+- Next check: продолжать exact dispatcher/deeper-handler tasks; runtime owner/write evidence fail closed на stale/gap.
+- Related decisions: [D-20260715-010](../decisions/archive/2026-07-15--2026-07-15-009.md), [D-20260715-012](../decisions/archive/2026-07-15--2026-07-15-011.md), [D-20260715-026](../decisions/decisions.md).
+
+## [2026-07-15] archive link map | P-20260715-005 | Rotated planning and owner targets
+
+- Immutable [problem shard 009](archive/2026-07-15--2026-07-15-009.md) и ротируемая P006 entry в shard 010 ссылаются на [canonical D-20260715-017](../decisions/archive/2026-07-15--2026-07-15-019.md).
+- Active historical owner update ссылается на [canonical D-20260715-018](../decisions/archive/2026-07-15--2026-07-15-020.md). Latest open boundary остаётся 123 methods.
+
+## [2026-07-15] archive link correction | P-20260715-005 | Exact rotated entries
+
+- Corrects preceding map: [shard 009](archive/2026-07-15--2026-07-15-009.md) содержит P006 resolved и ссылается на [D-20260715-017](../decisions/archive/2026-07-15--2026-07-15-019.md).
+- [Shard 010](archive/2026-07-15--2026-07-15-010.md) содержит username-owner P005 update; canonical targets: [D-20260715-010](../decisions/archive/2026-07-15--2026-07-15-009.md), [D-20260715-012](../decisions/archive/2026-07-15--2026-07-15-011.md), [D-20260715-018](../decisions/archive/2026-07-15--2026-07-15-020.md).
+- Owner update больше не active; latest open boundary остаётся 123 methods.
+
+## [2026-07-15] archive link map | P-20260715-005 | Invite-link creation shard
+
+- [Shard 011](archive/2026-07-15--2026-07-15-011.md) содержит historical invite-link creation update; canonical targets: [D-20260715-010](../decisions/archive/2026-07-15--2026-07-15-009.md), [D-20260715-012](../decisions/archive/2026-07-15--2026-07-15-011.md), [D-20260715-019](../decisions/decisions.md).
+- Status не изменён; latest open boundary — 123 methods.

@@ -1260,6 +1260,7 @@ fn validate_documented_method_constraints(
     let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
     let boolean_option_contract = reviewed_runtime_boolean_option_contract(method)?;
     let chat_event_log_contract = reviewed_chat_event_log_contract(method)?;
+    let chat_invite_link_contract = reviewed_chat_invite_link_contract(method)?;
     let chat_setting_contract = reviewed_chat_setting_contract(method)?;
     let supergroup_username_contract = reviewed_supergroup_username_contract(method)?;
     let ready = descriptor.ready_accounts();
@@ -1299,6 +1300,7 @@ fn validate_documented_method_constraints(
         || supergroup_full_info_contract.is_some()
         || boolean_option_contract.is_some_and(|contract| contract.regular_user_only)
         || chat_event_log_contract.is_some()
+        || chat_invite_link_contract.is_some_and(|contract| contract.regular_user_only())
         || chat_setting_contract.is_some_and(|contract| contract.regular_user_only())
         || supergroup_username_contract.is_some();
     let expected_ready = if bot_only || runtime_bot_only {
@@ -1430,8 +1432,8 @@ fn documented_runtime_requirements(
     if chat_event_log_contract.is_some() {
         expected_consumed.extend(chat_event_log_consumed_signal_keys());
     }
-    if chat_invite_link_contract.is_some() {
-        expected_consumed.extend(chat_invite_link_consumed_signal_keys());
+    if let Some(contract) = chat_invite_link_contract {
+        expected_consumed.extend(chat_invite_link_consumed_signal_keys(contract));
     }
     if let Some(contract) = chat_setting_contract {
         expected_consumed.extend(chat_setting_consumed_signal_keys(contract));
@@ -1471,12 +1473,23 @@ fn documented_runtime_requirements(
         })?
     } else if let Some(contract) = chat_invite_link_contract {
         let target = documented_chat_target(method)?;
-        chat_kind_clauses(&target, contract.supported_chat_kinds(), |target| {
-            RuntimeRequirement::ChatAdministratorRight {
-                target: target.clone(),
-                right: contract.required_right(),
+        match contract.required_access() {
+            chat_invite_links::RequiredAccess::AdministratorRight(right) => {
+                chat_kind_clauses(&target, contract.supported_chat_kinds(), |target| {
+                    RuntimeRequirement::ChatAdministratorRight {
+                        target: target.clone(),
+                        right,
+                    }
+                })?
             }
-        })?
+            chat_invite_links::RequiredAccess::Owner => {
+                chat_kind_clauses(&target, contract.supported_chat_kinds(), |target| {
+                    RuntimeRequirement::ChatOwner {
+                        target: target.clone(),
+                    }
+                })?
+            }
+        }
     } else if let Some(contract) = chat_setting_contract {
         documented_chat_setting_clauses(method, contract)?
     } else {
@@ -1749,18 +1762,29 @@ fn documented_chat_setting_clauses(
         .collect()
 }
 
-fn chat_invite_link_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
-    [
-        RuntimeSignalFamily::RequiresAdministrator,
-        RuntimeSignalFamily::RequiresRightPhrase,
-        RuntimeSignalFamily::NamedRight(ChatAdministratorRight::CanInviteUsers),
-    ]
-    .into_iter()
-    .map(|family| RuntimeSignalKey {
-        source: RuntimeSignalSource::Description,
-        family,
-    })
-    .collect()
+fn chat_invite_link_consumed_signal_keys(
+    contract: &chat_invite_links::ChatInviteLinkContract,
+) -> BTreeSet<RuntimeSignalKey> {
+    let mut families = BTreeSet::new();
+    match contract.required_access() {
+        chat_invite_links::RequiredAccess::AdministratorRight(right) => {
+            families.extend([
+                RuntimeSignalFamily::RequiresAdministrator,
+                RuntimeSignalFamily::RequiresRightPhrase,
+                RuntimeSignalFamily::NamedRight(right),
+            ]);
+        }
+        chat_invite_links::RequiredAccess::Owner => {
+            families.insert(RuntimeSignalFamily::RequiresOwnerPrivileges);
+        }
+    }
+    families
+        .into_iter()
+        .map(|family| RuntimeSignalKey {
+            source: RuntimeSignalSource::Description,
+            family,
+        })
+        .collect()
 }
 
 fn chat_event_log_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
@@ -3013,8 +3037,8 @@ fn documented_runtime_signal_dispositions(
     if reviewed_supergroup_username_contract(method)?.is_some() {
         consumed.extend(supergroup_username_consumed_signal_keys());
     }
-    if reviewed_chat_invite_link_contract(method)?.is_some() {
-        consumed.extend(chat_invite_link_consumed_signal_keys());
+    if let Some(contract) = reviewed_chat_invite_link_contract(method)? {
+        consumed.extend(chat_invite_link_consumed_signal_keys(contract));
     }
     if reviewed_chat_event_log_contract(method)?.is_some() {
         consumed.extend(chat_event_log_consumed_signal_keys());

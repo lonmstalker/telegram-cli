@@ -4,6 +4,7 @@
 //! account currently satisfies them and it does not grant policy permission.
 
 mod chat_invite_links;
+mod supergroup_settings;
 mod supergroup_usernames;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -1209,6 +1210,7 @@ fn validate_documented_method_constraints(
     let group_call_contract = reviewed_group_call_contract(method)?;
     let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
     let boolean_option_contract = reviewed_runtime_boolean_option_contract(method)?;
+    let supergroup_setting_contract = reviewed_supergroup_setting_contract(method)?;
     let supergroup_username_contract = reviewed_supergroup_username_contract(method)?;
     let ready = descriptor.ready_accounts();
     let entitlements = descriptor.current_account_entitlements();
@@ -1246,6 +1248,7 @@ fn validate_documented_method_constraints(
     ) || group_call_contract.is_some()
         || supergroup_full_info_contract.is_some()
         || boolean_option_contract.is_some_and(|contract| contract.regular_user_only)
+        || supergroup_setting_contract.is_some_and(|contract| contract.regular_user_only())
         || supergroup_username_contract.is_some();
     let expected_ready = if bot_only || runtime_bot_only {
         vec![AccountKind::Bot]
@@ -1306,6 +1309,7 @@ fn documented_runtime_requirements(
     let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
     let boolean_option_contract = reviewed_runtime_boolean_option_contract(method)?;
     let chat_invite_link_contract = reviewed_chat_invite_link_contract(method)?;
+    let supergroup_setting_contract = reviewed_supergroup_setting_contract(method)?;
     let supergroup_username_contract = reviewed_supergroup_username_contract(method)?;
     let reviewed_family_count = [
         runtime_contract.is_some(),
@@ -1314,6 +1318,7 @@ fn documented_runtime_requirements(
         supergroup_full_info_contract.is_some(),
         boolean_option_contract.is_some(),
         chat_invite_link_contract.is_some(),
+        supergroup_setting_contract.is_some(),
         supergroup_username_contract.is_some(),
     ]
     .into_iter()
@@ -1372,6 +1377,9 @@ fn documented_runtime_requirements(
     if chat_invite_link_contract.is_some() {
         expected_consumed.extend(chat_invite_link_consumed_signal_keys());
     }
+    if let Some(contract) = supergroup_setting_contract {
+        expected_consumed.extend(supergroup_setting_consumed_signal_keys(contract));
+    }
     if supergroup_username_contract.is_some() {
         expected_consumed.extend(supergroup_username_consumed_signal_keys());
     }
@@ -1404,6 +1412,24 @@ fn documented_runtime_requirements(
             RuntimeRequirement::ChatAdministratorRight {
                 target: target.clone(),
                 right: contract.required_right(),
+            }
+        })?
+    } else if let Some(contract) = supergroup_setting_contract {
+        let target = documented_chat_target(method)?;
+        chat_kind_clauses(&target, &[contract.chat_kind()], |target| {
+            match contract.required_right() {
+                supergroup_settings::RequiredRight::Administrator(right) => {
+                    RuntimeRequirement::ChatAdministratorRight {
+                        target: target.clone(),
+                        right,
+                    }
+                }
+                supergroup_settings::RequiredRight::Member(right) => {
+                    RuntimeRequirement::ChatMemberRight {
+                        target: target.clone(),
+                        right,
+                    }
+                }
             }
         })?
     } else {
@@ -1560,6 +1586,52 @@ fn reviewed_chat_invite_link_contract(
         ));
     }
     Ok(Some(contract))
+}
+
+fn reviewed_supergroup_setting_contract(
+    method: &Definition,
+) -> Result<
+    Option<&'static supergroup_settings::SupergroupSettingContract>,
+    CapabilityGenerationError,
+> {
+    let Some(contract) = supergroup_settings::reviewed_contract(method.name()) else {
+        return Ok(None);
+    };
+    if method.canonical_signature() != contract.canonical_signature() {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed supergroup-setting signature drifted",
+        ));
+    }
+    if !signal_source_has_exact_text(
+        method,
+        &RuntimeSignalSource::Description,
+        contract.source_text(),
+    ) {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed supergroup-setting source text drifted or disappeared",
+        ));
+    }
+    Ok(Some(contract))
+}
+
+fn supergroup_setting_consumed_signal_keys(
+    contract: &supergroup_settings::SupergroupSettingContract,
+) -> BTreeSet<RuntimeSignalKey> {
+    let role_family = match contract.required_right() {
+        supergroup_settings::RequiredRight::Administrator(_) => {
+            RuntimeSignalFamily::AdministratorRightPhrase
+        }
+        supergroup_settings::RequiredRight::Member(_) => RuntimeSignalFamily::MemberRightPhrase,
+    };
+    [role_family, RuntimeSignalFamily::RequiresRightPhrase]
+        .into_iter()
+        .map(|family| RuntimeSignalKey {
+            source: RuntimeSignalSource::Description,
+            family,
+        })
+        .collect()
 }
 
 fn chat_invite_link_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
@@ -2839,6 +2911,9 @@ fn documented_runtime_signal_dispositions(
     if reviewed_chat_invite_link_contract(method)?.is_some() {
         consumed.extend(chat_invite_link_consumed_signal_keys());
     }
+    if let Some(contract) = reviewed_supergroup_setting_contract(method)? {
+        consumed.extend(supergroup_setting_consumed_signal_keys(contract));
+    }
     runtime_signal_dispositions_with_consumed(method, &consumed)
 }
 
@@ -3345,6 +3420,10 @@ fn engine_source_sha256() -> String {
         (
             "capability/chat_invite_links.rs",
             include_bytes!("capability/chat_invite_links.rs").as_slice(),
+        ),
+        (
+            "capability/supergroup_settings.rs",
+            include_bytes!("capability/supergroup_settings.rs").as_slice(),
         ),
         (
             "capability/supergroup_usernames.rs",

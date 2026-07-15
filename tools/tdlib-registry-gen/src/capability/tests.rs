@@ -660,6 +660,79 @@ fn public_generation_enforces_chat_invite_link_creation_contract() {
 }
 
 #[test]
+fn public_generation_enforces_supergroup_setting_right_contract() {
+    let marker = "//@description Uses a feature; for Telegram Premium users only";
+    let schema = SCHEMA.replacen(
+        marker,
+        concat!(
+            "//@description Changes the number of times the supergroup must be boosted by a user to ignore slow mode and chat permission restrictions; requires can_restrict_members administrator right\n",
+            "//@supergroup_id Identifier of the supergroup\n",
+            "//@unrestrict_boost_count New setting value\n",
+            "setSupergroupUnrestrictBoostCount supergroup_id:int53 unrestrict_boost_count:int32 = Ok;\n\n",
+            "//@description Uses a feature; for Telegram Premium users only"
+        ),
+        1,
+    );
+    assert_ne!(schema, SCHEMA, "supergroup-setting fixture insertion");
+    let fixture = Fixture::new(&schema);
+    let mut policy = fixture.capability_value();
+    method_row_mut(&mut policy, "setSupergroupUnrestrictBoostCount")["runtime_requirements"] = json!({
+        "kind": "any_of",
+        "clauses": [{"all_of": [
+            chat_kind("supergroup_id", "supergroup"),
+            chat_administrator_right("supergroup_id", "can_restrict_members")
+        ]}]
+    });
+
+    let mut wrong_kind = policy.clone();
+    method_row_mut(&mut wrong_kind, "setSupergroupUnrestrictBoostCount")["runtime_requirements"]
+        ["clauses"][0]["all_of"][0]["value"] = json!("channel");
+    assert_policy_error(
+        &fixture,
+        wrong_kind,
+        CapabilityGenerationErrorKind::InvalidPolicy,
+    );
+
+    let mut member_permission = policy.clone();
+    method_row_mut(&mut member_permission, "setSupergroupUnrestrictBoostCount")["runtime_requirements"]
+        ["clauses"][0]["all_of"][1] = chat_member_right("supergroup_id", "can_restrict_members");
+    assert_policy_error(
+        &fixture,
+        member_permission,
+        CapabilityGenerationErrorKind::InvalidPolicy,
+    );
+
+    let artifact: Value = serde_json::from_slice(
+        &fixture
+            .generate_value(&policy)
+            .expect("supergroup-setting capability generation"),
+    )
+    .expect("canonical artifact");
+    assert_eq!(
+        method_row(&artifact, "setSupergroupUnrestrictBoostCount")["ready_accounts"],
+        json!(["regular_user", "bot"])
+    );
+    assert_eq!(
+        method_row(&artifact, "setSupergroupUnrestrictBoostCount")["runtime_requirements"],
+        json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": [
+                {
+                    "kind": "chat_kind",
+                    "target": {"kind": "supergroup_id", "argument": "supergroup_id"},
+                    "value": "supergroup"
+                },
+                {
+                    "kind": "chat_administrator_right",
+                    "target": {"kind": "supergroup_id", "argument": "supergroup_id"},
+                    "right": "can_restrict_members"
+                }
+            ]}]
+        })
+    );
+}
+
+#[test]
 fn public_generation_keeps_group_call_message_universal_cardinality() {
     let marker = "//@description Uses a feature; for Telegram Premium users only";
     let schema = SCHEMA.replacen(
@@ -993,8 +1066,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            59,
-            "564475074ddd25c973a007b3c719a1a66cf36a3b9e39b4bca26fb629f450252f".to_owned()
+            63,
+            "f8b3f3dca23edc804aab118ccecfab4e8d8f093f14ea38eff817ec8d7645eabd".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -1010,8 +1083,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            62,
-            "c5731e4eb84c10c2e9fc1dde244fbede40cc2968644804a705ec0745e880f340".to_owned()
+            66,
+            "f9acaf38b390d6698293de72ca67050c3e9dfec46d2e1a3af4754326cd468b0c".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -1020,12 +1093,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        131,
+        127,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "49480a48f3c072d8b3621c5d8e64ada2f1eacb13c697feed31279490e8886fbf",
+        "b872e1f38e72845cd22f4a14460655508775545f5301882b8edbc6189265aa8d",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -1102,7 +1175,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "9fd51ff00a49906281fbf4e67261a97154e488e8e35be73a32a105a45c6d5e46"
+        "84deadee028781d867d5f5f9fde93c5800a56ceae9e8c5edb985864855de16d9"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -3385,6 +3458,214 @@ fn pinned_chat_invite_link_creation_contracts_are_exact() {
         documented_runtime_requirements(find_method(&additional_signal, "createChatInviteLink"))
             .expect_err("unconsumed invite-link argument signal must fail closed")
             .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
+fn pinned_supergroup_setting_right_contracts_are_exact() {
+    #[derive(Clone, Copy)]
+    enum ExpectedRight {
+        Administrator(ChatAdministratorRight),
+        Member(ChatMemberRight),
+    }
+
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let contracts = [
+        (
+            "setSupergroupMainProfileTab",
+            "setSupergroupMainProfileTab supergroup_id:int53 main_profile_tab:ProfileTab = Ok;",
+            "changes the main profile tab of the channel; requires can_change_info administrator right",
+            ResolvedChatKind::Channel,
+            ExpectedRight::Administrator(ChatAdministratorRight::CanChangeInfo),
+            &[AccountKind::RegularUser][..],
+        ),
+        (
+            "setSupergroupUnrestrictBoostCount",
+            "setSupergroupUnrestrictBoostCount supergroup_id:int53 unrestrict_boost_count:int32 = Ok;",
+            "changes the number of times the supergroup must be boosted by a user to ignore slow mode and chat permission restrictions; requires can_restrict_members administrator right",
+            ResolvedChatKind::Supergroup,
+            ExpectedRight::Administrator(ChatAdministratorRight::CanRestrictMembers),
+            &[AccountKind::RegularUser, AccountKind::Bot][..],
+        ),
+        (
+            "toggleSupergroupIsAllHistoryAvailable",
+            "toggleSupergroupIsAllHistoryAvailable supergroup_id:int53 is_all_history_available:Bool = Ok;",
+            "toggles whether the message history of a supergroup is available to new members; requires can_change_info member right",
+            ResolvedChatKind::Supergroup,
+            ExpectedRight::Member(ChatMemberRight::CanChangeInfo),
+            &[AccountKind::RegularUser][..],
+        ),
+        (
+            "toggleSupergroupSignMessages",
+            "toggleSupergroupSignMessages supergroup_id:int53 sign_messages:Bool show_message_sender:Bool = Ok;",
+            "toggles whether sender signature or link to the account is added to sent messages in a channel; requires can_change_info member right",
+            ResolvedChatKind::Channel,
+            ExpectedRight::Member(ChatMemberRight::CanChangeInfo),
+            &[AccountKind::RegularUser][..],
+        ),
+    ];
+    let safe = contracts
+        .iter()
+        .map(|(method, ..)| *method)
+        .collect::<std::collections::BTreeSet<_>>();
+    let prior = ["setSupergroupStickerSet"]
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    let deferred = [
+        "setSupergroupCustomEmojiStickerSet",
+        "toggleSupergroupHasAutomaticTranslation",
+        "toggleSupergroupJoinByRequest",
+        "toggleSupergroupJoinToSendMessages",
+    ]
+    .into_iter()
+    .collect::<std::collections::BTreeSet<_>>();
+    assert!(safe.is_disjoint(&prior));
+    assert!(safe.is_disjoint(&deferred));
+    assert!(prior.is_disjoint(&deferred));
+
+    let derived = schema
+        .methods()
+        .iter()
+        .filter_map(|method| {
+            let families = documented_runtime_signal_dispositions(method)
+                .unwrap_or_else(|error| panic!("{}: {error}", method.name()))
+                .into_iter()
+                .map(|(key, _)| key.family())
+                .collect::<std::collections::BTreeSet<_>>();
+            (method.name().starts_with("setSupergroup")
+                || method.name().starts_with("toggleSupergroup"))
+            .then_some(())
+            .filter(|_| families.contains(&RuntimeSignalFamily::RequiresRightPhrase))
+            .filter(|_| {
+                families.contains(&RuntimeSignalFamily::AdministratorRightPhrase)
+                    || families.contains(&RuntimeSignalFamily::MemberRightPhrase)
+            })
+            .map(|_| method.name())
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut expected_family = safe.clone();
+    expected_family.extend(prior.iter().copied());
+    expected_family.extend(deferred.iter().copied());
+    assert_eq!(
+        expected_family, derived,
+        "supergroup setting-right family must be exhaustive"
+    );
+
+    let target = ChatTargetRef::try_from("supergroup_id").expect("supergroup target");
+    for (method_name, signature, source, kind, right, accounts) in contracts {
+        let method = find_method(&schema, method_name);
+        assert_eq!(method.canonical_signature(), signature, "{method_name}");
+        assert_eq!(
+            normalized_text(&super::method_description(method)),
+            source,
+            "{method_name} source"
+        );
+        let requirement = match right {
+            ExpectedRight::Administrator(right) => RuntimeRequirement::ChatAdministratorRight {
+                target: target.clone(),
+                right,
+            },
+            ExpectedRight::Member(right) => RuntimeRequirement::ChatMemberRight {
+                target: target.clone(),
+                right,
+            },
+        };
+        let expected = RequirementAlternatives::try_new(vec![vec![
+            RuntimeRequirement::ChatKind(
+                ChatKindCondition::try_new(target.clone(), kind).expect("setting chat kind"),
+            ),
+            requirement,
+        ]])
+        .expect("setting alternatives");
+        assert_eq!(
+            documented_runtime_requirements(method)
+                .expect("reviewed setting documentation")
+                .expect("setting contract"),
+            expected,
+            "{method_name}"
+        );
+        let descriptor = CapabilityDescriptor::try_new(
+            SynchronousCapability::Never,
+            accounts.to_vec(),
+            vec![AuthorizationState::Ready],
+            Vec::new(),
+            ApplicationRequirement::Any,
+            vec![DcEnvironment::Production, DcEnvironment::Test],
+            expected.clone(),
+            Vec::new(),
+        )
+        .expect("setting descriptor");
+        validate_documented_method_constraints(method, &descriptor)
+            .unwrap_or_else(|error| panic!("{method_name} account contract: {error}"));
+        validate_documented_runtime_requirements(method, &descriptor)
+            .unwrap_or_else(|error| panic!("{method_name} runtime contract: {error}"));
+        let dispositions =
+            documented_runtime_signal_dispositions(method).expect("setting dispositions");
+        assert_eq!(dispositions.len(), 2, "{method_name} consumed signal count");
+        assert!(dispositions.iter().all(|(_, disposition)| {
+            *disposition == RuntimeSignalDisposition::ConsumedByRuntimeRequirements
+        }));
+    }
+
+    for method_name in deferred {
+        assert_eq!(
+            documented_runtime_requirements(find_method(&schema, method_name))
+                .expect_err("mixed supergroup setting must remain open")
+                .kind(),
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "{method_name}"
+        );
+    }
+
+    let source = "Changes the number of times the supergroup must be boosted by a user to ignore slow mode and chat permission restrictions; requires can_restrict_members administrator right";
+    let source_drift = pinned.replacen(
+        source,
+        "Changes the number of times the supergroup must be boosted by a user to ignore slow mode and chat permission restrictions; requires exact can_restrict_members administrator right",
+        1,
+    );
+    let source_drift = Schema::parse(&source_drift).expect("valid setting source drift schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(
+            &source_drift,
+            "setSupergroupUnrestrictBoostCount"
+        ))
+        .expect_err("setting source drift must fail closed")
+        .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let signature_drift = pinned.replacen(
+        "setSupergroupMainProfileTab supergroup_id:int53 main_profile_tab:ProfileTab = Ok;",
+        "setSupergroupMainProfileTab supergroup_id:int32 main_profile_tab:ProfileTab = Ok;",
+        1,
+    );
+    let signature_drift = Schema::parse(&signature_drift).expect("valid setting signature drift");
+    assert_eq!(
+        documented_runtime_requirements(find_method(
+            &signature_drift,
+            "setSupergroupMainProfileTab"
+        ))
+        .expect_err("setting signature drift must fail closed")
+        .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let additional_signal = pinned.replacen(
+        "@unrestrict_boost_count New value of the unrestrict_boost_count supergroup setting; 0-8. Use 0 to remove the setting",
+        "@unrestrict_boost_count New value of the setting; requires can_restrict_members administrator right",
+        1,
+    );
+    let additional_signal =
+        Schema::parse(&additional_signal).expect("valid additional setting signal schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(
+            &additional_signal,
+            "setSupergroupUnrestrictBoostCount"
+        ))
+        .expect_err("unconsumed setting argument signal must fail closed")
+        .kind(),
         CapabilityGenerationErrorKind::SchemaDrift
     );
 }

@@ -2,38 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] open | P-20260715-002 | Exact TDLib native artifact не закреплён
-
-- Evidence: `plans.md` требует exact native build; `vendor/tdlib/manifest.json` и `python3 scripts/check-tdlib-pin.py` пока доказывают только source/schema/license identity и не содержат target-specific artifact hash/provenance.
-- Impact: объединённый P0 task нельзя закрыть; runtime link/version handshake и reproducibility для macOS arm64/Linux x86_64 не доказаны.
-- Status: open; matching native artifact отсутствует в repository source of truth.
-- Next check: выполнить bounded build exact commit отдельно для каждого target, сохранить artifact digest/build provenance вне тяжёлых build trees и добавить offline verifier.
-- Related decisions: [D-20260715-003](../decisions/decisions.md).
-
-## [2026-07-15] resolved | P-20260715-002 | Exact macOS arm64 TDLib artifact закреплён
-
-- Evidence: `vendor/tdlib/native-builds/aarch64-apple-darwin.json`, [native digest](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64.md), green `python3 scripts/check-tdlib-native-pin.py --require-local-artifact`.
-- Resolution: exact TDLib `1.8.66` dylib собран из pinned commit, опубликован content-addressed hash и проверен через Mach-O/dependency/export/version/commit/no-DB smoke.
-- Status: resolved для macOS arm64; прежний общий gap разделён, Linux x86_64 перенесён в `P-20260715-003`.
-- Remaining boundary: одна сборка не доказывает bit-for-bit reproducibility.
-- Related decisions: [D-20260715-003](../decisions/decisions.md), [D-20260715-004](../decisions/decisions.md).
-
-## [2026-07-15] open | P-20260715-003 | Linux x86_64 native artifact не закреплён
-
-- Evidence: committed native provenance существует только для `aarch64-apple-darwin`; Linux artifact/provenance отсутствует.
-- Impact: supported-target checkbox и P9 reproducible-build acceptance для Linux остаются open; macOS proof нельзя экстраполировать на server target.
-- Status: open; Linux build не запускался и не заявляется.
-- Next check: отдельный bounded Linux x86_64 build с exact source/policy, target-specific dependency audit и artifact smoke.
-- Related decisions: [D-20260715-004](../decisions/decisions.md).
-
-## [2026-07-15] open | P-20260715-004 | Native build crash recovery допускал orphan и storage leak
-
-- Evidence: independent review первой macOS build обнаружил parent-`SIGKILL` окна в process-group ownership, archive/OpenSSL input snapshots, inspection lease propagation и `.work-*` finalization; первый digest и `W-20260715-007` фиксируют только pre-correction состояние.
-- Impact: повторный build нельзя было безопасно запускать: orphan watchdog/target или stale scratch до 4 GiB могли пережить owner, а повторные аварии увеличивали footprint.
-- Status: open на review checkpoint; штатный success-path cleanup недостаточен как crash proof.
-- Next check: TDD negative controls для parent death, real scratch recovery, inspection death, fragmented handshake и reap finalization; затем одна bounded rebuild и новый provenance.
-- Related decisions: [D-20260715-004](../decisions/decisions.md).
-
 ## [2026-07-15] resolved | P-20260715-004 | Native build crash recovery доказан negative controls
 
 - Evidence: [reviewed rebuild correction digest](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md), `scripts/test-tdlib-native-parent-death-guard.py`, `scripts/test-tdlib-native-stale-work-recovery.py`, `scripts/test-tdlib-native-inspection-parent-death.py` и green post-build review.
@@ -143,3 +111,34 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Status: open; zero-open gate не достигнут, 131 method по-прежнему дают `SchemaDrift` и не считаются capability coverage.
 - Next check: отдельными reviewed tasks закрывать следующие exact semantic families; runtime evaluator обязан fail closed на stale/unknown administrator-right evidence.
 - Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-019](../decisions/decisions.md).
+
+## [2026-07-15] open update | P-20260715-005 | Supergroup setting rights уменьшили open set до 126 methods
+
+- Evidence: [supergroup setting-right digest](../raw/2026-07-15-tdlib-supergroup-setting-right-capabilities.md); exact family разделена на 5 new complete, 1 prior complete и 3 boost/guard-input deferred methods.
+- Transition: пять methods получают exact chat-kind and role-right requirements с account boundary. Supported typed set теперь 64, terminal complete set 67, open-set SHA-256 `71a75f389b248af4aeeb0e387e7be299d56d964f4969652f32bb3cfdcb47be9d`.
+- Status: open; zero-open gate не достигнут, 126 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
+- Next check: отдельными reviewed tasks закрывать следующие exact semantic families; runtime evaluator обязан fail closed на stale/unknown right evidence.
+- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-020](../decisions/decisions.md).
+
+## [2026-07-15] open | P-20260715-007 | Broad supergroup kind ошибочно закрывал ordinary-only setting
+
+- Evidence: independent P2 review и [ordinary-supergroup correction digest](../raw/2026-07-15-tdlib-supergroup-setting-ordinary-kind-correction.md); pinned C++ отклоняет gigagroup/monoforum, которые broad kind не различает.
+- Impact: `toggleSupergroupJoinToSendMessages` мог получить ложный supported verdict на неподдерживаемом target.
+- Status: open at review discovery; exact refinement отсутствует.
+- Next check: remove broad contract or add closed ordinary-supergroup evidence before commit.
+- Related decisions: [D-20260715-020](../decisions/decisions.md).
+
+## [2026-07-15] resolved | P-20260715-007 | Ordinary-only method возвращён в deferred
+
+- Evidence: contract row удалён, exhaustive test включает method в deferred, full generator oracle даёт supported 63/terminal 66/open 127.
+- Resolution: broad claim удалён; runtime false positive невозможен через W024 contract.
+- Status: resolved for current implementation. Отсутствующий ordinary-supergroup predicate остаётся честной причиной deferred state в [P-20260715-005](../problems/problems.md).
+- Related decisions: corrected [D-20260715-020](../decisions/decisions.md).
+
+## [2026-07-15] open correction | P-20260715-005 | Supergroup setting rights уменьшают open set до 127 methods
+
+- Corrects: preceding 126-method transition, основанный на broad ordinary-supergroup claim.
+- Evidence: [ordinary-supergroup correction digest](../raw/2026-07-15-tdlib-supergroup-setting-ordinary-kind-correction.md); current family 4 new complete, 1 prior complete, 4 deferred.
+- Transition: supported typed set 63, terminal complete 66, open-set SHA-256 `b872e1f38e72845cd22f4a14460655508775545f5301882b8edbc6189265aa8d`.
+- Status: open; zero-open gate не достигнут, 127 methods дают `SchemaDrift` и не считаются capability coverage.
+- Related decisions: corrected [D-20260715-020](../decisions/decisions.md).

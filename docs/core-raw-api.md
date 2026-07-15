@@ -23,5 +23,7 @@ method через discovery, а discriminator строит общий JSON contr
 создаётся daemon из trusted account kind и typed scopes действующего lease; requested
 scopes ограничены owner-configured ceiling.
 Unreviewed method, wrong account и missing risk возвращают `PolicyError` до send.
+`admin`/`destructive`/`financial`/`auth_security` request дополнительно должен совпасть с
+unexpired one-shot `ApprovedPlan`, проверенным внешней Ed25519 подписью exact plan hash.
 Runtime-requirement expression остаётся discoverable prerequisite и не выдаётся за
 удовлетворённое без будущего live-state consumer.

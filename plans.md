@@ -215,7 +215,7 @@ flowchart LR
 - [x] Retry только для safe reads и convergent desired-state operations.
 - [x] Durable idempotency journal: fingerprint + pending/succeeded/failed/uncertain; reconciliation вместо blind retry.
 - [x] Risk scopes: read, presence, send, reversible mutation, admin, destructive, financial, auth/security.
-- [ ] Preview -> plan hash -> external approval для опасных операций.
+- [x] Preview -> plan hash -> external approval для опасных операций.
 - [ ] Metrics (latency, queue, retry/flood, update lag, freshness, leases) и redacted audit.
 
 ### Acceptance

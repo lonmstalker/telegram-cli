@@ -2,6 +2,7 @@
 
 #![deny(unsafe_code)]
 
+pub mod approval;
 pub mod authorization;
 #[cfg(unix)]
 #[allow(unsafe_code)]

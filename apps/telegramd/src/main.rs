@@ -6,6 +6,7 @@ use std::io;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use telegram_core::approval::ApprovalVerifier;
 use telegram_core::idempotency::IdempotencyJournal;
 
 pub mod config;
@@ -38,6 +39,10 @@ fn run() -> Result<(), Box<dyn Error>> {
     let (profile, database_directory) = profile_config()?;
     let ownership = ProfileDatabaseLock::acquire(profile, database_directory)?;
     let config = DaemonConfig::from_environment(&ownership)?;
+    let _approval_verifier = config
+        .approval_public_key_hex()
+        .map(ApprovalVerifier::from_hex)
+        .transpose()?;
     let _idempotency_journal = IdempotencyJournal::open(
         ownership
             .canonical_database_directory()

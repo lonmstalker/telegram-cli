@@ -3,8 +3,9 @@
 use serde_json::Value;
 use std::error::Error;
 use std::fmt;
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
+use crate::approval::{ApprovedPlan, PlanAuthorizationError, approval_required};
 use crate::registry::{
     self, AccountKind, BUILTINS, CAPABILITIES, CONSTRUCTORS, CapabilityDescriptor,
     CapabilityDisposition, RiskClass, SymbolDescriptor, TYPES, TdObject, ValidatedRequest,
@@ -122,7 +123,9 @@ pub(crate) fn td_call_with_boundary(
 ) -> Result<(TdObject, u64), RawApiError> {
     let request = ValidatedRequest::from_value(request).map_err(RawApiError::Validation)?;
     let method = request.descriptor();
-    policy.authorize(method.name).map_err(RawApiError::Policy)?;
+    policy
+        .authorize_request(&request)
+        .map_err(RawApiError::Policy)?;
     let pending = runtime
         .transport()
         .request(request.into_value())
@@ -146,10 +149,11 @@ pub(crate) fn td_call_with_boundary(
     Ok((response, boundary))
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub struct RawPolicy {
     account: AccountKind,
     allowed_risks: Vec<RiskClass>,
+    approval: Option<ApprovedPlan>,
 }
 
 impl RawPolicy {
@@ -157,10 +161,37 @@ impl RawPolicy {
         Self {
             account,
             allowed_risks,
+            approval: None,
         }
     }
 
+    pub fn with_approval(mut self, approval: ApprovedPlan) -> Self {
+        self.approval = Some(approval);
+        self
+    }
+
     pub fn authorize(&self, method: &str) -> Result<(), PolicyError> {
+        self.authorized_risk(method).map(|_| ())
+    }
+
+    pub(crate) fn authorize_request(
+        &self,
+        request: &ValidatedRequest,
+    ) -> Result<(), PolicyError> {
+        let risk = self.authorized_risk(request.descriptor().name)?;
+        if approval_required(risk) {
+            let approval = self
+                .approval
+                .as_ref()
+                .ok_or(PolicyError::ApprovalRequired { risk })?;
+            approval
+                .authorize(request, SystemTime::now())
+                .map_err(|reason| PolicyError::ApprovalDenied { reason })?;
+        }
+        Ok(())
+    }
+
+    fn authorized_risk(&self, method: &str) -> Result<RiskClass, PolicyError> {
         let capability = registry::capability(method).ok_or(PolicyError::DefaultDeny)?;
         let CapabilityDisposition::Reviewed { risk, accounts, .. } = capability.disposition else {
             return Err(PolicyError::DefaultDeny);
@@ -171,7 +202,7 @@ impl RawPolicy {
         if !self.allowed_risks.contains(&risk) {
             return Err(PolicyError::RiskDenied { risk });
         }
-        Ok(())
+        Ok(risk)
     }
 }
 
@@ -180,6 +211,8 @@ pub enum PolicyError {
     DefaultDeny,
     AccountScopeDenied,
     RiskDenied { risk: RiskClass },
+    ApprovalRequired { risk: RiskClass },
+    ApprovalDenied { reason: PlanAuthorizationError },
 }
 
 impl fmt::Display for PolicyError {
@@ -191,6 +224,12 @@ impl fmt::Display for PolicyError {
             }
             Self::RiskDenied { .. } => {
                 formatter.write_str("TDLib method risk is not granted by policy")
+            }
+            Self::ApprovalRequired { .. } => {
+                formatter.write_str("TDLib method requires external plan approval")
+            }
+            Self::ApprovalDenied { .. } => {
+                formatter.write_str("TDLib external plan approval is invalid")
             }
         }
     }

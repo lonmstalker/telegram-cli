@@ -120,3 +120,11 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Behavior test доказывает denied financial self-grant, read-only lease authorization и send denial; existing JSONL lifecycle test использует typed scope. Contract: [D-20260715-063](../decisions/decisions.md), [`docs/daemon-leases.md`](../../docs/daemon-leases.md).
 - Verification перед коммитом: обязательные workspace tests, Clippy, все `scripts/check-*.py` и wiki rotation gate.
 - Следующий Tasks-пункт P5: preview -> plan hash -> external approval.
+
+## [2026-07-15] completed | W-20260715-069 | Реализован external exact-plan approval gate
+
+- Закрыт пятый Tasks-пункт P5: `PlanPreview` связывает high-risk method/risk/retry с SHA-256 exact validated request; общий raw dispatch требует matching `ApprovedPlan` до transport.
+- `ApprovalVerifier` использует Ed25519 public key, expiry и nonce. Signing key остаётся у внешнего broker; forged signature, hash mismatch, replay и повтор consumption fail closed.
+- Daemon optional загружает только public key из `TELEGRAM_APPROVAL_PUBLIC_KEY_HEX`; missing key оставляет dangerous methods `approval_required`. Tests используют deterministic external signer только как trust-boundary negative control.
+- Contract: [D-20260715-064](../decisions/decisions.md), [`docs/external-plan-approval.md`](../../docs/external-plan-approval.md). Перед коммитом выполняется полный обязательный gate.
+- Следующий Tasks-пункт P5: metrics и redacted audit.

@@ -43,6 +43,7 @@ pub struct DaemonConfig {
     expected_user_id: Option<i64>,
     idle_timeout: Duration,
     risk_scopes: BTreeSet<RiskScope>,
+    approval_public_key_hex: Option<String>,
 }
 
 impl DaemonConfig {
@@ -85,6 +86,7 @@ impl DaemonConfig {
             return Err(ConfigError::InvalidValue("TELEGRAM_IDLE_TIMEOUT_MS"));
         }
         let risk_scopes = configured_risk_scopes()?;
+        let approval_public_key_hex = optional_unicode("TELEGRAM_APPROVAL_PUBLIC_KEY_HEX")?;
 
         Ok(Self {
             database_directory: ownership.canonical_database_directory().to_owned(),
@@ -99,6 +101,7 @@ impl DaemonConfig {
             expected_user_id,
             idle_timeout: Duration::from_millis(idle_timeout_ms),
             risk_scopes,
+            approval_public_key_hex,
         })
     }
 
@@ -145,6 +148,10 @@ impl DaemonConfig {
     pub fn risk_scopes(&self) -> impl Iterator<Item = RiskScope> + '_ {
         self.risk_scopes.iter().copied()
     }
+
+    pub fn approval_public_key_hex(&self) -> Option<&str> {
+        self.approval_public_key_hex.as_deref()
+    }
 }
 
 fn workspace_root() -> PathBuf {
@@ -177,7 +184,12 @@ fn verify_native_artifact(
         }
         hasher.update(&buffer[..read]);
     }
-    if format!("{:x}", hasher.finalize()) != expected_hash {
+    let mut actual_hash = String::with_capacity(64);
+    for byte in hasher.finalize() {
+        use fmt::Write as _;
+        write!(actual_hash, "{byte:02x}").expect("writing to String is infallible");
+    }
+    if actual_hash != expected_hash {
         return Err(ConfigError::NativeMismatch);
     }
     Ok(())
@@ -212,6 +224,15 @@ fn optional_u64(name: &'static str) -> Result<Option<u64>, ConfigError> {
             .parse()
             .map(Some)
             .map_err(|_| ConfigError::InvalidValue(name)),
+        Err(env::VarError::NotUnicode(_)) => Err(ConfigError::InvalidValue(name)),
+    }
+}
+
+fn optional_unicode(name: &'static str) -> Result<Option<String>, ConfigError> {
+    match env::var(name) {
+        Err(env::VarError::NotPresent) => Ok(None),
+        Ok(value) if value.is_empty() => Ok(None),
+        Ok(value) => Ok(Some(value)),
         Err(env::VarError::NotUnicode(_)) => Err(ConfigError::InvalidValue(name)),
     }
 }

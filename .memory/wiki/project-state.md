@@ -45,6 +45,7 @@
 - Второй пункт P5 закрыт: core retry executor допускает только generated `safe_read` и `convergent`; read ждёт supplied delay, convergent перед повтором того же request проверяет desired state, а uncertain outcome не повторяется ([D-20260715-061](../decisions/decisions.md)).
 - Третий пункт P5 закрыт: owner-only durable journal fsync-ит fingerprint `pending/succeeded/failed/uncertain`, восстанавливает interrupted dispatch как uncertain и разрешает новый begin только после terminal или reconciled `NotApplied` proof ([D-20260715-062](../decisions/decisions.md)).
 - Четвёртый пункт P5 закрыт: protocol/lease используют восемь typed risk scopes; owner ceiling default-deny ограничивает requests, а generated method risk и действующий lease строят pre-dispatch `RawPolicy` ([D-20260715-063](../decisions/decisions.md)).
+- Пятый пункт P5 закрыт: high-risk request получает exact SHA-256 plan preview и dispatch-ится только с unexpired one-shot Ed25519 capability внешнего signer; daemon имеет только public key ([D-20260715-064](../decisions/decisions.md)).
 
 ## Not implemented
 
@@ -57,4 +58,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: пятый Tasks-пункт P5 — preview, plan hash и external approval опасных операций.
+- Следующий implementation boundary: шестой Tasks-пункт P5 — metrics и redacted audit.

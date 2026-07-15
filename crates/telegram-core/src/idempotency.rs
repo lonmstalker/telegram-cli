@@ -19,6 +19,10 @@ const MAX_LINE_BYTES: usize = 1024;
 pub struct OperationFingerprint([u8; 32]);
 
 impl OperationFingerprint {
+    pub(crate) fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
     pub fn for_request(request: &ValidatedRequest) -> Self {
         let canonical = serde_json::to_vec(request.as_value())
             .expect("serde_json::Value serialization is infallible");
@@ -36,7 +40,11 @@ impl OperationFingerprint {
         Some(Self(bytes))
     }
 
-    fn hex(self) -> String {
+    pub fn as_bytes(self) -> [u8; 32] {
+        self.0
+    }
+
+    pub fn to_hex(self) -> String {
         let mut encoded = String::with_capacity(64);
         for byte in self.0 {
             use fmt::Write as _;
@@ -50,7 +58,7 @@ impl fmt::Debug for OperationFingerprint {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_tuple("OperationFingerprint")
-            .field(&self.hex())
+            .field(&self.to_hex())
             .finish()
     }
 }
@@ -193,7 +201,7 @@ impl IdempotencyJournal {
         }
         let record = Record {
             v: VERSION,
-            fingerprint: fingerprint.hex(),
+            fingerprint: fingerprint.to_hex(),
             state,
             evidence,
         };
@@ -327,7 +335,7 @@ fn hash(domain: &[u8], payload: &[u8]) -> [u8; 32] {
 }
 
 fn encode(bytes: [u8; 32]) -> String {
-    OperationFingerprint(bytes).hex()
+    OperationFingerprint(bytes).to_hex()
 }
 
 fn hex_digit(byte: u8) -> Option<u8> {

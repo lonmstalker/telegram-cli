@@ -27,14 +27,14 @@
 
 - SRC001: product.md; type: file; supports: routine agent actions and full API; limits: none.
 - SRC002: HARNESS.md; type: file; supports: capabilities, shared session and audit; limits: none.
-- SRC003: pinned official schema; type: supplied; supports: Business method/object/update families; limits: generated mapping absent.
+- SRC003: pinned official schema; type: supplied; supports: Business method/object/update families; limits: full generated registry absent.
 - SRC004: plans.md P3/P7; type: file; supports: generated parity and vertical slices; limits: implementation absent.
 
 ## TDLib API Coverage
 
 - Primary owner: all methods/objects/updates whose semantics are Telegram Business, business connections/messages/stories/profile features, chat links, quick replies and managed/connected bots.
 - Generic bot management/testing stays F012; generic messages/stories stay F009/F015 unless a Business connection is part of the contract.
-- Runtime capability and generated schema ownership are both required.
+- Runtime capability and exact schema registration/classification are both required.
 
 ## Request Graph
 

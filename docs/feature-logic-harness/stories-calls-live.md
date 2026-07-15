@@ -27,14 +27,14 @@
 
 - SRC001: product.md; type: file; supports: full TDLib and routine operations; limits: none.
 - SRC002: HARNESS.md; type: file; supports: async proof and policy dimensions; limits: none.
-- SRC003: pinned official schema; type: supplied; supports: story/call/group-call families; limits: generated mapping absent.
+- SRC003: pinned official schema; type: supplied; supports: story/call/group-call families; limits: full generated registry absent.
 - SRC004: plans.md P4/P7/P10; type: file; supports: terminal updates and live gate; limits: implementation absent.
 
 ## TDLib API Coverage
 
 - Primary owner: story CRUD/views/privacy/interactions, calls and call protocol, group calls/video chats, participants, recording/screen sharing/live-stream control.
 - Story statistics and revenue belong to F019; media files to F010; channel moderation rights to F011.
-- Exact ownership is generated from the pinned schema and checked fail-closed.
+- Exact method registration/classification is generated from the pinned schema and checked fail-closed.
 
 ## Request Graph
 

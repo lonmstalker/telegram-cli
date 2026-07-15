@@ -26,15 +26,15 @@
 ## Source Ledger
 
 - SRC001: product.md; type: file; supports: complete API and self-discovery; limits: none.
-- SRC002: HARNESS.md; type: file; supports: exact ownership/default-deny; limits: none.
-- SRC003: pinned official schema; type: supplied; supports: all residual method/object/update families; limits: generated mapping absent.
-- SRC004: docs/tdlib-api-coverage.md; type: file; supports: no-unowned-method gate; limits: generator absent.
+- SRC002: HARNESS.md; type: file; supports: semantic scope/default-deny; limits: planning IDs are documentation-only.
+- SRC003: pinned official schema; type: supplied; supports: platform method/object/update families; limits: generated registry absent.
+- SRC004: docs/tdlib-api-coverage.md; type: file; supports: no-unclassified-method gate; limits: full registry absent.
 
 ## TDLib API Coverage
 
-- Primary owner: localization/language packs, countries and phone-number information, application options/config, themes/backgrounds, link parsing/generation not owned by a domain, proxies/network state, logging, custom requests and TDLib test/development methods.
-- Any pinned-schema method not semantically owned by F001–F019/F021–F022 must be explicitly classified here or CI fails; F020 is never an unchecked wildcard.
-- Unknown future methods default-deny until owner/risk/prerequisite/retry classification is reviewed.
+- Semantic scope: localization/language packs, countries and phone-number information, application options/config, themes/backgrounds, general link parsing/generation, proxies/network state, logging, custom requests and TDLib test/development methods.
+- Planning category не является runtime fallback: каждый pinned method регистрируется по exact schema identity и получает явную risk/prerequisite/retry/capability classification.
+- Unknown future methods default-deny до reviewed classification.
 
 ## Request Graph
 
@@ -68,7 +68,7 @@ No platform setting/proxy/logging mutation was performed. Only native TDJSON loa
 
 ### In scope
 
-- Every remaining pinned TDLib function/object/update, with explicit owner and policy.
+- Matching pinned TDLib functions/objects/updates с explicit policy classification.
 
 ### Out of scope
 
@@ -115,13 +115,13 @@ No platform setting/proxy/logging mutation was performed. Only native TDJSON loa
 
 ## Contracts
 
-- C001: no schema method remains unowned or unclassified.
+- C001: no schema method remains unclassified.
 - C002: future/unknown and special methods default-deny.
 - C003: proxy endpoints, logs and custom payload secrets are redacted.
 
 ## Invariants
 
-- I001: F020 cannot hide coverage gaps behind a catch-all label.
+- I001: documentation category cannot hide coverage gaps behind a runtime catch-all.
 - I002: runtime/schema mismatch fails before working calls.
 - I003: production profile cannot invoke development/test methods without explicit allowlist.
 
@@ -139,7 +139,7 @@ No platform setting/proxy/logging mutation was performed. Only native TDJSON loa
 ## Scenario Cells
 
 - SC001 - Upstream adds a method
-  - Dimensions: D001, D002; Workflow/entity anchor: SpecialMethodClass; Scenario: schema hash changes and method has no owner; Expected behavior: generation/CI fails before release; Related contracts: C001-C002; Related invariants: I001-I002; Why this matters: honest full coverage; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: SpecialMethodClass; Scenario: schema hash changes and method has no classification; Expected behavior: generation/CI fails before release; Related contracts: C001-C002; Related invariants: I001-I002; Why this matters: honest full coverage; Status: modeled.
 - SC002 - Set proxy then connection fails
   - Dimensions: D001, D002; Workflow/entity anchor: ProxyProfile; Scenario: setter responds but state/connectivity diverges; Expected behavior: reread/reconcile, return partial/failed and preserve rollback data; Related contracts: C003; Related invariants: I003; Why this matters: remote availability; Status: modeled.
 
@@ -153,8 +153,8 @@ No platform setting/proxy/logging mutation was performed. Only native TDJSON loa
 
 ## Coverage Notes
 
-- Kernel coverage: residual ownership and safe schema drift modeled.
+- Kernel coverage: platform classification and safe schema drift modeled.
 - Modeled: platform families and special method policy.
-- Partial: exact generated mapping and allowlist.
+- Partial: full generated registry and allowlist.
 - Unknown: deployment-specific network/proxy support.
 - Not applicable: domain-specific financial approval.

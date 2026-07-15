@@ -9,7 +9,6 @@ use std::fmt::{self, Write};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use telegram_core::feature::FeatureId;
 use telegram_core::method_capability::{
     AccountKind, ApplicationRequirement, ArgumentRef, AuthorizationState, BusinessBotRight,
     BusinessConnectionRef, CapabilityDescriptor, ChatAdministratorRight, ChatKindCondition,
@@ -24,53 +23,23 @@ use telegram_core::method_capability::{
 };
 use telegram_core::schema::{Definition, DefinitionKind, Parameter, Schema};
 
-use crate::engine;
-
-const FORMAT_VERSION: u32 = 6;
-const MAX_MANIFEST_BYTES: usize = 64 * 1024;
+const FORMAT_VERSION: u32 = 7;
 const MAX_SCHEMA_BYTES: usize = 2 * 1024 * 1024;
-const MAX_OWNER_POLICY_BYTES: usize = 4 * 1024 * 1024;
 const MAX_CAPABILITY_POLICY_BYTES: usize = 4 * 1024 * 1024;
-const MAX_OWNER_OUTPUT_BYTES: usize = 4 * 1024 * 1024;
 const MAX_OUTPUT_BYTES: usize = 4 * 1024 * 1024;
 const MAX_METHODS: usize = 2_048;
 const MAX_RATIONALE_BYTES: usize = 1_024;
 
 pub fn generate(
-    manifest_bytes: &[u8],
     schema_bytes: &[u8],
-    owner_policy_bytes: &[u8],
     capability_policy_bytes: &[u8],
 ) -> Result<Vec<u8>, CapabilityGenerationError> {
-    enforce_cap("vendor manifest", manifest_bytes.len(), MAX_MANIFEST_BYTES)?;
     enforce_cap("TDLib schema", schema_bytes.len(), MAX_SCHEMA_BYTES)?;
-    enforce_cap(
-        "owner policy",
-        owner_policy_bytes.len(),
-        MAX_OWNER_POLICY_BYTES,
-    )?;
     enforce_cap(
         "capability policy",
         capability_policy_bytes.len(),
         MAX_CAPABILITY_POLICY_BYTES,
     )?;
-
-    // Recompute the owner manifest from its reviewed source. A committed or
-    // caller-supplied generated artifact is deliberately not trusted.
-    let owner_bytes =
-        engine::generate(manifest_bytes, schema_bytes, owner_policy_bytes).map_err(|error| {
-            CapabilityGenerationError::new(
-                CapabilityGenerationErrorKind::OwnerGeneration,
-                format!("owner generation failed ({:?}): {error}", error.kind()),
-            )
-        })?;
-    enforce_cap("owner output", owner_bytes.len(), MAX_OWNER_OUTPUT_BYTES)?;
-    let owner: OwnerManifest = serde_json::from_slice(&owner_bytes).map_err(|error| {
-        CapabilityGenerationError::new(
-            CapabilityGenerationErrorKind::OwnerGeneration,
-            format!("generated owner manifest is invalid: {error}"),
-        )
-    })?;
 
     let schema_source = std::str::from_utf8(schema_bytes).map_err(|error| {
         CapabilityGenerationError::new(
@@ -96,14 +65,12 @@ pub fn generate(
         serde_json::from_slice(capability_policy_bytes).map_err(|error| {
             CapabilityGenerationError::invalid_policy(format!("invalid capability policy: {error}"))
         })?;
-    build_output(manifest_bytes, schema_bytes, schema, owner, policy)
+    build_output(schema_bytes, schema, policy)
 }
 
 fn build_output(
-    manifest_bytes: &[u8],
     schema_bytes: &[u8],
     schema: Schema,
-    owner: OwnerManifest,
     policy: CapabilityPolicyDto,
 ) -> Result<Vec<u8>, CapabilityGenerationError> {
     if policy.format_version != FORMAT_VERSION {
@@ -113,18 +80,11 @@ fn build_output(
         )));
     }
     validate_hash("schema_sha256", &policy.schema_sha256)?;
-    validate_hash("owner_mapping_sha256", &policy.owner_mapping_sha256)?;
     let actual_schema_hash = sha256_hex(schema_bytes);
     if policy.schema_sha256 != actual_schema_hash {
         return Err(CapabilityGenerationError::new(
             CapabilityGenerationErrorKind::SchemaDrift,
             "capability policy is bound to a different schema hash",
-        ));
-    }
-    if policy.owner_mapping_sha256 != owner.mapping_sha256 {
-        return Err(CapabilityGenerationError::new(
-            CapabilityGenerationErrorKind::OwnerDrift,
-            "capability policy is bound to a different owner mapping",
         ));
     }
     if policy.methods.len() > MAX_METHODS {
@@ -145,7 +105,6 @@ fn build_output(
             methods.len()
         )));
     }
-    let owners = owner_map(owner.methods, &methods)?;
     let mut policy_rows = BTreeMap::new();
     for row in policy.methods {
         if policy_rows.insert(row.method.clone(), row).is_some() {
@@ -172,16 +131,12 @@ fn build_output(
         let policy_row = policy_rows
             .remove(method_name)
             .expect("exact method-set equality was checked");
-        let owner_row = owners
-            .get(method_name)
-            .expect("owner method-set equality was checked");
-        rows.push(build_method_row(definition, owner_row, policy_row)?);
+        rows.push(build_method_row(definition, policy_row)?);
     }
 
     let canonical_policy = CanonicalPolicy {
         format_version: FORMAT_VERSION,
         schema_sha256: &policy.schema_sha256,
-        owner_mapping_sha256: &policy.owner_mapping_sha256,
         methods: &rows,
     };
     let semantic_policy = compact_json(&canonical_policy, "capability policy")?;
@@ -190,14 +145,10 @@ fn build_output(
         format_version: FORMAT_VERSION,
         generated_by: "tdlib-registry-gen/capability",
         engine_source_sha256: engine_source_sha256(),
-        vendor_manifest_sha256: sha256_hex(manifest_bytes),
         schema: SchemaEvidence {
             sha256: policy.schema_sha256,
             methods: rows.len(),
             authorization_states: AuthorizationState::ALL.len(),
-        },
-        owner: OwnerEvidence {
-            mapping_sha256: policy.owner_mapping_sha256,
         },
         policy: PolicyEvidence {
             semantic_sha256: sha256_hex(&semantic_policy),
@@ -212,40 +163,15 @@ fn build_output(
     serialize_pretty_with_limit(&output, MAX_OUTPUT_BYTES)
 }
 
-fn owner_map(
-    owner_rows: Vec<OwnerMethod>,
-    schema_methods: &BTreeMap<&str, &Definition>,
-) -> Result<BTreeMap<String, OwnerMethod>, CapabilityGenerationError> {
-    let mut owners = BTreeMap::new();
-    for row in owner_rows {
-        if owners.insert(row.method.clone(), row).is_some() {
-            return Err(CapabilityGenerationError::new(
-                CapabilityGenerationErrorKind::OwnerGeneration,
-                "generated owner manifest contains a duplicate method",
-            ));
-        }
-    }
-    if owners.keys().map(String::as_str).collect::<BTreeSet<_>>()
-        != schema_methods.keys().copied().collect::<BTreeSet<_>>()
-    {
-        return Err(CapabilityGenerationError::new(
-            CapabilityGenerationErrorKind::OwnerGeneration,
-            "generated owner method set differs from schema",
-        ));
-    }
-    Ok(owners)
-}
-
 fn build_method_row(
     method: &Definition,
-    owner: &OwnerMethod,
     policy: MethodPolicyDto,
 ) -> Result<CanonicalMethodRow, CapabilityGenerationError> {
     validate_hash("method signature_sha256", &policy.signature_sha256)?;
     validate_hash("method documentation_sha256", &policy.documentation_sha256)?;
     validate_rationale(&policy.rationale)?;
     let signature_sha256 = sha256_hex(method.canonical_signature().as_bytes());
-    if policy.signature_sha256 != signature_sha256 || owner.signature_sha256 != signature_sha256 {
+    if policy.signature_sha256 != signature_sha256 {
         return Err(CapabilityGenerationError::new(
             CapabilityGenerationErrorKind::SchemaDrift,
             format!("stale signature evidence for {:?}", method.name()),
@@ -258,19 +184,6 @@ fn build_method_row(
             format!("stale documentation evidence for {:?}", method.name()),
         ));
     }
-    let feature_id = FeatureId::try_from(policy.feature_id.as_str()).map_err(|error| {
-        CapabilityGenerationError::invalid_policy(format!(
-            "invalid owner for {:?}: {error}",
-            method.name()
-        ))
-    })?;
-    if feature_id.as_str() != owner.feature_id {
-        return Err(CapabilityGenerationError::new(
-            CapabilityGenerationErrorKind::OwnerDrift,
-            format!("stale owner evidence for {:?}", method.name()),
-        ));
-    }
-
     let synchronous = parse_synchronous(policy.synchronous, method)?;
     let ready_accounts = parse_values(
         "ready_accounts",
@@ -325,7 +238,6 @@ fn build_method_row(
         method.name().to_owned(),
         signature_sha256,
         documentation_sha256,
-        feature_id.as_str(),
         descriptor,
         policy.rationale,
     ))
@@ -3318,14 +3230,9 @@ fn engine_source_sha256() -> String {
     let mut hasher = Sha256::new();
     for (path, bytes) in [
         ("capability.rs", include_bytes!("capability.rs").as_slice()),
-        ("engine.rs", include_bytes!("engine.rs").as_slice()),
         (
             "telegram-core/method_capability.rs",
             include_bytes!("../../../crates/telegram-core/src/method_capability.rs").as_slice(),
-        ),
-        (
-            "telegram-core/feature.rs",
-            include_bytes!("../../../crates/telegram-core/src/feature.rs").as_slice(),
         ),
         (
             "telegram-core/schema.rs",
@@ -3349,24 +3256,10 @@ fn digest_hex(digest: impl AsRef<[u8]>) -> String {
 }
 
 #[derive(Debug, Deserialize)]
-struct OwnerManifest {
-    mapping_sha256: String,
-    methods: Vec<OwnerMethod>,
-}
-
-#[derive(Debug, Deserialize)]
-struct OwnerMethod {
-    method: String,
-    signature_sha256: String,
-    feature_id: String,
-}
-
-#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CapabilityPolicyDto {
     format_version: u32,
     schema_sha256: String,
-    owner_mapping_sha256: String,
     methods: Vec<MethodPolicyDto>,
 }
 
@@ -3376,7 +3269,6 @@ struct MethodPolicyDto {
     method: String,
     signature_sha256: String,
     documentation_sha256: String,
-    feature_id: String,
     synchronous: SynchronousDto,
     ready_accounts: Vec<String>,
     authorization_states: Vec<String>,
@@ -3516,7 +3408,6 @@ enum ParameterGateDto {
 struct CanonicalPolicy<'a> {
     format_version: u32,
     schema_sha256: &'a str,
-    owner_mapping_sha256: &'a str,
     methods: &'a [CanonicalMethodRow],
 }
 
@@ -3525,9 +3416,7 @@ struct GeneratedManifest {
     format_version: u32,
     generated_by: &'static str,
     engine_source_sha256: String,
-    vendor_manifest_sha256: String,
     schema: SchemaEvidence,
-    owner: OwnerEvidence,
     policy: PolicyEvidence,
     counts: Counts,
     mapping_sha256: String,
@@ -3539,11 +3428,6 @@ struct SchemaEvidence {
     sha256: String,
     methods: usize,
     authorization_states: usize,
-}
-
-#[derive(Serialize)]
-struct OwnerEvidence {
-    mapping_sha256: String,
 }
 
 #[derive(Serialize)]
@@ -3562,7 +3446,6 @@ struct CanonicalMethodRow {
     method: String,
     signature_sha256: String,
     documentation_sha256: String,
-    feature_id: &'static str,
     synchronous: CanonicalSynchronous,
     ready_accounts: Vec<&'static str>,
     authorization_states: Vec<&'static str>,
@@ -3580,7 +3463,6 @@ impl CanonicalMethodRow {
         method: String,
         signature_sha256: String,
         documentation_sha256: String,
-        feature_id: &'static str,
         descriptor: CapabilityDescriptor,
         rationale: String,
     ) -> Self {
@@ -3588,7 +3470,6 @@ impl CanonicalMethodRow {
             method,
             signature_sha256,
             documentation_sha256,
-            feature_id,
             synchronous: CanonicalSynchronous::from_domain(descriptor.synchronous()),
             ready_accounts: descriptor
                 .ready_accounts()
@@ -3928,10 +3809,8 @@ impl CanonicalParameterGate {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CapabilityGenerationErrorKind {
     ResourceLimit,
-    OwnerGeneration,
     InvalidSchema,
     SchemaDrift,
-    OwnerDrift,
     InvalidPolicy,
     Coverage,
     Serialization,

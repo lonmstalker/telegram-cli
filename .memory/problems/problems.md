@@ -120,3 +120,19 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Status: open; zero-open gate не достигнут, 137 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
 - Next check: отдельными reviewed tasks закрывать admin/object-field/mixed source families; runtime evaluator отдельно обязан fail closed на wrong-typed, missing или generation-stale option evidence.
 - Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-016](../decisions/decisions.md).
+
+## [2026-07-15] open | P-20260715-006 | Planning taxonomy загрязнила core и generated contracts
+
+- Evidence: `telegram_core::FeatureId`, owner generator/CLI, 1010-row policy/artifact и capability owner field existed through `W-20260715-020`; user correction rejected this architecture.
+- Impact: executable model depended on arbitrary plan numbering, duplicated schema identity and added 20k lines without product runtime semantics.
+- Status: open at correction start; W021 owner work stopped before commit.
+- Next check: remove all runtime taxonomy surfaces, add fail-closed repository gate and independent review.
+- Related decisions: superseded `D-20260715-007`/`D-20260715-008`.
+
+## [2026-07-15] resolved | P-20260715-006 | Runtime contracts отвязаны от planning inventory
+
+- Evidence: [planning-taxonomy removal correction](../raw/2026-07-15-planning-taxonomy-removal.md), green `python3 scripts/check-planning-boundary.py`, 69 Rust tests, Clippy and repeat implementation audit.
+- Resolution: numeric type, owner engine/CLI/policy/artifact и capability owner field удалены; schema identity и семантические modules являются current boundary.
+- Status: resolved; seven negative controls покрывают matcher, real discovery, root/script formats и file/root symlink fail-closed.
+- Remaining boundary: documentation IDs остаются навигацией; full registry/runtime всё ещё open и не заявляется.
+- Related decisions: [D-20260715-017](../decisions/decisions.md).

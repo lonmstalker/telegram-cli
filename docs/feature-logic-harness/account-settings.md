@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: owner jobs and default-deny destructive actions; limits: none.
 - SRC002: HARNESS.md; type: file; supports: capability/risk dimensions; limits: none.
-- SRC003: pinned official schema; type: supplied; supports: account/settings/security method families; limits: generated mapping absent.
+- SRC003: pinned official schema; type: supplied; supports: account/settings/security method families; limits: full generated registry absent.
 - SRC004: plans.md P5/P7; type: file; supports: preview/approval/reconciliation; limits: implementation absent.
 
 ## TDLib API Coverage
@@ -155,6 +155,6 @@ Only existing account access was verified via `getMe`; no account setting or sec
 
 - Kernel coverage: desired state, secrets and destructive boundaries modeled.
 - Modeled: settings/security method families.
-- Partial: exact generated ownership and approval transport.
+- Partial: exact generated method classification and approval transport.
 - Unknown: production secret provider.
 - Not applicable: Telegram Passport document processing.

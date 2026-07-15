@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: Mini App boundary; limits: none.
 - SRC002: HARNESS.md; type: file; supports: secret/browser invariants; limits: none.
-- SRC003: pinned official schema; type: supplied; supports: Web App/OAuth/link method families; limits: generated mapping absent.
+- SRC003: pinned official schema; type: supplied; supports: Web App/OAuth/link method families; limits: full generated registry absent.
 - SRC004: plans.md P4/P7/P10; type: file; supports: workflow/browser gate; limits: implementation absent.
 
 ## TDLib API Coverage
@@ -154,6 +154,6 @@ No Mini App opened. Existing tg-analytics Playwright runner is a reuse candidate
 
 - Kernel coverage: Telegram/browser/security boundary modeled.
 - Modeled: end-to-end test phases.
-- Partial: remote handoff and exact schema ownership.
+- Partial: remote handoff and exact schema classification.
 - Unknown: deployment-specific browser topology.
 - Not applicable: general chat analytics.

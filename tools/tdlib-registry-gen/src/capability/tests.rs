@@ -1,8 +1,5 @@
-use std::collections::BTreeMap;
-use std::fmt::Write as _;
-
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use telegram_core::method_capability::{
     AccountKind, ApplicationRequirement, AuthorizationState, CapabilityDescriptor,
     ChatAdministratorRight, ChatKindCondition, ChatMemberRight, ChatTargetKind, ChatTargetRef,
@@ -15,12 +12,11 @@ use telegram_core::schema::Schema;
 
 use super::{
     CapabilityGenerationErrorKind, DeferredSignalLane, MAX_CAPABILITY_POLICY_BYTES,
-    MAX_MANIFEST_BYTES, MAX_OWNER_POLICY_BYTES, MAX_SCHEMA_BYTES, NonGateReason,
-    RuntimeRequirementsDto, RuntimeSignalDisposition, RuntimeSignalFamily, RuntimeSignalKey,
-    RuntimeSignalSource, documentation_sha256, documented_runtime_requirements,
-    documented_runtime_signal_dispositions, field_type, generate, has_runtime_gate_signal,
-    method_documentation_text, normalized_text, parse_runtime_requirements,
-    runtime_signal_dispositions_with_consumed, runtime_signal_families,
+    MAX_SCHEMA_BYTES, NonGateReason, RuntimeRequirementsDto, RuntimeSignalDisposition,
+    RuntimeSignalFamily, RuntimeSignalKey, RuntimeSignalSource, documentation_sha256,
+    documented_runtime_requirements, documented_runtime_signal_dispositions, field_type, generate,
+    has_runtime_gate_signal, method_documentation_text, normalized_text,
+    parse_runtime_requirements, runtime_signal_dispositions_with_consumed, runtime_signal_families,
     serialize_pretty_with_limit, sha256_hex, validate_documented_authorization_states,
     validate_documented_method_constraints, validate_documented_parameter_notices,
     validate_documented_runtime_requirements, validate_group_call_vocabulary,
@@ -158,9 +154,7 @@ fn canonical_generation_is_pure_and_independent_of_policy_order() {
     let mut reordered = fixture.capability_value();
     reorder_policy(&mut reordered);
     let second = generate(
-        &fixture.manifest,
         &fixture.schema,
-        &fixture.owner_policy,
         &serde_json::to_vec(&reordered).expect("reordered policy"),
     )
     .expect("same semantic policy");
@@ -3578,36 +3572,14 @@ fn synchronous_capability_is_additive_and_value_conditioned() {
 }
 
 #[test]
-fn binds_every_row_to_documentation_signature_and_owner_evidence() {
+fn binds_every_row_to_documentation_and_signature_evidence() {
     let fixture = Fixture::new(SCHEMA);
 
-    for (field, kind) in [
-        (
-            "documentation_sha256",
-            CapabilityGenerationErrorKind::SchemaDrift,
-        ),
-        (
-            "signature_sha256",
-            CapabilityGenerationErrorKind::SchemaDrift,
-        ),
-        ("feature_id", CapabilityGenerationErrorKind::OwnerDrift),
-    ] {
+    for field in ["documentation_sha256", "signature_sha256"] {
         let mut policy = fixture.capability_value();
-        method_row_mut(&mut policy, "getChat")[field] = if field == "feature_id" {
-            json!("F017")
-        } else {
-            json!("0".repeat(64))
-        };
-        assert_policy_error(&fixture, policy, kind);
+        method_row_mut(&mut policy, "getChat")[field] = json!("0".repeat(64));
+        assert_policy_error(&fixture, policy, CapabilityGenerationErrorKind::SchemaDrift);
     }
-
-    let mut root_owner = fixture.capability_value();
-    root_owner["owner_mapping_sha256"] = json!("0".repeat(64));
-    assert_policy_error(
-        &fixture,
-        root_owner,
-        CapabilityGenerationErrorKind::OwnerDrift,
-    );
 }
 
 #[test]
@@ -3683,34 +3655,18 @@ fn rejects_unknown_fields_and_oversized_inputs_before_work() {
         CapabilityGenerationErrorKind::ResourceLimit,
     );
 
-    for (manifest, schema, owner, capability) in [
+    for (schema, capability) in [
         (
-            vec![b' '; MAX_MANIFEST_BYTES + 1],
-            fixture.schema.clone(),
-            fixture.owner_policy.clone(),
-            fixture.capability_policy.clone(),
-        ),
-        (
-            fixture.manifest.clone(),
             vec![b' '; MAX_SCHEMA_BYTES + 1],
-            fixture.owner_policy.clone(),
             fixture.capability_policy.clone(),
         ),
         (
-            fixture.manifest.clone(),
             fixture.schema.clone(),
-            vec![b' '; MAX_OWNER_POLICY_BYTES + 1],
-            fixture.capability_policy.clone(),
-        ),
-        (
-            fixture.manifest.clone(),
-            fixture.schema.clone(),
-            fixture.owner_policy.clone(),
             vec![b' '; MAX_CAPABILITY_POLICY_BYTES + 1],
         ),
     ] {
         assert_eq!(
-            generate(&manifest, &schema, &owner, &capability)
+            generate(&schema, &capability)
                 .expect_err("input cap")
                 .kind(),
             CapabilityGenerationErrorKind::ResourceLimit
@@ -3968,9 +3924,7 @@ fn find_method<'a>(schema: &'a Schema, name: &str) -> &'a telegram_core::schema:
 }
 
 struct Fixture {
-    manifest: Vec<u8>,
     schema: Vec<u8>,
-    owner_policy: Vec<u8>,
     capability_policy: Vec<u8>,
 }
 
@@ -3978,54 +3932,19 @@ impl Fixture {
     fn new(schema_source: &str) -> Self {
         let schema = Schema::parse(schema_source).expect("fixture schema");
         let schema_bytes = schema_source.as_bytes().to_vec();
-        let inventory = schema.inventory();
-        let manifest = serde_json::to_vec(&json!({
-            "format_version": 1,
-            "upstream": {
-                "repository": "https://example.invalid/tdlib",
-                "commit": "0123456789abcdef0123456789abcdef01234567",
-                "version": "test"
-            },
-            "schema": {
-                "sha256": sha256_hex(&schema_bytes),
-                "definitions": schema.definitions().len(),
-                "functions": schema.methods().len(),
-                "updates": inventory.update_names().len(),
-                "authorization_states": inventory.authorization_state_names().len()
-            }
-        }))
-        .unwrap();
-        let owner_policy = owner_policy(&schema, &schema_bytes);
-        let owner_output = super::engine::generate(&manifest, &schema_bytes, &owner_policy)
-            .expect("fixture owner output");
-        let owner: Value = serde_json::from_slice(&owner_output).unwrap();
-        let owner_by_method = owner["methods"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|row| {
-                (
-                    row["method"].as_str().unwrap(),
-                    row["feature_id"].as_str().unwrap(),
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
         let methods = schema
             .methods()
             .iter()
-            .map(|method| capability_row(method, owner_by_method[method.name()]))
+            .map(capability_row)
             .collect::<Vec<_>>();
         let capability_policy = serde_json::to_vec(&json!({
             "format_version": super::FORMAT_VERSION,
             "schema_sha256": sha256_hex(&schema_bytes),
-            "owner_mapping_sha256": owner["mapping_sha256"],
             "methods": methods
         }))
         .unwrap();
         Self {
-            manifest,
             schema: schema_bytes,
-            owner_policy,
             capability_policy,
         }
     }
@@ -4035,31 +3954,20 @@ impl Fixture {
     }
 
     fn generate(&self) -> Result<Vec<u8>, super::CapabilityGenerationError> {
-        generate(
-            &self.manifest,
-            &self.schema,
-            &self.owner_policy,
-            &self.capability_policy,
-        )
+        generate(&self.schema, &self.capability_policy)
     }
 
     fn generate_value(&self, value: &Value) -> Result<Vec<u8>, super::CapabilityGenerationError> {
-        generate(
-            &self.manifest,
-            &self.schema,
-            &self.owner_policy,
-            &serde_json::to_vec(value).unwrap(),
-        )
+        generate(&self.schema, &serde_json::to_vec(value).unwrap())
     }
 }
 
-fn capability_row(method: &telegram_core::schema::Definition, feature_id: &str) -> Value {
+fn capability_row(method: &telegram_core::schema::Definition) -> Value {
     let common = || {
         json!({
             "method": method.name(),
             "signature_sha256": sha256_hex(method.canonical_signature().as_bytes()),
             "documentation_sha256": documentation_sha256(method),
-            "feature_id": feature_id,
             "synchronous": {"kind": "never"},
             "ready_accounts": ["regular_user", "bot"],
             "authorization_states": ["authorizationStateReady"],
@@ -4257,59 +4165,6 @@ fn chat_member_right(target_argument: &str, right: &str) -> Value {
         "target_argument": target_argument,
         "right": right
     })
-}
-
-fn owner_policy(schema: &Schema, schema_bytes: &[u8]) -> Vec<u8> {
-    let (business, platform): (Vec<_>, Vec<_>) = schema
-        .methods()
-        .iter()
-        .partition(|method| method.name() == "sendBusinessMessage");
-    let rule = |feature_id: &str,
-                methods: Vec<&telegram_core::schema::Definition>,
-                positive: &str,
-                negative: &str| {
-        json!({
-            "feature_id": feature_id,
-            "any": methods.iter().map(|method| json!({
-                "kind": "exact",
-                "value": method.name()
-            })).collect::<Vec<_>>(),
-            "expected": {
-                "method_count": methods.len(),
-                "method_set_sha256": method_set_sha256(methods)
-            },
-            "positive_examples": [positive],
-            "negative_examples": [negative],
-            "rationale": "Synthetic owner boundary with exact method evidence."
-        })
-    };
-    serde_json::to_vec(&json!({
-        "format_version": 1,
-        "schema_sha256": sha256_hex(schema_bytes),
-        "rules": [
-            rule("F017", business, "sendBusinessMessage", "getChat"),
-            rule("F020", platform, "getChat", "sendBusinessMessage")
-        ],
-        "overrides": []
-    }))
-    .unwrap()
-}
-
-fn method_set_sha256(mut methods: Vec<&telegram_core::schema::Definition>) -> String {
-    methods.sort_unstable_by_key(|method| method.name());
-    let mut hasher = Sha256::new();
-    for method in methods {
-        hasher.update(method.name().as_bytes());
-        hasher.update([0]);
-        hasher.update(sha256_hex(method.canonical_signature().as_bytes()).as_bytes());
-        hasher.update(b"\n");
-    }
-    let digest = hasher.finalize();
-    let mut encoded = String::with_capacity(64);
-    for byte in digest {
-        write!(&mut encoded, "{byte:02x}").unwrap();
-    }
-    encoded
 }
 
 fn reorder_policy(policy: &mut Value) {

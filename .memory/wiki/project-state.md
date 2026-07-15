@@ -18,9 +18,9 @@
 - Global build lock наследуется всеми watchdog paths; gated handshake, recursive stale recovery и proof-backed finalization проверены parent/inspection `SIGKILL` controls. RSS/tree limits являются sampled thresholds, не kernel hard caps.
 - Native binary хранится в ignored content-addressed cache; Git хранит exact policy/recipe/provenance. Одна сборка помечена `reproducibility=not_verified`.
 - Strict Rust parser в `telegram-core` разбирает полный pinned corpus без сторонних dependencies: 2168 definitions = 9 builtins + 2159 object constructors, 1010 methods, 745 type families, 184 updates и 13 authorization states. Documentation сохраняется raw и structured, signatures canonical; input cap 2 MiB, type depth cap 32. Independent re-review — Approved.
-- Non-default `tdlib-registry-gen` отделён от product packages и реализует bounded deterministic owner rule engine: one-rule-per-feature candidate sets, reviewed set/signature hashes, exact overlap overrides и fail-closed coverage. `check` read-only; `generate` получает один fixed-temp lease до input snapshot, проверяет path/inode identity и публикует atomic rename. Independent re-review — Approved.
-- Exact owner corpus закреплён для 1010/1010 methods: 17 rules, 252 atoms, 372 reviewed overlap overrides; schema-derived signatures, 22 per-feature hashes, independent exact owner digest и adversarial semantic boundaries проверяются corpus gate. Canonical artifact остаётся owner-only; independent final review — Approved.
-- P0.5a capability foundation закрепляет closed account/auth/entitlement/application/DC vocabularies, additive synchronous path, typed bounded runtime DNF и parameter notices. Pure generator требует exact schema/owner/method/signature/documentation evidence, отклоняет распознанные unsupported capability/runtime gate signals и скрытое policy-сужение; два independent reviews — Approved.
+- Historical owner rule engine и 1010-row owner corpus удалены в `W-20260715-021`: planning IDs не являются runtime taxonomy. Их immutable raw digests сохранены только как история superseded implementation.
+- Non-default `tdlib-registry-gen` теперь library-only tooling package с семантическим модулем `capability`; product packages от него не зависят.
+- P0.5a capability foundation закрепляет closed account/auth/entitlement/application/DC vocabularies, additive synchronous path, typed bounded runtime DNF и parameter notices. Pure generator требует exact schema/method/signature/documentation evidence, отклоняет распознанные unsupported capability/runtime gate signals и скрытое policy-сужение.
 - P0.5b0 evidence baseline связывает current recognizer с exact 193-method signal set и 188-method fail-closed open set. Authorization validation читает все structured documentation tags; `setCustomLanguagePack.@info` больше не теряет pre-authorization contract. Open rows не считаются capability coverage.
 - P0.5b1 добавляет closed `ResolvedChatKind`/`ChatKindCondition`, exact four-constructor `ChatType` pin и conditional DNF для шести real methods. `unpinChatMessage` полностью dispositioned; exact open set уменьшен до 187 без расширения recognizer. Capability policy format — `2`; independent reviews — Approved.
 - P0.5b2 разворачивает 193-method recognizer в exact 208 source tags/398 signal keys. Explicit consumed-key equality запрещает partial completion; exact normalized lexical exceptions уменьшают open set до 185 без изменения capability format. Два independent reviews — Approved.
@@ -28,7 +28,8 @@
 - P0.5b4 exact-match классифицирует `getChatBoostLinkInfo` как lexical non-gate: `internalLinkTypeChatBoost` является типом входной ссылки, не runtime capability. Open set уменьшен до 155; два independent reviews — Approved.
 - P0.5b5 закрепляет ordered 32-field `groupCall`, 7-field `groupCallMessage`, closed kind/property vocabulary и 12 exact typed DNF. Два argument-dependent methods остаются deferred; `only by administrators` у mute-new-participants классифицировано как setting-value non-gate. Open set уменьшен до 143, capability format — `4`; три independent reviews — Approved.
 - P0.5b6 закрепляет ordered 42-field `supergroupFullInfo`, closed eight-property vocabulary и 5 exact typed DNF. Семь mixed methods остаются deferred; два cross-token `OnlyIfAdministrator` matches классифицированы как exact lexical non-gates. Open set уменьшен до 138, capability format — `5`; Rust/evidence reviews и independent oracle audit — Approved.
-- P0.5b7 закрепляет exact four-constructor `OptionValue`, `getOption`/`updateOption`, closed three-name runtime option vocabulary и method-level gate для `setNewChatPrivacySettings`. Два mixed methods остаются deferred; open set уменьшен до 137, capability format — `6`. Reviewer P2 exact-name oracle исправлен; Rust/evidence/oracle reviews — Approved.
+- P0.5b7 закрепляет exact four-constructor `OptionValue`, `getOption`/`updateOption`, closed three-name runtime option vocabulary и method-level gate для `setNewChatPrivacySettings`. Два mixed methods остаются deferred; open set уменьшен до 137. После удаления owner fields capability format повышен до `7`; semantic capability contents не изменились.
+- Planning boundary gate с семью negative controls запрещает `FeatureId`, numeric planning IDs и owner-manifest taxonomy в runtime/tooling/machine contracts; real discovery проверяет scripts/all root machine files, file/root symlink fail closed.
 
 ## Not implemented
 
@@ -73,9 +74,9 @@
 - [TDLib runtime boolean option capability digest](../raw/2026-07-15-tdlib-runtime-boolean-options.md)
 - [TDLib getChatBoostLinkInfo lexical non-gate digest](../raw/2026-07-15-tdlib-chat-boost-link-non-gate.md)
 - [D-20260715-009](../decisions/archive/2026-07-15--2026-07-15-008.md)
-- [W-20260715-012](../logs/work.md)
+- [W-20260715-012](../logs/archive/2026-07-15--2026-07-15-011.md)
 - [W-20260715-013](../logs/work.md)
-- [D-20260715-011](../decisions/decisions.md)
+- [D-20260715-011](../decisions/archive/2026-07-15--2026-07-15-010.md)
 - [D-20260715-012](../decisions/decisions.md)
 - [W-20260715-014](../logs/work.md)
 - [W-20260715-015](../logs/work.md)
@@ -87,3 +88,6 @@
 - [W-20260715-019](../logs/work.md)
 - [D-20260715-016](../decisions/decisions.md)
 - [W-20260715-020](../logs/work.md)
+- [Planning-taxonomy removal correction](../raw/2026-07-15-planning-taxonomy-removal.md)
+- [D-20260715-017](../decisions/decisions.md)
+- [W-20260715-021](../logs/work.md)

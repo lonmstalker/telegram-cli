@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: routine administration; limits: none.
 - SRC002: HARNESS.md; type: file; supports: policy/completion invariants; limits: none.
-- SRC003: pinned official schema; type: supplied; supports: group/channel method/update families; limits: generated mapping absent.
+- SRC003: pinned official schema; type: supplied; supports: group/channel method/update families; limits: full generated registry absent.
 - SRC004: plans.md P4/P7/P10; type: file; supports: workflow/live gates; limits: implementation absent.
 
 ## TDLib API Coverage
@@ -155,6 +155,6 @@ No channel mutation performed. Future live tests use disposable chats/channels a
 
 - Kernel coverage: rights/config/membership/uncertainty modeled.
 - Modeled: routine administration and moderation boundaries.
-- Partial: exact method ownership and live matrix.
+- Partial: exact method classification and live matrix.
 - Unknown: account-specific available rights.
 - Not applicable: payment settlement.

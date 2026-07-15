@@ -12,7 +12,7 @@
 - product_context_source: product.md
 - Feature purpose: дать агенту полное schema-driven управление стикерами, custom emoji, emoji status, реакциями и наборами без неполных request chains.
 - Product workflow/job served: найти или загрузить media -> проверить права/формат -> создать либо изменить набор -> дождаться подтверждения -> перечитать итог.
-- Primary ambiguity to keep explicit: точный owner каждого метода фиксирует generated manifest, а не ручной список в этом файле.
+- Primary ambiguity to keep explicit: exact method registration/classification строится из pinned schema, а не из ручного списка в этом файле.
 
 ## Product Context
 
@@ -26,8 +26,8 @@
 ## Source Ledger
 
 - SRC001: product.md; type: file; supports: user jobs and safety boundary; limits: none.
-- SRC002: HARNESS.md; type: file; supports: full-schema ownership and required dimensions; limits: none.
-- SRC003: pinned official schema; type: supplied; supports: sticker/emoji/reaction method families; limits: generated mapping absent.
+- SRC002: HARNESS.md; type: file; supports: semantic scope and required dimensions; limits: planning IDs are documentation-only.
+- SRC003: pinned official schema; type: supplied; supports: sticker/emoji/reaction method families; limits: full generated registry absent.
 - SRC004: plans.md P3/P4/P7; type: file; supports: raw parity and workflow behavior; limits: implementation absent.
 
 ## TDLib API Coverage

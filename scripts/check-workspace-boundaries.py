@@ -21,7 +21,7 @@ PRODUCT_PACKAGES = {
     "telegram-webapp-runner": ("bin", {"telegram-protocol"}),
 }
 TOOL_PACKAGES = {
-    "tdlib-registry-gen": ("bin", {"telegram-core"}),
+    "tdlib-registry-gen": ("lib", {"telegram-core"}),
 }
 EXPECTED = PRODUCT_PACKAGES | TOOL_PACKAGES
 DEFAULT_MEMBERS = set(PRODUCT_PACKAGES) - {"telegram-mcp"}

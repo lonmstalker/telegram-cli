@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: full API/default-deny risk; limits: none.
 - SRC002: HARNESS.md; type: file; supports: financial/destructive dimensions and secret boundary; limits: none.
-- SRC003: pinned official schema; type: supplied; supports: payment/Stars/gift/Passport method families; limits: generated mapping absent.
+- SRC003: pinned official schema; type: supplied; supports: payment/Stars/gift/Passport method families; limits: full generated registry absent.
 - SRC004: plans.md P5/P7; type: file; supports: plan hash/idempotency/reconciliation; limits: implementation absent.
 
 ## TDLib API Coverage

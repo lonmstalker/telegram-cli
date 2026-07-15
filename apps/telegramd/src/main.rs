@@ -5,8 +5,10 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 pub mod ownership;
+pub mod socket;
 
 use ownership::ProfileDatabaseLock;
+use socket::DaemonSocket;
 
 fn main() -> ExitCode {
     let profile = env::var("TELEGRAM_PROFILE");
@@ -29,7 +31,14 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    eprintln!("telegramd: profile database locked; service transport ещё не реализован");
+    let _socket = match DaemonSocket::bind(&_ownership) {
+        Ok(socket) => socket,
+        Err(error) => {
+            eprintln!("telegramd: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    eprintln!("telegramd: profile socket bound; service protocol ещё не реализован");
     loop {
         std::thread::park();
     }

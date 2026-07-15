@@ -24,6 +24,13 @@ impl ProfileDatabaseLock {
         if profile.is_empty() {
             return Err(OwnershipError::EmptyProfile);
         }
+        if profile.len() > 48
+            || !profile
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+        {
+            return Err(OwnershipError::InvalidProfile);
+        }
         let database_directory = database_directory.as_ref();
         if !database_directory.is_absolute() {
             return Err(OwnershipError::DatabasePathMustBeAbsolute);
@@ -88,6 +95,7 @@ fn validate_lock_file(file: &File) -> Result<(), OwnershipError> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OwnershipError {
     EmptyProfile,
+    InvalidProfile,
     DatabasePathMustBeAbsolute,
     Canonicalize(io::ErrorKind),
     DatabasePathNotDirectory,
@@ -104,6 +112,7 @@ impl fmt::Display for OwnershipError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyProfile => formatter.write_str("profile name is empty"),
+            Self::InvalidProfile => formatter.write_str("profile name is invalid"),
             Self::DatabasePathMustBeAbsolute => {
                 formatter.write_str("TDLib database path must be absolute")
             }
@@ -178,6 +187,10 @@ mod tests {
         assert_eq!(
             ProfileDatabaseLock::acquire("", &root).err(),
             Some(OwnershipError::EmptyProfile)
+        );
+        assert_eq!(
+            ProfileDatabaseLock::acquire("not/a/profile", &root).err(),
+            Some(OwnershipError::InvalidProfile)
         );
         assert_eq!(
             ProfileDatabaseLock::acquire("primary", Path::new("relative")).err(),

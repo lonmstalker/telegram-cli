@@ -1,6 +1,6 @@
 # Daemon lease contract
 
-Третий P2 slice реализован типами `telegram-protocol::{LeaseRequest, LeaseResponse}` и `telegramd::{lease, server}`. Lease — временное право principal использовать одну daemon-owned session; это не TDLib request и не заменяет policy authorization.
+Третий P2 slice реализован lease-вариантами `telegram-protocol::{DaemonRequest, DaemonResponse}` и `telegramd::{lease, server}`. Lease — временное право principal использовать одну daemon-owned session; это не TDLib request и не заменяет policy authorization.
 
 ## JSONL wire surface
 

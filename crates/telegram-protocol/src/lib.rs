@@ -3,6 +3,8 @@
 #![forbid(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -16,6 +18,50 @@ pub enum RiskScope {
     Financial,
     AuthSecurity,
 }
+
+impl RiskScope {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Read => "read",
+            Self::Presence => "presence",
+            Self::Send => "send",
+            Self::ReversibleMutation => "reversible_mutation",
+            Self::Admin => "admin",
+            Self::Destructive => "destructive",
+            Self::Financial => "financial",
+            Self::AuthSecurity => "auth_security",
+        }
+    }
+}
+
+impl FromStr for RiskScope {
+    type Err = ParseRiskScopeError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "read" => Ok(Self::Read),
+            "presence" => Ok(Self::Presence),
+            "send" => Ok(Self::Send),
+            "reversible_mutation" => Ok(Self::ReversibleMutation),
+            "admin" => Ok(Self::Admin),
+            "destructive" => Ok(Self::Destructive),
+            "financial" => Ok(Self::Financial),
+            "auth_security" => Ok(Self::AuthSecurity),
+            _ => Err(ParseRiskScopeError),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParseRiskScopeError;
+
+impl fmt::Display for ParseRiskScopeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("unknown risk scope")
+    }
+}
+
+impl std::error::Error for ParseRiskScopeError {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -33,7 +79,8 @@ impl LeaseId {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
-pub enum LeaseRequest {
+pub enum DaemonRequest {
+    SessionStatus,
     LeaseAcquire {
         principal: String,
         scopes: Vec<RiskScope>,
@@ -60,7 +107,8 @@ pub struct LeaseView {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
-pub enum LeaseResponse {
+pub enum DaemonResponse {
+    SessionStatus { active_leases: usize },
     LeaseGranted { lease: LeaseView },
     LeaseRenewed { lease: LeaseView },
     LeaseReleased { lease_id: LeaseId },

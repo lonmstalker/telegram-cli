@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: CLI-first rule; limits: none.
 - SRC002: HARNESS.md; type: file; supports: full API/parity; limits: none.
-- SRC003: plans.md P6; type: file; supports: commands/acceptance; limits: implementation absent.
+- SRC003: plans.md P6; type: file; supports: commands/acceptance; limits: schema/call/workflow/login/events pending.
 
 ## TDLib API Coverage
 
@@ -60,7 +60,9 @@ Commands display capability/policy requirements. Auth secrets use protected TTY/
 
 ## Live Verification Boundary
 
-No project CLI exists yet; previous tg-analytics JSONL behavior is only a reusable source pattern.
+Session status/hold/release используют private daemon JSONL protocol; CLI не зависит от core
+и не открывает DB. Hold пока выдаёт bounded lease без heartbeat loop; schema/call/workflow,
+login/events, formatting и signal cleanup принадлежат следующим P6 slices.
 
 ## Scope
 
@@ -151,8 +153,8 @@ No project CLI exists yet; previous tg-analytics JSONL behavior is only a reusab
 
 ## Coverage Notes
 
-- Kernel coverage: commands/output/cancellation modeled.
+- Kernel coverage: session status/hold/release implemented; remaining commands/output/cancellation modeled.
 - Modeled: full raw/workflow reachability contract.
-- Partial: exact command grammar/goldens absent.
+- Partial: session grammar/client transport implemented; schema/call/workflow/login/events and goldens absent.
 - Unknown: none blocking product intent.
 - Not applicable: TDLib domain semantics owned elsewhere.

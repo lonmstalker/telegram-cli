@@ -48,6 +48,7 @@
 - Пятый пункт P5 закрыт: high-risk request получает exact SHA-256 plan preview и dispatch-ится только с unexpired one-shot Ed25519 capability внешнего signer; daemon имеет только public key ([D-20260715-064](../decisions/decisions.md)).
 - Шестой пункт P5 закрыт: fixed-shape snapshot покрывает latency/outcome, queue, retry/flood, update lag, freshness и leases; audit JSONL хранит только generated method/risk и closed operational fields, а payload/identifiers отсутствуют по schema ([D-20260715-065](../decisions/decisions.md)).
 - P5 accepted: timeout/restart требует reconciliation до нового write, safe-read выдерживает supplied delay, approval невозможно подделать daemon-side, secret-output и telemetry canary tests green.
+- Первый подпункт CLI commands P6 закрыт: `telegram-cli` через validated private profile socket выполняет session status/hold/release и остаётся protocol-only client без TDLib/DB ownership ([D-20260715-066](../decisions/decisions.md)).
 
 ## Not implemented
 
@@ -60,4 +61,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: первый Tasks-пункт P6 — CLI session/status/login/hold/release, schema, call, workflow и events/watch.
+- Следующий implementation boundary: второй подпункт CLI commands P6 — schema search/describe и universal `td call`.

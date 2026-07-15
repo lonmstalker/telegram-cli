@@ -118,3 +118,11 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Trust-boundary test записал request с chat ID и secret-shaped description canary: method присутствует, ID/canary отсутствуют, mode `0600`. Existing secret-output scan и полный gate подтверждают отсутствие утечки.
 - Все P5 Acceptance-критерии закрыты behavior evidence для write reconciliation, delayed read retry, external signature/replay gate и telemetry redaction. Contract: [D-20260715-065](../decisions/decisions.md), [`docs/telemetry-audit.md`](../../docs/telemetry-audit.md).
 - Следующий Tasks-пункт: P6 CLI commands session/status/login/hold/release, schema, call, workflow, events/watch.
+
+## [2026-07-15] completed | W-20260715-071 | Реализован CLI session client
+
+- Первый большой CLI Tasks-пункт P6 разбит в `plans.md` на четыре продуктовых подпункта; закрыт session slice: status, hold и release.
+- Protocol root обобщён в closed `DaemonRequest/DaemonResponse`; status сообщает active leases, а существующие acquire/heartbeat/release wire shapes сохранены. CLI использует private JSONL socket и не зависит от core.
+- CLI валидирует profile grammar, directory/socket ownership и exact modes до connect; parser принимает closed risk scopes и bounded TTL, daemon сохраняет authoritative повторную проверку.
+- Tests доказали command-to-protocol mapping, private socket exchange и daemon acquire/heartbeat/release/status chain. Contract: [D-20260715-066](../decisions/decisions.md), [`docs/cli-session.md`](../../docs/cli-session.md).
+- Следующий Tasks-подпункт P6: schema search/describe и universal `td call` через тот же daemon protocol.

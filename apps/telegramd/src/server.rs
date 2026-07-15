@@ -5,7 +5,7 @@ use std::io::{self, BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::time::{Duration, Instant};
 
-use telegram_protocol::{LeaseErrorCode, LeaseRequest, LeaseResponse};
+use telegram_protocol::{DaemonRequest, DaemonResponse, LeaseErrorCode};
 
 use crate::lease::LeaseManager;
 
@@ -66,7 +66,7 @@ impl LeaseServer {
             || bytes.len() as u64 > MAX_REQUEST_BYTES
             || !bytes.ends_with(b"\n")
         {
-            LeaseResponse::Error {
+            DaemonResponse::Error {
                 code: LeaseErrorCode::InvalidRequest,
             }
         } else {
@@ -76,7 +76,7 @@ impl LeaseServer {
             }
             match serde_json::from_slice(&bytes) {
                 Ok(request) => self.handle(request, Instant::now()),
-                Err(_) => LeaseResponse::Error {
+                Err(_) => DaemonResponse::Error {
                     code: LeaseErrorCode::InvalidRequest,
                 },
             }
@@ -89,29 +89,32 @@ impl LeaseServer {
             .map_err(|error| ServerError::ClientIo(error.kind()))
     }
 
-    fn handle(&mut self, request: LeaseRequest, now: Instant) -> LeaseResponse {
+    fn handle(&mut self, request: DaemonRequest, now: Instant) -> DaemonResponse {
         match request {
-            LeaseRequest::LeaseAcquire {
+            DaemonRequest::SessionStatus => DaemonResponse::SessionStatus {
+                active_leases: self.leases.active_count(),
+            },
+            DaemonRequest::LeaseAcquire {
                 principal,
                 scopes,
                 ttl_ms,
             } => match self.leases.acquire(principal, scopes, ttl_ms, now) {
-                Ok(lease) => LeaseResponse::LeaseGranted { lease },
-                Err(code) => LeaseResponse::Error { code },
+                Ok(lease) => DaemonResponse::LeaseGranted { lease },
+                Err(code) => DaemonResponse::Error { code },
             },
-            LeaseRequest::LeaseHeartbeat {
+            DaemonRequest::LeaseHeartbeat {
                 lease_id,
                 principal,
             } => match self.leases.heartbeat(&lease_id, &principal, now) {
-                Ok(lease) => LeaseResponse::LeaseRenewed { lease },
-                Err(code) => LeaseResponse::Error { code },
+                Ok(lease) => DaemonResponse::LeaseRenewed { lease },
+                Err(code) => DaemonResponse::Error { code },
             },
-            LeaseRequest::LeaseRelease {
+            DaemonRequest::LeaseRelease {
                 lease_id,
                 principal,
             } => match self.leases.release(&lease_id, &principal, now) {
-                Ok(()) => LeaseResponse::LeaseReleased { lease_id },
-                Err(code) => LeaseResponse::Error { code },
+                Ok(()) => DaemonResponse::LeaseReleased { lease_id },
+                Err(code) => DaemonResponse::Error { code },
             },
         }
     }
@@ -160,13 +163,13 @@ mod tests {
         let granted = exchange(
             &mut server,
             &socket,
-            LeaseRequest::LeaseAcquire {
+            DaemonRequest::LeaseAcquire {
                 principal: "agent".to_owned(),
                 scopes: vec![RiskScope::Read],
                 ttl_ms: 1_000,
             },
         );
-        let LeaseResponse::LeaseGranted {
+        let DaemonResponse::LeaseGranted {
             lease: LeaseView { lease_id, .. },
         } = granted
         else {
@@ -176,23 +179,27 @@ mod tests {
             exchange(
                 &mut server,
                 &socket,
-                LeaseRequest::LeaseHeartbeat {
+                DaemonRequest::LeaseHeartbeat {
                     lease_id: lease_id.clone(),
                     principal: "agent".to_owned(),
                 }
             ),
-            LeaseResponse::LeaseRenewed { .. }
+            DaemonResponse::LeaseRenewed { .. }
         ));
         assert_eq!(
             exchange(
                 &mut server,
                 &socket,
-                LeaseRequest::LeaseRelease {
+                DaemonRequest::LeaseRelease {
                     lease_id: lease_id.clone(),
                     principal: "agent".to_owned(),
                 }
             ),
-            LeaseResponse::LeaseReleased { lease_id }
+            DaemonResponse::LeaseReleased { lease_id }
+        );
+        assert_eq!(
+            exchange(&mut server, &socket, DaemonRequest::SessionStatus),
+            DaemonResponse::SessionStatus { active_leases: 0 }
         );
         assert_eq!(server.leases.active_count(), 0);
 
@@ -204,8 +211,8 @@ mod tests {
     fn exchange(
         server: &mut LeaseServer,
         socket: &DaemonSocket,
-        request: LeaseRequest,
-    ) -> LeaseResponse {
+        request: DaemonRequest,
+    ) -> DaemonResponse {
         let mut client = UnixStream::connect(socket.path()).unwrap();
         serde_json::to_writer(&mut client, &request).unwrap();
         client.write_all(b"\n").unwrap();

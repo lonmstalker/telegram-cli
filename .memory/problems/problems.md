@@ -20,3 +20,8 @@ Active append-only problem lifecycle. Status changes добавляются но
 - TDLib `1.8.66` собран exact pinned builder для `x86_64-unknown-linux-gnu`; artifact SHA-256 `e90ca3c25ad034b7227df918816c227de2b9aef92539c994a3bd41c42d68161b`, provenance — `vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.json`.
 - `python3 scripts/check-tdlib-native-pin.py --require-local-artifact` проверяет оба supported target, Linux ELF identity, SONAME, dependencies, TDJSON exports, runtime version/commit и отсутствие DB-файлов в no-client smoke.
 - Bit-for-bit reproducibility остаётся незаявленной границей, но не является acceptance-критерием P0.
+
+## [2026-07-15] narrowed | P-20260715-001 | Core provider готов, daemon wiring ещё отсутствует
+
+- P1 protected provider и `setTdlibParameters` integration готовы: FD/file/keychain sources, empty-key preflight deny и wrong-key 401 latch проверены synthetic tests.
+- Проблема остаётся открытой до P2: product binaries всё ещё fail-closed заглушки, поэтому штатный `telegramd` пока не выбирает profile secret reference и не доказывает returning `Ready`. Исходная фраза «закрывается задачей P1 provider» уточнена по live repository truth.

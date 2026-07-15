@@ -4,7 +4,7 @@
 
 ## Состояния и steps
 
-- `authorizationStateWaitTdlibParameters` → `ParametersRequired`; database key и `setTdlibParameters` принадлежат следующему Tasks-пункту.
+- `authorizationStateWaitTdlibParameters` → `ParametersRequired`; текущая generation принимает только защищённо загруженный key через `submit_parameters` и exact `setTdlibParameters`.
 - `WaitPhoneNumber` → phone/QR challenge.
 - `WaitPremiumPurchase` → явный financial challenge без автоматической покупки.
 - `WaitEmailAddress`/`WaitEmailCode` → email address, code, allowed Apple ID/Google ID token branches и typed reset timers.
@@ -25,6 +25,8 @@ Unknown state/type/required field fail closed. `Ready` означает толь
 - Premium purchase, password recovery/reset и destructive account actions не изобретаются этим machine.
 
 `SensitiveString` скрывает значение в `Debug` и zeroizes owned storage on drop. `AuthorizationRequest::Debug` показывает только request type; caller обязан сразу передать `into_value()` transport и не логировать полученный JSON. Protocol challenge IDs/status не содержат secret values.
+
+Database key живёт в отдельном zeroizing wrapper. TDLib error `401` включает fail-closed latch и запрещает переход к phone/QR до явной повторной подачи parameters. Источники и TDJSON codec закреплены в [database-key contract](database-encryption-key.md).
 
 ## Verification
 

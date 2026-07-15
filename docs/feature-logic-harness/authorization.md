@@ -27,8 +27,8 @@
 
 - SRC001: product.md; type: file; supports: trust boundary; limits: none.
 - SRC002: HARNESS.md; type: file; supports: secret and lifecycle invariants; limits: none.
-- SRC003: plans.md P1 и `telegram-core::authorization`; type: file/code; supports: exhaustive state/challenge machine; limits: database-key provider и runtime driver отсутствуют.
-- SRC004: pinned official `td_api.tl`; type: supplied; supports: 13 auth states and auth methods; limits: human UI not specified.
+- SRC003: `plans.md` P1, `telegram-core::authorization` и `telegram-core::database_key`; type: file/code; supports: exhaustive state/challenge machine, protected database-key providers, exact parameters request and wrong-key latch; limits: runtime driver отсутствует.
+- SRC004: pinned official `td_api.tl` и exact source commit digest; type: supplied; supports: 13 auth states, auth methods, Base64 JSON bytes codec, empty-key behavior and wrong-key 401; limits: human UI not specified.
 - SRC005: live probe 2026-07-15; type: supplied; supports: encrypted returning Ready/getMe/Closed; limits: first-login branches not tested.
 
 ## TDLib API Coverage
@@ -63,7 +63,7 @@ Only account owner/operator may submit auth secrets. Agent may wait/poll status 
 
 ## Live Verification Boundary
 
-Server key was copied over SSH to ignored local storage with mode `0600`; digest matched generation 25. Returning regular-user session reached Ready/getMe and clean Closed. Pure `telegram-core::authorization` machine обрабатывает все pinned states и exact QR/phone/code/2FA/email/device/registration requests; database-key/runtime integration ещё отсутствует. Secret value was not emitted.
+Server key was copied over SSH to ignored local storage with mode `0600`; digest matched generation 25. Returning regular-user session reached Ready/getMe and clean Closed. Pure core machine обрабатывает все pinned states и exact auth requests; database-key providers и wrong-key latch проверены только synthetic values. Штатный daemon/runtime и live wrong-key probe ещё отсутствуют. Secret value was not emitted.
 
 ## Scope
 
@@ -133,7 +133,7 @@ Server key was copied over SSH to ignored local storage with mode `0600`; digest
 - D001 - Auth context
   - Description: first/returning/re-auth/partial; Status: filled; Values: four; Boundary values: wrong key, expired code; Why it matters: state path; Related entities: Challenge; Related contracts: C001-C003; Related invariants: I001-I003; Unknowns: none.
 - D002 - Secret provider
-  - Description: TTY/file/keychain/operator channel; Status: partial; Values: provider types; Boundary values: remote MCP; Why it matters: exposure boundary; Related entities: SecretReference; Related contracts: C002; Related invariants: I001; Unknowns: Q001.
+  - Description: FD/file/keychain/operator channel; Status: filled for core, UI deferred; Values: provider types; Boundary values: missing/insecure/wrong key and remote MCP; Why it matters: exposure boundary; Related entities: SecretReference; Related contracts: C002; Related invariants: I001; Unknowns: Q001.
 
 ## Domain Overlays Used
 
@@ -158,6 +158,6 @@ Server key was copied over SSH to ignored local storage with mode `0600`; digest
 
 - Kernel coverage: all auth states identified.
 - Modeled: returning/wrong-key/security semantics.
-- Partial: first-login state/challenge core готов; database-key provider, runtime driver, UI и key rotation отсутствуют.
+- Partial: state/challenge core и database-key provider готовы; runtime driver, UI, key rotation и live wrong-key proof отсутствуют.
 - Unknown: default local secret backend.
 - Not applicable: chat/message domain behavior.

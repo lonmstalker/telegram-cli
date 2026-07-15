@@ -166,6 +166,10 @@ pub enum AuthorizationInput {
 pub struct AuthorizationRequest(Value);
 
 impl AuthorizationRequest {
+    pub(crate) fn new(value: Value) -> Self {
+        Self(value)
+    }
+
     pub fn request_type(&self) -> &str {
         self.0["@type"].as_str().unwrap_or("invalid")
     }
@@ -196,6 +200,7 @@ pub enum AuthorizationError {
     StaleChallenge,
     SubmissionPending,
     InputDoesNotMatchState,
+    DatabaseKeyRejected,
 }
 
 impl fmt::Display for AuthorizationError {
@@ -221,6 +226,9 @@ impl fmt::Display for AuthorizationError {
             Self::InputDoesNotMatchState => {
                 formatter.write_str("authorization input does not match current state")
             }
+            Self::DatabaseKeyRejected => {
+                formatter.write_str("database key was rejected; authorization is fail-closed")
+            }
         }
     }
 }
@@ -232,6 +240,7 @@ pub struct AuthorizationMachine {
     current: Option<AuthorizationState>,
     generation: u64,
     submission_pending: bool,
+    database_key_rejected: bool,
 }
 
 impl AuthorizationMachine {
@@ -259,6 +268,9 @@ impl AuthorizationMachine {
         state: &Value,
     ) -> Result<AuthorizationStep, AuthorizationError> {
         let state = parse_authorization_state(state)?;
+        if self.database_key_rejected && !matches!(state, AuthorizationState::WaitTdlibParameters) {
+            return Err(AuthorizationError::DatabaseKeyRejected);
+        }
         self.generation = self
             .generation
             .checked_add(1)
@@ -289,9 +301,52 @@ impl AuthorizationMachine {
         Ok(AuthorizationRequest(request))
     }
 
+    #[cfg(unix)]
+    pub fn submit_parameters(
+        &mut self,
+        generation: ChallengeId,
+        parameters: crate::database_key::TdlibParameters,
+        key: &crate::database_key::DatabaseKey,
+    ) -> Result<AuthorizationRequest, AuthorizationError> {
+        if generation != ChallengeId(self.generation) {
+            return Err(AuthorizationError::StaleChallenge);
+        }
+        if !matches!(self.current, Some(AuthorizationState::WaitTdlibParameters)) {
+            return Err(AuthorizationError::InputDoesNotMatchState);
+        }
+        if self.submission_pending {
+            return Err(AuthorizationError::SubmissionPending);
+        }
+        let request = parameters.into_request(key)?;
+        self.database_key_rejected = false;
+        self.submission_pending = true;
+        Ok(request)
+    }
+
+    pub fn parameters_failed(
+        &mut self,
+        generation: ChallengeId,
+        tdlib_error_code: i32,
+    ) -> Result<(), AuthorizationError> {
+        if !matches!(self.current, Some(AuthorizationState::WaitTdlibParameters)) {
+            return Err(AuthorizationError::NoCurrentChallenge);
+        }
+        if generation != ChallengeId(self.generation) {
+            return Err(AuthorizationError::StaleChallenge);
+        }
+        self.submission_pending = false;
+        if tdlib_error_code == 401 {
+            self.database_key_rejected = true;
+        }
+        Ok(())
+    }
+
     pub fn submission_failed(&mut self, challenge: ChallengeId) -> Result<(), AuthorizationError> {
         if self.current.is_none() {
             return Err(AuthorizationError::NoCurrentChallenge);
+        }
+        if matches!(self.current, Some(AuthorizationState::WaitTdlibParameters)) {
+            return Err(AuthorizationError::InputDoesNotMatchState);
         }
         if challenge != ChallengeId(self.generation) {
             return Err(AuthorizationError::StaleChallenge);

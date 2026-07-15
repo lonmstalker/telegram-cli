@@ -3,6 +3,9 @@
 #![deny(unsafe_code)]
 
 pub mod authorization;
+#[cfg(unix)]
+#[allow(unsafe_code)]
+pub mod database_key;
 pub mod schema;
 pub mod transport;
 

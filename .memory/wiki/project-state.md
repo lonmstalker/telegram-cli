@@ -16,16 +16,17 @@
 - Account/session model [D-20260715-036](../decisions/decisions.md): один `telegramd` owner на profile, CLI/MCP lease clients, returning auth с `Ready` + `getMe` proof.
 - P1 transport [D-20260715-037](../decisions/decisions.md): один backend/receive thread, transport-owned `@extra`, ordered raw event stream; pinned macOS native `getOption version` smoke green.
 - P1 authorization [D-20260715-038](../decisions/decisions.md): exhaustive challenge machine, exact QR/phone/code/2FA/email/device/registration requests, stale/duplicate input fail closed, auth values redacted/zeroizing.
+- P1 database key [D-20260715-039](../decisions/decisions.md): FD/strict `0600` file/macOS-Linux keychain sources, zeroizing raw bytes, Base64 TDJSON, empty-key preflight deny и wrong-key 401 latch без phone fallback.
 
 ## Not implemented
 
-- Остальной runtime P1–P10: database-key provider/runtime auth driver, reducer/cache, daemon, generated registry, capability-таблица, workflows, policy, CLI, MCP, packaging.
+- Остальной runtime P1–P10: reducer/cache, startup runtime driver, daemon, generated registry, capability-таблица, workflows, policy, CLI, MCP, packaging.
 
 ## Active boundary
 
 - Full API означает L0–L2 для всей pinned schema; curated workflows и live proofs учитываются отдельно.
 - Секреты — вне model-visible interfaces.
-- Gateway key wiring — [P-20260715-001](../problems/problems.md).
+- Core key provider готов; wiring в штатный daemon всё ещё открыт как [P-20260715-001](../problems/problems.md).
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: третий Tasks-пункт P1 — database encryption key provider и wrong-key fail-closed.
+- Следующий implementation boundary: четвёртый Tasks-пункт P1 — ordered reducer и caches.

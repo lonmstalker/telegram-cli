@@ -2,15 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] open update | P-20260715-005 | Chat setting rights уменьшили open set до 124 methods
-
-- Evidence: [chat setting-right digest](../raw/2026-07-15-tdlib-chat-setting-right-capabilities.md); exact family разделена на 3 new complete, 1 prior complete и 12 deferred methods.
-- Transition: permissions, description и slow mode получают exact kind/right/account contracts. Supported typed set 66, terminal complete 69, open-set SHA-256 `9286c8f2797606f47f5d136bdfdc0c80d7eb09ab650acaa6676520340880d04c`.
-- Status: open; zero-open gate не достигнут, 124 methods дают `SchemaDrift` и не считаются capability coverage.
-- Next check: отдельными reviewed tasks закрывать следующие exact semantic families; runtime evaluator обязан fail closed на stale/unknown/account-mismatched right evidence.
-- Archive link map после ротации: [P-20260715-004 resolved и correction](archive/2026-07-15--2026-07-15-004.md).
-- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-021](../decisions/decisions.md).
-
 ## [2026-07-15] open | P-20260715-009 | addChatMember contract терял account и direct-messages-group gates
 
 - Evidence: [addChatMember correction digest](../raw/2026-07-15-tdlib-add-chat-member-overclaim-correction.md); pinned `Requests.cpp` выполняет `CHECK_IS_USER`, а channel participant path отклоняет `is_monoforum`, отражённый как `supergroup.is_direct_messages_group`.
@@ -168,3 +159,15 @@ Active append-only problem lifecycle. Status changes добавляются но
 ## [2026-07-15] archive link map | P-20260715-011 | Rotated P008 lifecycle
 
 - [Problem shard 016](archive/2026-07-15--2026-07-15-016.md) содержит open/resolved P008; canonical [D021](../decisions/archive/2026-07-15--2026-07-15-023.md). Resolved status unchanged.
+
+## [2026-07-15] open update | P-20260715-005 | Recent-reaction moderation reduces open set to 119
+
+- Evidence: [capability digest](../raw/2026-07-15-tdlib-delete-recent-reactions-by-sender-capability.md); open SHA-256 `27dd1e3d3014e2d30880e69b8adf865969c4ec9a536fbf46c167835c5b1c6ca2`.
+- Transition: exact regular-user/bot, basic-group/supergroup `can_delete_messages` contract; supported 71, terminal 74, format `8`.
+- Status/next: open at 119; continue exact handler tasks, runtime write/right/sender evidence fails closed on stale/gap.
+- Decision: [D-20260715-031](../decisions/decisions.md).
+
+## [2026-07-15] archive link map | P-20260715-005 | Rotated setting update and D022
+
+- [Problem shard 017](archive/2026-07-15--2026-07-15-017.md) contains historical 124-method setting update; canonical [D010](../decisions/archive/2026-07-15--2026-07-15-009.md), [D012](../decisions/archive/2026-07-15--2026-07-15-011.md), [D021](../decisions/archive/2026-07-15--2026-07-15-023.md).
+- Active P009 links and W026 shard resolve D022 at [decision shard 024](../decisions/archive/2026-07-15--2026-07-15-024.md). Latest P005 boundary remains 119.

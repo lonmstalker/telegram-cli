@@ -76,7 +76,7 @@ flowchart LR
 
 | Phase | Результат | Status |
 |---|---|---|
-| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-034 |
+| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-035 |
 | P1 | Core transport, authorization и ordered updates | pending |
 | P2 | Singleton daemon и shared session lifecycle | pending |
 | P3 | Полный generated raw API | pending |
@@ -112,7 +112,7 @@ flowchart LR
   - [x] Exact real-schema capability-signal baseline и all-tag authorization evidence.
   - [x] Closed `ChatKind` predicate и exact conditional DNF для первой reviewed source family.
   - [x] Exact per-signal oracle, quantified `MessageProperties`, typed `GroupCall`, `SupergroupFullInfo` и runtime boolean option predicates.
-- [ ] Closed typed dispositions для 120 распознанных, но ещё unsupported runtime-signal methods.
+- [ ] Closed typed dispositions для 119 распознанных, но ещё unsupported runtime-signal methods.
   - [x] Exact `SupergroupFullInfo` schema/property family: 5 complete typed DNF, 7 mixed methods deferred.
   - [x] Exact `OptionGate` family: `setNewChatPrivacySettings` complete, `postStory` и withdrawal mixed semantics deferred.
   - [x] Exact owner family: 4 username contracts, 2 complete contracts в других semantic families и 12 mixed owner methods deferred.
@@ -128,6 +128,7 @@ flowchart LR
   - [x] Exact video-chat RTMP replacement contract: `replaceVideoChatRtmpUrl` требует regular user и `basic_group|supergroup|channel AND owner`; shared admin precheck не заменяет stricter revoke contract.
   - [x] Exact video-chat creation contract: `createVideoChat` требует regular user и `basic_group|supergroup|channel AND can_manage_video_chats`; request values и dialog freshness не превращаются в capability atoms.
   - [x] Correction: `deleteChatMessagesBySender` требует regular user и non-direct-messages supergroup (`is_direct_messages_group=false`) сверх `can_delete_messages`; прежний broad contract удалён.
+  - [x] Exact reaction-moderation contract: `deleteAllRecentMessageReactionsFromSender` допускает regular user и bot, требует `basic_group|supergroup AND can_delete_messages`; subtype flags не изобретаются.
   - [ ] Reviewed canonical capability policy/artifact для всех 1010 methods.
 - [ ] Определить supported targets: macOS arm64 и Linux x86_64 минимум.
 - [ ] Перенести только доказанно reusable части `tg-analytics`; не переносить NATS/Postgres/analytics orchestration.
@@ -171,6 +172,7 @@ flowchart LR
 - `W-20260715-032`: `capability/video_chat_streaming.rs` расширен closed `RequiredAccess::Owner` для `replaceVideoChatRtmpUrl`. Exact schema owner contract строже shared local `can_manage_video_chats` precheck; DNF содержит regular user и три `chat kind AND ChatOwner` ветки без redundant admin-right/call-state atoms. Supported 69, terminal 72, open 121 с SHA-256 `f12c4e51...2faf0c`; semantic SHA-256 `4cf97a1d...6c40d3`. 87 workspace tests, Clippy/fmt/planning/diff green с `jobs=2`; independent source/Rust review — `APPROVED`. Решение `D-20260715-028`; `P-20260715-005` open at 121.
 - `W-20260715-033`: domain module переименован в `capability/video_chats.rs` и расширен exact `createVideoChat` contract. Pinned dispatcher требует regular user; handler — dialog read access и `can_manage_video_chats`; DNF содержит три `chat kind AND ChatAdministratorRight` ветки. `title`, `start_date`, `is_rtmp_stream` остаются value/RPC semantics, не capability atoms. Supported 70, terminal 73, open 120 с SHA-256 `c525212c...e4922d`; semantic SHA-256 `d050be73...370e`. 88 workspace tests, Clippy/fmt/project gates green с `jobs=2`; independent source/Rust review — `APPROVED`. Решение `D-20260715-029`; `P-20260715-005` open at 120.
 - `W-20260715-034`: correction переносит `deleteChatMessagesBySender` из generic table в `capability/message_moderation.rs`. Pinned dispatcher/deeper handler требуют regular user, supergroup, `is_direct_messages_group=false` и `can_delete_messages`; прежние bot-enabled и broad-supergroup descriptors теперь fail closed. Supported/terminal/open остаются 70/73/120, semantic SHA-256 `d050be73...370e`. 89 workspace tests и independent source/Rust review — `APPROVED`; решение `D-20260715-030`, `P-20260715-011` resolved.
+- `W-20260715-035`: `capability/message_moderation.rs` расширен exact `deleteAllRecentMessageReactionsFromSender` row. Pinned request/deeper path не добавляет account/subtype guard; static DNF содержит `basic_group|supergroup AND can_delete_messages`, account scope — regular user и bot. Supported 71, terminal 74, open 119 с SHA-256 `27dd1e3d...c6ca2`; semantic SHA-256 `44c17d11...d4b1`. 90 workspace tests, independent source/Rust review — `APPROVED`; решение `D-20260715-031`, `P-20260715-005` open at 119.
 
 ## P1 — Core transport, authorization и ordered state
 

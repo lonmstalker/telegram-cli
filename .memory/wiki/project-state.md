@@ -42,11 +42,12 @@
 - P0.5b18 расширяет video-chat module exact `replaceVideoChatRtmpUrl`: regular user и `basic_group|supergroup|channel AND owner`. Closed required access разделяет getter administrator right и revoke owner contract; open set — 121, format остаётся `8`; review — Approved.
 - P0.5b19 переименовывает broadened domain module в `capability/video_chats.rs` и добавляет exact `createVideoChat`: regular user и `basic_group|supergroup|channel AND can_manage_video_chats`. Request values не становятся capability atoms; open set — 120, format остаётся `8`; review — Approved.
 - P0.5b20 correction переносит `deleteChatMessagesBySender` в `capability/message_moderation.rs`: pinned contract требует regular user, supergroup, `is_direct_messages_group=false` и `can_delete_messages`. Counts остаются 70/73/120, format `8`; review — Approved.
+- P0.5b21 расширяет message-moderation domain exact `deleteAllRecentMessageReactionsFromSender`: regular user или bot и `basic_group|supergroup AND can_delete_messages`, без invented subtype flags. Open set — 119, format `8`; review — Approved.
 - Planning boundary gate с семью negative controls запрещает `FeatureId`, numeric planning IDs и owner-manifest taxonomy в runtime/tooling/machine contracts; real discovery проверяет scripts/all root machine files, file/root symlink fail closed.
 
 ## Not implemented
 
-- Linux x86_64 TDLib artifact, typed dispositions для 120 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
+- Linux x86_64 TDLib artifact, typed dispositions для 119 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
 - Stateful request-chain engine, retry/reconciliation, policy, metrics и agent skill остаются планом.
 
 ## Active boundary
@@ -99,6 +100,7 @@
 - [TDLib video chat RTMP replacement capability digest](../raw/2026-07-15-tdlib-video-chat-rtmp-replacement-capability.md)
 - [TDLib video chat creation capability digest](../raw/2026-07-15-tdlib-video-chat-creation-capability.md)
 - [TDLib delete-chat-messages-by-sender correction](../raw/2026-07-15-tdlib-delete-chat-messages-by-sender-correction.md)
+- [TDLib recent-reaction sender moderation capability](../raw/2026-07-15-tdlib-delete-recent-reactions-by-sender-capability.md)
 - [TDLib getChatBoostLinkInfo lexical non-gate digest](../raw/2026-07-15-tdlib-chat-boost-link-non-gate.md)
 - [D-20260715-009](../decisions/archive/2026-07-15--2026-07-15-008.md)
 - [W-20260715-012](../logs/archive/2026-07-15--2026-07-15-011.md)
@@ -126,9 +128,9 @@
 - [W-20260715-024 post-fix review](../logs/archive/2026-07-15--2026-07-15-026.md)
 - [D-20260715-021](../decisions/archive/2026-07-15--2026-07-15-023.md)
 - [W-20260715-025](../logs/archive/2026-07-15--2026-07-15-027.md)
-- [D-20260715-022](../decisions/decisions.md)
+- [D-20260715-022](../decisions/archive/2026-07-15--2026-07-15-024.md)
 - [W-20260715-026](../logs/archive/2026-07-15--2026-07-15-028.md)
-- [W-20260715-027](../logs/work.md)
+- [W-20260715-027](../logs/archive/2026-07-15--2026-07-15-029.md)
 - [D-20260715-024](../decisions/decisions.md)
 - [W-20260715-028](../logs/work.md)
 - [D-20260715-025](../decisions/decisions.md)
@@ -143,3 +145,5 @@
 - [W-20260715-033](../logs/work.md)
 - [D-20260715-030](../decisions/decisions.md)
 - [W-20260715-034](../logs/work.md)
+- [D-20260715-031](../decisions/decisions.md)
+- [W-20260715-035](../logs/work.md)

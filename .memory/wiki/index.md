@@ -49,10 +49,11 @@
 - [TDLib video chat RTMP replacement capability](../raw/2026-07-15-tdlib-video-chat-rtmp-replacement-capability.md) — exact regular-user, three-kind owner revoke contract; shared admin precheck не ослабляет public owner boundary, open set 121.
 - [TDLib video chat creation capability](../raw/2026-07-15-tdlib-video-chat-creation-capability.md) — exact regular-user, three-kind `can_manage_video_chats` contract; request values остаются server semantics, open set 120.
 - [TDLib delete-chat-messages-by-sender correction](../raw/2026-07-15-tdlib-delete-chat-messages-by-sender-correction.md) — old bot/direct-messages-group overclaim replaced by exact regular-user non-direct-messages-supergroup contract; counts remain 70/73/120.
+- [TDLib recent-reaction sender moderation](../raw/2026-07-15-tdlib-delete-recent-reactions-by-sender-capability.md) — exact two-account, basic-group/supergroup `can_delete_messages` contract without invented subtype flags; open set 119.
 
 ## Current records
 
-- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option/username-owner/invite-link/chat-setting/supergroup-subtype/chat-event-log/video-chat/message-moderation semantics, planning-taxonomy/unpin corrections и macOS native pin закрыты через `W-20260715-034`; 120 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
+- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option/username-owner/invite-link/chat-setting/supergroup-subtype/chat-event-log/video-chat/message-moderation semantics, planning-taxonomy/unpin corrections и macOS native pin закрыты через `W-20260715-035`; 119 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
 - Native pin: [reviewed rebuild correction](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — exact source/schema и crash-safe macOS arm64 artifact закреплены; Linux/reproducibility остаются open.
 - Decision: [D-20260715-001](../decisions/archive/2026-07-15--2026-07-15-001.md) — раздельная memory model, rotation и secret boundary.
 - Decision: [D-20260715-002](../decisions/archive/2026-07-15--2026-07-15-002.md) — публичный GitHub remote принят как canonical `origin`.
@@ -75,7 +76,7 @@
 - Decision: [D-20260715-019](../decisions/archive/2026-07-15--2026-07-15-021.md) — invite-link creation требует explicit chat kind и current administrator `can_invite_users` evidence.
 - Decision correction: [D-20260715-020](../decisions/archive/2026-07-15--2026-07-15-023.md) — current four-method supergroup-setting boundary; historical base сохранён в shard 022.
 - Decision: [D-20260715-021](../decisions/archive/2026-07-15--2026-07-15-023.md) — chat settings закрываются только complete kind/right/account contracts; account-conditioned title/photo остаются deferred.
-- Decision: [D-20260715-022](../decisions/decisions.md) — membership contract остаётся deferred, если pinned handler добавляет account или supergroup-subtype gate, отсутствующий в static DNF.
+- Decision: [D-20260715-022](../decisions/archive/2026-07-15--2026-07-15-024.md) — membership contract остаётся deferred, если pinned handler добавляет account или supergroup-subtype gate, отсутствующий в static DNF.
 - Decision: [D-20260715-023](../decisions/decisions.md) — supergroup subtype выражается closed schema-bound Boolean fact; static prerequisite требует отдельной generation-bound runtime freshness.
 - Decision: [D-20260715-024](../decisions/decisions.md) — chat event log требует explicit regular-user, supergroup/channel и current administrator evidence.
 - Decision: [D-20260715-025](../decisions/decisions.md) — `unpinChatMessage` остаётся deferred, пока grammar не выражает account/subtype/message branches deeper handler.
@@ -84,9 +85,10 @@
 - Decision: [D-20260715-028](../decisions/decisions.md) — RTMP revoke использует stricter owner contract поверх shared local administrator precheck.
 - Decision: [D-20260715-029](../decisions/decisions.md) — video-chat creation использует existing administrator-right vocabulary; request values не расширяют capability DSL.
 - Decision correction: [D-20260715-030](../decisions/decisions.md) — delete-by-sender moderation требует pinned account и direct-messages subtype guards.
+- Decision: [D-20260715-031](../decisions/decisions.md) — recent-reaction moderation reuses exact account/kind/right contract without subtype narrowing.
 - Open problem: [P-20260715-001](../problems/problems.md) — database key ещё не подключён к штатному gateway.
 - Open problem: [P-20260715-003](../problems/problems.md) — Linux x86_64 native artifact ещё не закреплён.
-- Open problem: [P-20260715-005](../problems/problems.md) — 120 pinned runtime-signal methods ещё не имеют typed disposition.
+- Open problem: [P-20260715-005](../problems/problems.md) — 119 pinned runtime-signal methods ещё не имеют typed disposition.
 - Resolved problem: [P-20260715-011](../problems/problems.md) — bot/direct-messages false-positive contract удалён.
 
 ## Operating rules

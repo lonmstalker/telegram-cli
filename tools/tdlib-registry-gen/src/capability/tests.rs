@@ -1163,8 +1163,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            70,
-            "96d4b3382adf63541c60b2ca84b55d7995617213fb6b928bf64f6dd666b65fd5".to_owned()
+            71,
+            "f592b6e3b87a9fa978247d9c44a1088a777030ba40c65bd8468409eb1da45f85".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -1180,8 +1180,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            73,
-            "317e5524313cf2740c9732e94d4d9c9a5fe04f22c066057f0c16fced1b421aaa".to_owned()
+            74,
+            "88e23c78cc5f54ceae5e5ec920b93055737454bed41b2d5bed79c7beee38242b".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -1190,12 +1190,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        120,
+        119,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "c525212cc279557aae39bd821e2c74d8912c01f0595e9f35f19f1259e7e4922d",
+        "27dd1e3d3014e2d30880e69b8adf865969c4ec9a536fbf46c167835c5b1c6ca2",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -1272,7 +1272,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "d050be73e8e9211e624719be10050ca2829891befdadd02ad7f6e975442d370e"
+        "44c17d11ba3079bfed67b3b8d91e73dc728368a5479354eeff508b6ff2ccd4b1"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -5047,6 +5047,147 @@ fn pinned_delete_chat_messages_by_sender_is_regular_user_only() {
             "deleteChatMessagesBySender",
         ))
         .expect_err("unconsumed moderation argument signal must fail closed")
+        .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
+fn pinned_delete_recent_reactions_by_sender_contract_is_exact() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let method = find_method(&schema, "deleteAllRecentMessageReactionsFromSender");
+    assert_eq!(
+        method.canonical_signature(),
+        "deleteAllRecentMessageReactionsFromSender chat_id:int53 sender_id:MessageSender = Ok;"
+    );
+    assert_eq!(
+        normalized_text(&super::method_description(method)),
+        "deletes all recent reactions added by the specified sender in a chat. supported only for basic groups and supergroups; requires can_delete_messages administrator right"
+    );
+
+    let target = ChatTargetRef::try_from("chat_id").expect("chat target");
+    let expected = RequirementAlternatives::try_new(
+        [ResolvedChatKind::BasicGroup, ResolvedChatKind::Supergroup]
+            .into_iter()
+            .map(|kind| {
+                vec![
+                    RuntimeRequirement::ChatKind(
+                        ChatKindCondition::try_new(target.clone(), kind)
+                            .expect("reaction-moderation kind"),
+                    ),
+                    RuntimeRequirement::ChatAdministratorRight {
+                        target: target.clone(),
+                        right: ChatAdministratorRight::CanDeleteMessages,
+                    },
+                ]
+            })
+            .collect(),
+    )
+    .expect("exact reaction-moderation requirements");
+    assert_eq!(
+        documented_runtime_requirements(method)
+            .expect("reviewed reaction-moderation documentation")
+            .expect("reaction-moderation contract"),
+        expected.clone()
+    );
+    assert_eq!(
+        documented_runtime_signal_dispositions(method).expect("reaction-moderation signals"),
+        [
+            RuntimeSignalFamily::AdministratorRightPhrase,
+            RuntimeSignalFamily::RequiresRightPhrase,
+        ]
+        .into_iter()
+        .map(|family| {
+            (
+                RuntimeSignalKey {
+                    source: RuntimeSignalSource::Description,
+                    family,
+                },
+                RuntimeSignalDisposition::ConsumedByRuntimeRequirements,
+            )
+        })
+        .collect::<Vec<_>>()
+    );
+
+    let both_accounts = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser, AccountKind::Bot],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        expected.clone(),
+        Vec::new(),
+    )
+    .expect("reaction-moderation descriptor");
+    validate_documented_method_constraints(method, &both_accounts)
+        .expect("regular-user and bot account contract");
+    validate_documented_runtime_requirements(method, &both_accounts)
+        .expect("reaction-moderation runtime contract");
+
+    let regular_only = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        expected,
+        Vec::new(),
+    )
+    .expect("structurally valid regular-only descriptor");
+    assert_eq!(
+        validate_documented_method_constraints(method, &regular_only)
+            .expect_err("pinned request path must not silently narrow bot support")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let source_drift = pinned.replacen(
+        "Deletes all recent reactions added by the specified sender in a chat. Supported only for basic groups and supergroups; requires can_delete_messages administrator right",
+        "Deletes recent reactions added by the specified sender in a chat. Supported only for basic groups and supergroups; requires can_delete_messages administrator right",
+        1,
+    );
+    let source_drift = Schema::parse(&source_drift).expect("valid source drift");
+    assert_eq!(
+        documented_runtime_requirements(find_method(
+            &source_drift,
+            "deleteAllRecentMessageReactionsFromSender",
+        ))
+        .expect_err("reaction-moderation source drift must fail closed")
+        .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let signature_drift = pinned.replacen(
+        "deleteAllRecentMessageReactionsFromSender chat_id:int53 sender_id:MessageSender = Ok;",
+        "deleteAllRecentMessageReactionsFromSender chat_id:int32 sender_id:MessageSender = Ok;",
+        1,
+    );
+    let signature_drift = Schema::parse(&signature_drift).expect("valid signature drift");
+    assert_eq!(
+        documented_runtime_requirements(find_method(
+            &signature_drift,
+            "deleteAllRecentMessageReactionsFromSender",
+        ))
+        .expect_err("reaction-moderation signature drift must fail closed")
+        .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let additional_signal = pinned.replacen(
+        "@sender_id Identifier of the sender of reactions to delete",
+        "@sender_id Identifier of the sender of reactions to delete; requires can_delete_messages administrator right",
+        1,
+    );
+    let additional_signal = Schema::parse(&additional_signal).expect("valid additional signal");
+    assert_eq!(
+        documented_runtime_requirements(find_method(
+            &additional_signal,
+            "deleteAllRecentMessageReactionsFromSender",
+        ))
+        .expect_err("unconsumed reaction-moderation argument signal must fail closed")
         .kind(),
         CapabilityGenerationErrorKind::SchemaDrift
     );

@@ -198,7 +198,7 @@ pub fn serve_until_idle(
     loop {
         let now = Instant::now();
         server
-            .poll(socket.listener(), &runtime, now)
+            .poll(socket.listener(), &mut runtime, now)
             .map_err(LifecycleError::Server)?;
         // P2 has no workflow dispatcher; P4 adds its real activity source here.
         let has_activity = server.active_leases() != 0;

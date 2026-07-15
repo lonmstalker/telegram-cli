@@ -95,6 +95,13 @@ pub enum DaemonRequest {
         principal: String,
         request: Value,
     },
+    WorkflowList,
+    WorkflowRun {
+        lease_id: LeaseId,
+        principal: String,
+        workflow: String,
+        input: Value,
+    },
     LeaseAcquire {
         principal: String,
         scopes: Vec<RiskScope>,
@@ -128,6 +135,8 @@ pub enum DaemonResponse {
     SchemaSearchResults { results: Value },
     SchemaDescription { description: Value },
     TdResult { result: Value },
+    WorkflowList { workflows: Vec<String> },
+    WorkflowResult { workflow: String, result: Value },
     CommandError { code: CommandErrorCode },
     LeaseGranted { lease: LeaseView },
     LeaseRenewed { lease: LeaseView },
@@ -148,6 +157,13 @@ pub enum CommandErrorCode {
     ApprovalDenied,
     TdlibTransport,
     UnexpectedTdlibResult,
+    WorkflowNotFound,
+    InvalidWorkflowInput,
+    WorkflowPrerequisiteMissing,
+    WorkflowCapabilityDenied,
+    WorkflowResyncRequired,
+    WorkflowNoResyncRequired,
+    WorkflowFailed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

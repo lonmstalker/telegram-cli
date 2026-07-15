@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use serde::Serialize;
 use serde_json::{Map, Value};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -73,7 +74,7 @@ impl ChatList {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct ChatListPosition {
     pub chat_id: i64,
     pub order: i64,

@@ -117,3 +117,9 @@ Active append-only decision records. Изменение решения офор�
 - CLI schema commands не линкуют registry: daemon сериализует version/capability/schema descriptors прямо из generated core data. Search/describe не имеют отдельного command catalog.
 - Один `TdCall` protocol variant несёт matching lease/principal и arbitrary JSON value в единственный core validator/policy/transport path. Все pinned methods достигают gate; default-deny и missing account/risk/approval возвращаются closed codes.
 - `@type` остаётся explicit только у raw TDJSON escape hatch. Curated commands формируют discriminator внутри core; per-method Rust/CLI wrappers не генерируются и не дублируют 1010-method surface.
+
+## [2026-07-15] accepted | D-20260715-068 | Один workflow route адаптирует все core state machines
+
+- `workflow list/run` — единственная CLI/protocol форма для curated workflows. Daemon хранит небольшой closed route list и strict owned inputs; pagination/cache/update semantics остаются только в `telegram_core::workflows`.
+- Каждый run требует matching lease/principal и передаёт core один daemon-derived `RawPolicy`. Unknown workflow/input fields fail closed до TDLib dispatch.
+- `open_web_app` route не сериализует `SensitiveString` launch URL: daemon выполняет scoped open/wait/close и возвращает только terminal receipt/`require_same_origin`. Browser handoff не расширяет model-visible output.

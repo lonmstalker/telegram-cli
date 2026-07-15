@@ -6,6 +6,7 @@ use std::fmt;
 use std::path::Path;
 use std::time::{Instant, SystemTime};
 
+use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::authorization::SensitiveString;
@@ -28,20 +29,22 @@ pub enum MembershipTarget<'value> {
     InviteLink(&'value str),
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ResolutionState {
     Chat { chat_id: i64 },
     InvitePreview { chat_id: Option<i64> },
     Unknown,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ChatResolution {
     pub state: ResolutionState,
     pub raw: TdObject,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum MembershipState {
     Member { chat_id: i64 },
     RequestPending,
@@ -56,32 +59,34 @@ impl MembershipState {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct MembershipResult {
     pub state: MembershipState,
     pub raw: TdObject,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ChatListTerminal {
     AllChatsLoaded,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ChatListSnapshot {
     pub positions: Vec<ChatListPosition>,
     pub load_calls: usize,
     pub terminal: ChatListTerminal,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ChatInspectionStatus {
     Complete,
     MembershipRequired,
     Unknown,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ChatInspection {
     pub status: ChatInspectionStatus,
     pub resolution: ChatResolution,
@@ -109,7 +114,8 @@ pub struct ChatSearchQuery<'query> {
     pub page: PageOptions,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PageBoundary {
     Count,
     Date,
@@ -117,7 +123,7 @@ pub enum PageBoundary {
     NoProgress,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct MessagePage {
     pub messages: Vec<Value>,
     pub pages: usize,
@@ -126,7 +132,8 @@ pub struct MessagePage {
     pub complete: bool,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Freshness {
     ServerSnapshot,
     OrderedUpdate,
@@ -139,7 +146,7 @@ pub struct MembersQuery {
     pub page_limit: i32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct MembersSnapshot {
     pub members: Vec<Value>,
     pub pages: usize,
@@ -151,7 +158,7 @@ pub struct MembersSnapshot {
     pub freshness: Freshness,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct StatisticsSnapshot {
     pub statistics: Value,
     pub graph_lineage: BTreeMap<String, Vec<String>>,
@@ -162,7 +169,7 @@ pub struct StatisticsSnapshot {
     pub freshness: Freshness,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ResyncReceipt {
     pub gap_after_sequence: Option<u64>,
     pub snapshot_updates: usize,
@@ -173,7 +180,8 @@ pub struct ResyncReceipt {
     pub freshness: Freshness,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TerminalSource {
     Response,
     OrderedUpdate,
@@ -205,7 +213,7 @@ pub enum StickerFormat {
     Webm,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Serialize)]
 pub struct FileTransferReceipt {
     pub file: Value,
     pub sequence: Option<u64>,
@@ -215,14 +223,15 @@ pub struct FileTransferReceipt {
     pub freshness: Freshness,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BotStartOutcome {
     Succeeded { message: Value },
     Failed { message: Value, error: Value },
     Uncertain,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct BotStartReceipt {
     pub old_message_id: i64,
     pub outcome: BotStartOutcome,
@@ -246,7 +255,7 @@ pub struct WebAppRequest<'request> {
     pub mode: WebAppMode,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct WebAppMessageReceipt {
     pub launch_id: i64,
     pub source: Option<TerminalSource>,

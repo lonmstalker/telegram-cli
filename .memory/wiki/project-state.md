@@ -50,6 +50,7 @@
 - P5 accepted: timeout/restart требует reconciliation до нового write, safe-read выдерживает supplied delay, approval невозможно подделать daemon-side, secret-output и telemetry canary tests green.
 - Первый подпункт CLI commands P6 закрыт: `telegram-cli` через validated private profile socket выполняет session status/hold/release и остаётся protocol-only client без TDLib/DB ownership ([D-20260715-066](../decisions/decisions.md)).
 - Второй подпункт CLI commands P6 закрыт: version/capabilities/search/describe и один `td call` проходят daemon-owned generated discovery/validator/policy; CLI не содержит registry или per-method wrappers ([D-20260715-067](../decisions/decisions.md)).
+- Третий подпункт CLI commands P6 закрыт: один discoverable workflow route строго преобразует owned JSON inputs во все 13 реализованных core workflows; CLI не дублирует их state machines ([D-20260715-068](../decisions/decisions.md)).
 
 ## Not implemented
 
@@ -62,4 +63,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: третий подпункт CLI commands P6 — routes для всех реализованных core workflows.
+- Следующий implementation boundary: четвёртый подпункт CLI commands P6 — login и events/watch поверх authorization/update broker.

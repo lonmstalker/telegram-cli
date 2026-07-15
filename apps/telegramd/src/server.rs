@@ -3,14 +3,23 @@
 use std::fmt;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use telegram_core::raw_api::{
     self, PolicyError, RawApiError, SchemaDescription, SchemaSearchResult,
 };
+use telegram_core::reducer::ChatList;
 use telegram_core::registry::{AccountKind, SymbolKind};
 use telegram_core::runtime::CoreRuntime;
+use telegram_core::workflows::{
+    self, ChatSearchQuery, ChatTarget, ChatWorkflowError, DownloadQuery, HistoryQuery,
+    InputFileSource, MembersQuery, MembershipTarget, PageOptions, StickerFormat, WebAppMode,
+    WebAppRequest,
+};
 use telegram_protocol::{CommandErrorCode, DaemonRequest, DaemonResponse, LeaseErrorCode};
 
 use crate::lease::LeaseManager;
@@ -18,6 +27,21 @@ use crate::lease::LeaseManager;
 const MAX_REQUEST_BYTES: u64 = 16 * 1024;
 const CLIENT_IO_TIMEOUT: Duration = Duration::from_secs(5);
 const CALL_TIMEOUT: Duration = Duration::from_secs(30);
+const WORKFLOWS: &[&str] = &[
+    "resolve_chat",
+    "ensure_membership",
+    "load_chat_list",
+    "inspect_chat",
+    "chat_history",
+    "search_chat_messages",
+    "supergroup_members",
+    "chat_statistics",
+    "resync_after_gap",
+    "download_file",
+    "upload_sticker_file",
+    "start_bot",
+    "open_web_app",
+];
 
 pub struct LeaseServer {
     leases: LeaseManager,
@@ -31,12 +55,12 @@ impl LeaseServer {
     pub fn poll(
         &mut self,
         listener: &UnixListener,
-        runtime: &CoreRuntime,
+        runtime: &mut CoreRuntime,
         now: Instant,
     ) -> Result<(), ServerError> {
         self.leases.expire(now);
         loop {
-            match self.serve_once(listener, Some(runtime)) {
+            match self.serve_once(listener, Some(&mut *runtime)) {
                 Ok(()) => {}
                 Err(ServerError::Accept(io::ErrorKind::WouldBlock)) => return Ok(()),
                 Err(error @ ServerError::Accept(_)) => return Err(error),
@@ -52,7 +76,7 @@ impl LeaseServer {
     fn serve_once(
         &mut self,
         listener: &UnixListener,
-        runtime: Option<&CoreRuntime>,
+        runtime: Option<&mut CoreRuntime>,
     ) -> Result<(), ServerError> {
         let (stream, _) = listener
             .accept()
@@ -66,7 +90,7 @@ impl LeaseServer {
     fn serve_connection(
         &mut self,
         mut stream: UnixStream,
-        runtime: Option<&CoreRuntime>,
+        runtime: Option<&mut CoreRuntime>,
     ) -> Result<(), ServerError> {
         stream
             .set_read_timeout(Some(CLIENT_IO_TIMEOUT))
@@ -112,7 +136,7 @@ impl LeaseServer {
     fn handle(
         &mut self,
         request: DaemonRequest,
-        runtime: Option<&CoreRuntime>,
+        runtime: Option<&mut CoreRuntime>,
         now: Instant,
     ) -> DaemonResponse {
         match request {
@@ -172,6 +196,35 @@ impl LeaseServer {
                     },
                 }
             }
+            DaemonRequest::WorkflowList => DaemonResponse::WorkflowList {
+                workflows: WORKFLOWS.iter().map(|name| (*name).to_owned()).collect(),
+            },
+            DaemonRequest::WorkflowRun {
+                lease_id,
+                principal,
+                workflow,
+                input,
+            } => {
+                let policy = match self.leases.raw_policy(
+                    &lease_id,
+                    &principal,
+                    AccountKind::RegularUser,
+                    now,
+                ) {
+                    Ok(policy) => policy,
+                    Err(code) => return DaemonResponse::Error { code },
+                };
+                let Some(runtime) = runtime else {
+                    return runtime_unavailable();
+                };
+                let deadline = now.checked_add(CALL_TIMEOUT).unwrap_or(now);
+                match run_workflow(runtime, &policy, &workflow, input, deadline) {
+                    Ok(result) => DaemonResponse::WorkflowResult { workflow, result },
+                    Err(error) => DaemonResponse::CommandError {
+                        code: workflow_error(error),
+                    },
+                }
+            }
             DaemonRequest::LeaseAcquire {
                 principal,
                 scopes,
@@ -195,6 +248,444 @@ impl LeaseServer {
                 Err(code) => DaemonResponse::Error { code },
             },
         }
+    }
+}
+
+fn run_workflow(
+    runtime: &mut CoreRuntime,
+    policy: &telegram_core::raw_api::RawPolicy,
+    name: &str,
+    input: Value,
+    deadline: Instant,
+) -> Result<Value, WorkflowDispatchError> {
+    match name {
+        "resolve_chat" => {
+            let input: TargetInput = parse(input)?;
+            serialize(workflows::resolve(
+                runtime,
+                policy,
+                input.target(),
+                deadline,
+            )?)
+        }
+        "ensure_membership" => {
+            let input: MembershipInput = parse(input)?;
+            serialize(workflows::ensure_membership(
+                runtime,
+                policy,
+                input.target(),
+                deadline,
+            )?)
+        }
+        "load_chat_list" => {
+            let input: ChatListInput = parse(input)?;
+            serialize(workflows::load_chat_list(
+                runtime,
+                policy,
+                input.list.into(),
+                input.limit,
+                deadline,
+            )?)
+        }
+        "inspect_chat" => {
+            let input: InspectInput = parse(input)?;
+            serialize(workflows::inspect_chat(
+                runtime,
+                policy,
+                input.target.target(),
+                input.open,
+                deadline,
+            )?)
+        }
+        "chat_history" => {
+            let input: HistoryInput = parse(input)?;
+            serialize(workflows::chat_history(
+                runtime,
+                policy,
+                HistoryQuery {
+                    chat_id: input.chat_id,
+                    only_local: input.only_local,
+                    page: input.page.into(),
+                },
+                deadline,
+            )?)
+        }
+        "search_chat_messages" => {
+            let input: SearchInput = parse(input)?;
+            serialize(workflows::search_chat_messages(
+                runtime,
+                policy,
+                ChatSearchQuery {
+                    chat_id: input.chat_id,
+                    query: &input.query,
+                    page: input.page.into(),
+                },
+                deadline,
+            )?)
+        }
+        "supergroup_members" => {
+            let input: MembersInput = parse(input)?;
+            serialize(workflows::supergroup_members(
+                runtime,
+                policy,
+                MembersQuery {
+                    supergroup_id: input.supergroup_id,
+                    count: input.count,
+                    page_limit: input.page_limit,
+                },
+                deadline,
+            )?)
+        }
+        "chat_statistics" => {
+            let input: StatisticsInput = parse(input)?;
+            serialize(workflows::chat_statistics(
+                runtime,
+                policy,
+                input.chat_id,
+                input.is_dark,
+                deadline,
+            )?)
+        }
+        "resync_after_gap" => {
+            let _: EmptyInput = parse(input)?;
+            serialize(workflows::resync_after_gap(runtime, policy, deadline)?)
+        }
+        "download_file" => {
+            let input: DownloadInput = parse(input)?;
+            serialize(workflows::download_file(
+                runtime,
+                policy,
+                DownloadQuery {
+                    file_id: input.file_id,
+                    priority: input.priority,
+                    offset: input.offset,
+                    limit: input.limit,
+                },
+                deadline,
+            )?)
+        }
+        "upload_sticker_file" => {
+            let input: UploadInput = parse(input)?;
+            serialize(workflows::upload_sticker_file(
+                runtime,
+                policy,
+                input.user_id,
+                input.format.into(),
+                input.source.as_core(),
+                deadline,
+            )?)
+        }
+        "start_bot" => {
+            let input: StartBotInput = parse(input)?;
+            serialize(workflows::start_bot(
+                runtime,
+                policy,
+                input.bot_user_id,
+                input.chat_id,
+                &input.parameter,
+                deadline,
+            )?)
+        }
+        "open_web_app" => {
+            let input: WebAppInput = parse(input)?;
+            let mut lease = workflows::open_web_app(
+                runtime,
+                policy,
+                WebAppRequest {
+                    chat_id: input.chat_id,
+                    bot_user_id: input.bot_user_id,
+                    button_url: &input.button_url,
+                    application_name: &input.application_name,
+                    mode: input.mode.into(),
+                },
+                deadline,
+            )?;
+            let require_same_origin = lease.require_same_origin();
+            let receipt = lease.wait_message_sent()?;
+            lease.close()?;
+            Ok(json!({
+                "receipt": receipt,
+                "require_same_origin": require_same_origin,
+            }))
+        }
+        _ => Err(WorkflowDispatchError::Unknown),
+    }
+}
+
+fn parse<T: DeserializeOwned>(input: Value) -> Result<T, WorkflowDispatchError> {
+    serde_json::from_value(input).map_err(|_| WorkflowDispatchError::InvalidInput)
+}
+
+fn serialize(value: impl serde::Serialize) -> Result<Value, WorkflowDispatchError> {
+    Ok(serde_json::to_value(value).expect("workflow result is serializable"))
+}
+
+enum WorkflowDispatchError {
+    Unknown,
+    InvalidInput,
+    Core(ChatWorkflowError),
+}
+
+impl From<ChatWorkflowError> for WorkflowDispatchError {
+    fn from(error: ChatWorkflowError) -> Self {
+        Self::Core(error)
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum TargetInput {
+    Id { chat_id: i64 },
+    PublicUsername { username: String },
+    PublicLink { url: String },
+    InviteLink { url: String },
+}
+
+impl TargetInput {
+    fn target(&self) -> ChatTarget<'_> {
+        match self {
+            Self::Id { chat_id } => ChatTarget::Id(*chat_id),
+            Self::PublicUsername { username } => ChatTarget::PublicUsername(username),
+            Self::PublicLink { url } => ChatTarget::PublicLink(url),
+            Self::InviteLink { url } => ChatTarget::InviteLink(url),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum MembershipInput {
+    ChatId { chat_id: i64 },
+    InviteLink { url: String },
+}
+
+impl MembershipInput {
+    fn target(&self) -> MembershipTarget<'_> {
+        match self {
+            Self::ChatId { chat_id } => MembershipTarget::ChatId(*chat_id),
+            Self::InviteLink { url } => MembershipTarget::InviteLink(url),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ChatListInput {
+    list: ChatListKind,
+    limit: i32,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum ChatListKind {
+    Main,
+    Archive,
+    Folder { folder_id: i32 },
+}
+
+impl From<ChatListKind> for ChatList {
+    fn from(value: ChatListKind) -> Self {
+        match value {
+            ChatListKind::Main => Self::Main,
+            ChatListKind::Archive => Self::Archive,
+            ChatListKind::Folder { folder_id } => Self::Folder(folder_id),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InspectInput {
+    target: TargetInput,
+    open: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PageInput {
+    count: usize,
+    min_date: Option<i32>,
+    page_limit: i32,
+}
+
+impl From<PageInput> for PageOptions {
+    fn from(value: PageInput) -> Self {
+        Self {
+            count: value.count,
+            min_date: value.min_date,
+            page_limit: value.page_limit,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HistoryInput {
+    chat_id: i64,
+    only_local: bool,
+    page: PageInput,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SearchInput {
+    chat_id: i64,
+    query: String,
+    page: PageInput,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MembersInput {
+    supergroup_id: i64,
+    count: usize,
+    page_limit: i32,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StatisticsInput {
+    chat_id: i64,
+    is_dark: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EmptyInput {}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DownloadInput {
+    file_id: i32,
+    priority: i32,
+    offset: i64,
+    limit: i64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UploadInput {
+    user_id: i64,
+    format: StickerFormatInput,
+    source: FileSourceInput,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum StickerFormatInput {
+    Webp,
+    Tgs,
+    Webm,
+}
+
+impl From<StickerFormatInput> for StickerFormat {
+    fn from(value: StickerFormatInput) -> Self {
+        match value {
+            StickerFormatInput::Webp => Self::Webp,
+            StickerFormatInput::Tgs => Self::Tgs,
+            StickerFormatInput::Webm => Self::Webm,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum FileSourceInput {
+    Id {
+        id: i32,
+    },
+    Remote {
+        id: String,
+    },
+    Local {
+        path: PathBuf,
+    },
+    Generated {
+        original_path: PathBuf,
+        conversion: String,
+        expected_size: i64,
+    },
+}
+
+impl FileSourceInput {
+    fn as_core(&self) -> InputFileSource<'_> {
+        match self {
+            Self::Id { id } => InputFileSource::Id(*id),
+            Self::Remote { id } => InputFileSource::Remote(id),
+            Self::Local { path } => InputFileSource::Local(path),
+            Self::Generated {
+                original_path,
+                conversion,
+                expected_size,
+            } => InputFileSource::Generated {
+                original_path,
+                conversion,
+                expected_size: *expected_size,
+            },
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StartBotInput {
+    bot_user_id: i64,
+    chat_id: i64,
+    parameter: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WebAppInput {
+    chat_id: i64,
+    bot_user_id: i64,
+    button_url: String,
+    application_name: String,
+    mode: WebAppModeInput,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum WebAppModeInput {
+    Compact,
+    FullSize,
+    FullScreen,
+}
+
+impl From<WebAppModeInput> for WebAppMode {
+    fn from(value: WebAppModeInput) -> Self {
+        match value {
+            WebAppModeInput::Compact => Self::Compact,
+            WebAppModeInput::FullSize => Self::FullSize,
+            WebAppModeInput::FullScreen => Self::FullScreen,
+        }
+    }
+}
+
+fn workflow_error(error: WorkflowDispatchError) -> CommandErrorCode {
+    match error {
+        WorkflowDispatchError::Unknown => CommandErrorCode::WorkflowNotFound,
+        WorkflowDispatchError::InvalidInput => CommandErrorCode::InvalidWorkflowInput,
+        WorkflowDispatchError::Core(ChatWorkflowError::Call(error)) => raw_error(error),
+        WorkflowDispatchError::Core(ChatWorkflowError::PrerequisiteMissing { .. }) => {
+            CommandErrorCode::WorkflowPrerequisiteMissing
+        }
+        WorkflowDispatchError::Core(ChatWorkflowError::CapabilityDenied { .. }) => {
+            CommandErrorCode::WorkflowCapabilityDenied
+        }
+        WorkflowDispatchError::Core(ChatWorkflowError::ResyncRequired { .. }) => {
+            CommandErrorCode::WorkflowResyncRequired
+        }
+        WorkflowDispatchError::Core(ChatWorkflowError::NoResyncRequired) => {
+            CommandErrorCode::WorkflowNoResyncRequired
+        }
+        WorkflowDispatchError::Core(
+            ChatWorkflowError::InvalidTarget
+            | ChatWorkflowError::InvalidLimit
+            | ChatWorkflowError::InvalidPageOptions
+            | ChatWorkflowError::InvalidFileTransfer,
+        ) => CommandErrorCode::InvalidWorkflowInput,
+        WorkflowDispatchError::Core(_) => CommandErrorCode::WorkflowFailed,
     }
 }
 
@@ -351,6 +842,21 @@ mod tests {
             DaemonResponse::CommandError {
                 code: CommandErrorCode::RuntimeUnavailable,
             }
+        );
+        let DaemonResponse::WorkflowList { workflows } =
+            exchange(&mut server, &socket, DaemonRequest::WorkflowList)
+        else {
+            panic!("expected workflow list")
+        };
+        assert!(workflows.iter().any(|name| name == "chat_history"));
+        assert!(workflows.iter().any(|name| name == "open_web_app"));
+        assert!(
+            parse::<TargetInput>(json!({
+                "kind": "id",
+                "chat_id": 7,
+                "unexpected": true,
+            }))
+            .is_err()
         );
         assert_eq!(server.leases.active_count(), 0);
 

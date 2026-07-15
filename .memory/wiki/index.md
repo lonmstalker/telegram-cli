@@ -25,6 +25,7 @@
 - [Operational telemetry and audit contract](../../docs/telemetry-audit.md)
 - [CLI session contract](../../docs/cli-session.md)
 - [CLI schema/raw call contract](../../docs/cli-schema-call.md)
+- [CLI workflow routes contract](../../docs/cli-workflows.md)
 - [Current project state](project-state.md)
 
 ## Memory streams
@@ -49,7 +50,7 @@
 
 ## Current records
 
-- Implementation: P0–P5 accepted; session/schema/raw-call CLI закрыты, следующий — workflow CLI; см. [project-state.md](project-state.md).
+- Implementation: P0–P5 accepted; session/schema/raw-call/workflow CLI закрыты, следующий — login/events CLI; см. [project-state.md](project-state.md).
 - Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -85,6 +86,7 @@
 - Metrics/redacted audit и P5 Acceptance: [D-20260715-065](../decisions/decisions.md), [W-20260715-070](../logs/work.md), [`docs/telemetry-audit.md`](../../docs/telemetry-audit.md).
 - CLI session client: [D-20260715-066](../decisions/decisions.md), [W-20260715-071](../logs/work.md), [`docs/cli-session.md`](../../docs/cli-session.md).
 - CLI schema/raw call: [D-20260715-067](../decisions/decisions.md), [W-20260715-072](../logs/work.md), [`docs/cli-schema-call.md`](../../docs/cli-schema-call.md).
+- CLI workflow routes: [D-20260715-068](../decisions/decisions.md), [W-20260715-073](../logs/work.md), [`docs/cli-workflows.md`](../../docs/cli-workflows.md).
 
 ## Operating rules
 

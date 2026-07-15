@@ -74,6 +74,19 @@ fn command(arguments: &[String], principal: String) -> Result<DaemonRequest, Box
                 request: serde_json::from_str(request)?,
             })
         }
+        [workflow, list] if workflow == "workflow" && list == "list" => {
+            Ok(DaemonRequest::WorkflowList)
+        }
+        [workflow, run, lease_id, name, input]
+            if workflow == "workflow" && run == "run" =>
+        {
+            Ok(DaemonRequest::WorkflowRun {
+                lease_id: LeaseId::new(lease_id.clone()),
+                principal,
+                workflow: name.clone(),
+                input: serde_json::from_str(input)?,
+            })
+        }
         [session, hold] if session == "session" && hold == "hold" => {
             Ok(acquire(principal, "read", DEFAULT_TTL_MS)?)
         }
@@ -89,7 +102,7 @@ fn command(arguments: &[String], principal: String) -> Result<DaemonRequest, Box
                 principal,
             })
         }
-        _ => Err("usage: telegram-cli session ... | schema version|capabilities|search|describe ... | td call <lease_id> <json>".into()),
+        _ => Err("usage: telegram-cli session ... | schema ... | td call <lease_id> <json> | workflow list|run ...".into()),
     }
 }
 
@@ -185,6 +198,29 @@ mod tests {
                 principal: "cli".to_owned(),
                 scopes: vec![RiskScope::Read, RiskScope::Send],
                 ttl_ms: 500,
+            }
+        );
+        assert_eq!(
+            command(
+                &[
+                    "workflow".to_owned(),
+                    "run".to_owned(),
+                    "lease".to_owned(),
+                    "chat_history".to_owned(),
+                    r#"{"chat_id":7,"only_local":false,"page":{"count":1,"min_date":null,"page_limit":100}}"#.to_owned(),
+                ],
+                "cli".to_owned(),
+            )
+            .unwrap(),
+            DaemonRequest::WorkflowRun {
+                lease_id: LeaseId::new("lease".to_owned()),
+                principal: "cli".to_owned(),
+                workflow: "chat_history".to_owned(),
+                input: serde_json::json!({
+                    "chat_id": 7,
+                    "only_local": false,
+                    "page": {"count": 1, "min_date": null, "page_limit": 100},
+                }),
             }
         );
         assert!(

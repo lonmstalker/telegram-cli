@@ -121,7 +121,8 @@ fn find(symbols: &'static [SymbolDescriptor], name: &str) -> Option<&'static Sym
         .map(|index| &symbols[index])
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(transparent)]
 pub struct TdObject(Value);
 
 impl TdObject {

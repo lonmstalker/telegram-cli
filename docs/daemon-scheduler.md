@@ -4,19 +4,51 @@
 
 ## Admission semantics
 
-- Каждая operation получает monotonic FIFO ticket и class `Read` либо `Mutation`.
+- Каждая operation получает monotonic FIFO ticket. `enqueue_method` берёт risk class из
+  generated capability data; только `read` получает concurrency class `Read`, остальные
+  reviewed risks консервативно сериализуются как `Mutation`. Default-deny method не входит
+  в queue.
 - Contiguous prefix reads может войти параллельно до переданного non-zero `max_concurrent_reads`.
 - Mutation входит только с головы queue, когда нет active reads или другой mutation.
 - Как только mutation стоит раньше read, поздний read её не обгоняет. После mutation следующий FIFO prefix снова может использовать read capacity.
 - `OperationPermit` освобождает active slot через RAII. Drop ещё не admitted `QueuedOperation` отменяет ticket и будит следующих waiters.
 - Ticket exhaustion fail closed; poison recovery сохраняет accounting state и не расширяет concurrency.
 
-Read limit передаётся явным consumer configuration, а не фиксируется как Telegram truth. Этот пункт определяет admission mechanism; измеренный default/budgets и method-to-class data принадлежат P5. До generated registry P3 scheduler не угадывает class по имени метода.
+## Queue и rate budgets
+
+`SchedulerBudgets` передаётся consumer явно и не имеет guessed defaults. Для account,
+каждого chat и каждого generated `RiskClass` задаётся один `ScopeBudget`:
+
+- `max_queued` ограничивает ожидающие tickets до их выдачи;
+- `RateBudget` задаёт non-zero maximum/window для dispatch timestamps.
+
+Отсутствующий budget хотя бы для одного risk class запрещает создание scheduler. Operation
+без chat ID использует account и method-class budgets; Telegram identifiers не попадают в
+error text. Один bounded timestamp deque обслуживает все три измерения, второй queue/rate
+framework не создаётся.
+
+## Flood delay и jitter
+
+`record_flood_wait` принимает explicit account/chat/method-class scope и server delay.
+Scope остаётся blocked не меньше server delay. Если delay помещается в configured
+`max_automatic_backoff`, к нему добавляется bounded jitter не выше `max_jitter` и общего
+maximum. Если server delay больше automatic budget, scheduler сохраняет весь server block,
+но возвращает `automatic_delay=None`: caller не может автоматически retry раньше или
+обрезать Telegram delay.
+
+Read/queue/rate/backoff limits передаются явным consumer configuration и не фиксируются как
+Telegram truth. Измеренные deployment values появятся только вместе с daemon dispatch
+consumer; механизм уже fail closed по отсутствующим budgets.
 
 ## Current runtime boundary
 
-Lease operations не проходят через scheduler: они управляют правом на session, а не являются TDLib calls. `AccountScheduler` подключается к TDLib dispatch после появления schema/capability data; текущий daemon всё ещё не отправляет рабочие requests в core.
+Lease operations не проходят через scheduler: они управляют правом на session, а не являются
+TDLib calls. Generated method-class lookup уже реализован; фактический daemon workflow/raw
+dispatch появится с protocol consumer, поэтому production budget values пока не заявлены.
 
 ## Verification
 
-Threaded deterministic test удерживает два разрешённых read permits, ставит mutation перед late read и доказывает admission mutation первой после освобождения reads; late read входит только после mutation release. Отдельно проверены serialized second mutation и cancellation queued ticket.
+Tests удерживают два read permits и доказывают FIFO mutation barrier; отдельно проверяют
+независимые account/chat/method rate windows, fail-closed queue dimensions, generated method
+classification/default-deny, bounded flood jitter и отсутствие automatic retry при delay
+выше configured bound.

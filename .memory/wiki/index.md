@@ -46,7 +46,7 @@
 
 ## Current records
 
-- Implementation: P0–P4 accepted; следующий — P5 queue/rate budgets и flood-aware backoff; см. [project-state.md](project-state.md).
+- Implementation: P0–P4 accepted; P5 queue/rate budgets закрыты, следующий — retry eligibility/execution; см. [project-state.md](project-state.md).
 - Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -74,6 +74,7 @@
 - Members/statistics workflows: [D-20260715-057](../decisions/decisions.md), [W-20260715-062](../logs/work.md), [`docs/members-statistics-workflow.md`](../../docs/members-statistics-workflow.md).
 - File/sticker/bot/Web App terminal workflows: [D-20260715-058](../decisions/decisions.md), [W-20260715-063](../logs/work.md), [`docs/terminal-domain-workflows.md`](../../docs/terminal-domain-workflows.md).
 - Update gap/resync и P4 Acceptance: [D-20260715-059](../decisions/decisions.md), [W-20260715-064](../logs/work.md), [`docs/update-gap-resync.md`](../../docs/update-gap-resync.md).
+- Scheduler budgets/flood backoff: [D-20260715-060](../decisions/decisions.md), [W-20260715-065](../logs/work.md), [`docs/daemon-scheduler.md`](../../docs/daemon-scheduler.md).
 
 ## Operating rules
 

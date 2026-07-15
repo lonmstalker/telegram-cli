@@ -62,7 +62,10 @@ Scopes: read, presence, send, reversible mutation, admin, destructive, financial
 
 ## Live Verification Boundary
 
-P1 реализует только нижнюю transport boundary: абсолютные deadlines/cancellation и native secret-output canary после `setLogStream(logStreamEmpty)`. Scanner имеет внутренний negative control; Rust secret types/errors redacted. Retry, policy, metrics exporter, fault injection и operation reconciliation остаются P5.
+P1 реализует transport deadlines/cancellation и native secret-output canary. P5 scheduler
+теперь имеет explicit account/chat/generated-risk queue/rate budgets и bounded flood delay
+with jitter; production values и live FLOOD_WAIT ещё не измерены. Retry execution,
+idempotency, approval, metrics exporter и fault injection остаются следующими P5 slices.
 
 ## Scope
 
@@ -154,8 +157,9 @@ P1 реализует только нижнюю transport boundary: абсолю
 
 ## Coverage Notes
 
-- Kernel coverage: risk/retry/outcome/telemetry modeled.
+- Kernel coverage: generated risk admission, queue/rate scopes и flood backoff implemented;
+  retry/outcome/telemetry remain modeled.
 - Modeled: policy and reconciliation contract.
-- Partial: actual budgets/exporter.
+- Partial: production budget values, retry executor, reconciliation and exporter.
 - Unknown: measured production thresholds.
 - Not applicable: domain-specific data shapes.

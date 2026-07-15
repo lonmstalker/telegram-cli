@@ -26,6 +26,7 @@
 - [CLI session contract](../../docs/cli-session.md)
 - [CLI schema/raw call contract](../../docs/cli-schema-call.md)
 - [CLI workflow routes contract](../../docs/cli-workflows.md)
+- [CLI secure login contract](../../docs/cli-secure-login.md)
 - [Current project state](project-state.md)
 
 ## Memory streams
@@ -50,7 +51,7 @@
 
 ## Current records
 
-- Implementation: P0–P5 accepted; CLI routes/output/stream cleanup закрыты, следующий — secure TTY; см. [project-state.md](project-state.md).
+- Implementation: P0–P5 accepted; CLI routes/output/stream/secure login закрыты, следующий — agent skill; см. [project-state.md](project-state.md).
 - Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -90,6 +91,7 @@
 - CLI login/events routes: [D-20260715-069](../decisions/decisions.md), [W-20260715-074](../logs/work.md), [`docs/cli-login-events.md`](../../docs/cli-login-events.md).
 - CLI output/exit contract: [D-20260715-070](../decisions/decisions.md), [W-20260715-075](../logs/work.md), [`docs/cli-output-contract.md`](../../docs/cli-output-contract.md).
 - CLI streaming/cancellation: [D-20260715-071](../decisions/decisions.md), [W-20260715-076](../logs/work.md), [`docs/cli-streaming.md`](../../docs/cli-streaming.md).
+- CLI secure login: [D-20260715-072](../decisions/decisions.md), [W-20260715-077](../logs/work.md), [`docs/cli-secure-login.md`](../../docs/cli-secure-login.md).
 
 ## Operating rules
 

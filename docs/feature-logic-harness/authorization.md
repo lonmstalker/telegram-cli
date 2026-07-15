@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: trust boundary; limits: none.
 - SRC002: HARNESS.md; type: file; supports: secret and lifecycle invariants; limits: none.
-- SRC003: `plans.md` P1, `telegram-core::authorization` и `telegram-core::database_key`; type: file/code; supports: exhaustive state/challenge machine, protected database-key providers, exact parameters request and wrong-key latch; limits: runtime driver отсутствует.
+- SRC003: `plans.md` P1/P6, `telegram-core::authorization`, `telegram-core::database_key` и daemon authorization broker; type: file/code; supports: exhaustive state/challenge machine, protected database-key providers, exact parameters request, wrong-key latch и secure TTY submission; limits: live first-login branches не проверены.
 - SRC004: pinned official `td_api.tl` и exact source commit digest; type: supplied; supports: 13 auth states, auth methods, Base64 JSON bytes codec, empty-key behavior and wrong-key 401; limits: human UI not specified.
 - SRC005: live probe 2026-07-15; type: supplied; supports: encrypted returning Ready/getMe/Closed; limits: first-login branches not tested.
 
@@ -63,7 +63,7 @@ Only account owner/operator may submit auth secrets. Agent may wait/poll status 
 
 ## Live Verification Boundary
 
-P1 protected live gate подтвердил returning regular-user session: `WaitTdlibParameters -> Ready -> getMe(user) -> close -> Closed` без phone/OTP/2FA input и без вывода identity/secret. Pure core machine обрабатывает все pinned states и exact auth requests. Отдельный pinned-native synthetic test-DC probe подтвердил wrong-key 401, отсутствие перехода к phone authorization, неизменность DB bytes и preflight reject missing key. P2 штатно подключил тот же path к singleton daemon, stable profile identity и idle/crash restart.
+P1 protected live gate подтвердил returning regular-user session: `WaitTdlibParameters -> Ready -> getMe(user) -> close -> Closed` без phone/OTP/2FA input и без вывода identity/secret. Pure core machine обрабатывает все pinned states и exact auth requests. Отдельный pinned-native synthetic test-DC probe подтвердил wrong-key 401, отсутствие перехода к phone authorization, неизменность DB bytes и preflight reject missing key. P2 штатно подключил тот же path к singleton daemon, stable profile identity и idle/crash restart. P6 добавил daemon broker exact challenge ID и `/dev/tty` bridge с отключённым echo, redacted debug и zeroizing buffers; live phone/OTP/2FA login остаётся P10 boundary.
 
 ## Scope
 
@@ -159,6 +159,6 @@ P1 protected live gate подтвердил returning regular-user session: `Wai
 - Kernel coverage: all auth states identified.
 - Modeled: returning/wrong-key/security semantics.
 - Verified: P1 core runtime returning session и pinned-native wrong/missing-key boundary.
-- Partial: production daemon broker/UI, key rotation и device-confirm completion отсутствуют.
+- Partial: live first-login, key rotation и device-confirm completion отсутствуют.
 - Unknown: default local secret backend.
 - Not applicable: chat/message domain behavior.

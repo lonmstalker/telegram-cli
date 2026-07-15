@@ -2,10 +2,11 @@
 
 #![forbid(unsafe_code)]
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use std::fmt;
 use std::str::FromStr;
+use zeroize::Zeroize;
 
 pub const MACHINE_PROTOCOL_VERSION: u16 = 1;
 
@@ -80,11 +81,15 @@ impl LeaseId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DaemonRequest {
     SessionStatus,
     LoginStatus,
+    LoginSubmit {
+        challenge_id: u64,
+        input: LoginInput,
+    },
     SchemaVersion,
     SchemaCapabilities,
     SchemaSearch {
@@ -142,6 +147,10 @@ pub enum DaemonResponse {
     },
     LoginStatus {
         state: LoginState,
+        challenge_id: Option<u64>,
+    },
+    LoginSubmitted {
+        challenge_id: u64,
     },
     SchemaVersion {
         version: Value,
@@ -207,6 +216,90 @@ pub enum LoginState {
     Unknown,
 }
 
+#[derive(PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum LoginInput {
+    PhoneNumber {
+        value: ProtectedString,
+    },
+    AuthenticationCode {
+        value: ProtectedString,
+    },
+    Password {
+        value: ProtectedString,
+    },
+    EmailAddress {
+        value: ProtectedString,
+    },
+    EmailCode {
+        value: ProtectedString,
+    },
+    Registration {
+        first_name: ProtectedString,
+        last_name: ProtectedString,
+    },
+}
+
+impl fmt::Debug for LoginInput {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let kind = match self {
+            Self::PhoneNumber { .. } => "phone_number",
+            Self::AuthenticationCode { .. } => "authentication_code",
+            Self::Password { .. } => "password",
+            Self::EmailAddress { .. } => "email_address",
+            Self::EmailCode { .. } => "email_code",
+            Self::Registration { .. } => "registration",
+        };
+        formatter
+            .debug_struct("LoginInput")
+            .field("kind", &kind)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(PartialEq, Eq)]
+pub struct ProtectedString(String);
+
+impl ProtectedString {
+    pub fn new(value: String) -> Self {
+        Self(value)
+    }
+
+    pub fn into_inner(mut self) -> String {
+        std::mem::take(&mut self.0)
+    }
+}
+
+impl fmt::Debug for ProtectedString {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("<redacted>")
+    }
+}
+
+impl Serialize for ProtectedString {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for ProtectedString {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        String::deserialize(deserializer).map(Self)
+    }
+}
+
+impl Drop for ProtectedString {
+    fn drop(&mut self) {
+        self.0.zeroize();
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventRecord {
     pub sequence: u64,
@@ -252,6 +345,9 @@ pub enum CommandErrorCode {
     WorkflowResyncRequired,
     WorkflowNoResyncRequired,
     WorkflowFailed,
+    LoginChallengeInvalid,
+    LoginSubmissionPending,
+    LoginSubmissionRejected,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -281,6 +377,8 @@ pub enum ClientErrorCode {
     InvalidResponse,
     OutputFailed,
     Cancelled,
+    SecureTtyUnavailable,
+    SecureTtyFailed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -303,6 +401,9 @@ impl MachineEnvelope {
                 complete: false, ..
             }
             | response @ DaemonResponse::Events { gap: true, .. } => {
+                MachineOutcome::Partial { data: response }
+            }
+            response @ DaemonResponse::LoginStatus { state, .. } if state != LoginState::Ready => {
                 MachineOutcome::Partial { data: response }
             }
             response => MachineOutcome::Ok { data: response },
@@ -352,4 +453,26 @@ pub enum MachineError {
     Command { code: CommandErrorCode },
     Lease { code: LeaseErrorCode },
     Client { code: ClientErrorCode },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn protected_login_input_is_redacted_and_zeroizable() {
+        let canary = "PROTECTED_LOGIN_CANARY";
+        let request = DaemonRequest::LoginSubmit {
+            challenge_id: 7,
+            input: LoginInput::Password {
+                value: ProtectedString::new(canary.to_owned()),
+            },
+        };
+        assert!(!format!("{request:?}").contains(canary));
+
+        let mut wire = serde_json::to_string(&request).unwrap();
+        assert!(wire.contains(canary));
+        wire.zeroize();
+        assert!(wire.is_empty());
+    }
 }

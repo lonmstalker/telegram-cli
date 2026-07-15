@@ -78,6 +78,7 @@ fn run() -> Result<(), Box<dyn Error>> {
             .last_sequence()
             .map(|sequence| sequence.get()),
     );
+    server.observe_authorization(&runtime)?;
     if readiness == lifecycle::AuthorizationReadiness::InteractiveRequired {
         lifecycle::serve_until_authorized(
             &mut runtime,

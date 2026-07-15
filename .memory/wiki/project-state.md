@@ -54,10 +54,11 @@
 - Четвёртый подпункт CLI commands P6 закрыт: login status строится из typed authorization machine без challenge values, а bounded events route отдаёт только sequence/kind/cursor/gap metadata и явно маркирует потерю наблюдения ([D-20260715-069](../decisions/decisions.md)).
 - Пятый Tasks-пункт P6 закрыт: human default и machine envelope v1 разделяют `ok/partial/error`, daemon добавляет typed workflow completeness, а client/command/lease failures имеют closed codes и стабильные exit categories ([D-20260715-070](../decisions/decisions.md)).
 - Шестой Tasks-пункт P6 закрыт: human/JSONL `events watch` heartbeat’ит lease, продолжает cursor и при signal/pipe cancellation освобождает lease вне signal handler; JSON остаётся one-shot snapshot ([D-20260715-071](../decisions/decisions.md)).
+- Седьмой Tasks-пункт P6 закрыт: `login tty` вводит phone/OTP/2FA/email/registration только через protected `/dev/tty`, связывает typed input с daemon challenge и не принимает secrets в flags/stdin/output ([D-20260715-072](../decisions/decisions.md)).
 
 ## Not implemented
 
-- Оставшиеся пункты P6–P10: CLI secure input/skill, domain workflows, optional MCP, packaging и live acceptance.
+- Оставшиеся пункты P6–P10: CLI agent skill, domain workflows, optional MCP, packaging и live acceptance.
 
 ## Active boundary
 
@@ -66,4 +67,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: P6 secure TTY для OTP/2FA без secrets в flags.
+- Следующий implementation boundary: P6 compact agent skill и cold-agent eval.

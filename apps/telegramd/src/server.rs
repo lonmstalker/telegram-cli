@@ -7,11 +7,12 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use serde::Deserialize;
 use serde::de::DeserializeOwned;
-use serde_json::{Value, json};
+use serde::Deserialize;
+use serde_json::{json, Value};
 use telegram_core::authorization::{
-    AuthorizationChallengeKind, AuthorizationMachine, AuthorizationStep,
+    AuthorizationChallengeKind, AuthorizationError, AuthorizationInput, AuthorizationMachine,
+    AuthorizationRequest, AuthorizationStep, ChallengeId, SensitiveString,
 };
 use telegram_core::raw_api::{
     self, PolicyError, RawApiError, SchemaDescription, SchemaSearchResult,
@@ -26,8 +27,9 @@ use telegram_core::workflows::{
 };
 use telegram_protocol::{
     CommandErrorCode, DaemonRequest, DaemonResponse, EventKind, EventRecord, LeaseErrorCode,
-    LoginState,
+    LoginInput, LoginState,
 };
+use zeroize::Zeroizing;
 
 use crate::lease::LeaseManager;
 
@@ -55,6 +57,7 @@ pub struct LeaseServer {
     leases: LeaseManager,
     ready: bool,
     events: EventBuffer,
+    authorization: AuthorizationBroker,
 }
 
 impl LeaseServer {
@@ -63,6 +66,7 @@ impl LeaseServer {
             leases,
             ready: true,
             events: EventBuffer::new(EVENT_BUFFER_CAPACITY),
+            authorization: AuthorizationBroker::default(),
         }
     }
 
@@ -78,6 +82,18 @@ impl LeaseServer {
         self.events.record(update.sequence.get(), update.kind);
     }
 
+    pub fn observe_authorization(&mut self, runtime: &CoreRuntime) -> Result<(), ServerError> {
+        let state = runtime
+            .state()
+            .authorization()
+            .ok_or(ServerError::MissingAuthorizationState)?;
+        self.authorization
+            .observe(&state.value)
+            .map_err(ServerError::Authorization)?;
+        self.ready = matches!(self.authorization.step, Some(AuthorizationStep::Ready));
+        Ok(())
+    }
+
     pub fn poll(
         &mut self,
         listener: &UnixListener,
@@ -91,6 +107,12 @@ impl LeaseServer {
                 Err(ServerError::Accept(io::ErrorKind::WouldBlock)) => return Ok(()),
                 Err(error @ ServerError::Accept(_)) => return Err(error),
                 Err(ServerError::ClientIo(_) | ServerError::SerializeResponse) => {}
+                Err(
+                    error
+                    @ (ServerError::MissingAuthorizationState | ServerError::Authorization(_)),
+                ) => {
+                    return Err(error);
+                }
             }
         }
     }
@@ -124,7 +146,7 @@ impl LeaseServer {
         stream
             .set_write_timeout(Some(CLIENT_IO_TIMEOUT))
             .map_err(|error| ServerError::ClientIo(error.kind()))?;
-        let mut bytes = Vec::new();
+        let mut bytes = Zeroizing::new(Vec::new());
         {
             let reader = BufReader::new(&mut stream);
             let mut limited = reader.take(MAX_REQUEST_BYTES + 1);
@@ -144,7 +166,8 @@ impl LeaseServer {
             if bytes.ends_with(b"\r") {
                 bytes.pop();
             }
-            match serde_json::from_slice(&bytes) {
+            let request = serde_json::from_slice(&bytes);
+            match request {
                 Ok(request) => self.handle(request, runtime, Instant::now()),
                 Err(_) => DaemonResponse::Error {
                     code: LeaseErrorCode::InvalidRequest,
@@ -178,9 +201,54 @@ impl LeaseServer {
                 active_leases: self.leases.active_count(),
             },
             DaemonRequest::LoginStatus => {
-                runtime.map_or_else(runtime_unavailable, |runtime| DaemonResponse::LoginStatus {
-                    state: login_state(runtime),
-                })
+                let (state, challenge_id) = self.authorization.status();
+                DaemonResponse::LoginStatus {
+                    state,
+                    challenge_id,
+                }
+            }
+            DaemonRequest::LoginSubmit {
+                challenge_id,
+                input,
+            } => {
+                let (challenge, request) = match self.authorization.submit(challenge_id, input) {
+                    Ok(request) => request,
+                    Err(AuthorizationError::SubmissionPending) => {
+                        return DaemonResponse::CommandError {
+                            code: CommandErrorCode::LoginSubmissionPending,
+                        };
+                    }
+                    Err(_) => {
+                        return DaemonResponse::CommandError {
+                            code: CommandErrorCode::LoginChallengeInvalid,
+                        };
+                    }
+                };
+                let Some(runtime) = runtime else {
+                    let _ = self.authorization.machine.submission_failed(challenge);
+                    return runtime_unavailable();
+                };
+                let deadline = now.checked_add(CALL_TIMEOUT).unwrap_or(now);
+                let response = runtime
+                    .transport()
+                    .call_until(request.into_value(), deadline);
+                match response {
+                    Ok(response) if response.get("@type").and_then(Value::as_str) == Some("ok") => {
+                        DaemonResponse::LoginSubmitted { challenge_id }
+                    }
+                    Ok(_) => {
+                        let _ = self.authorization.machine.submission_failed(challenge);
+                        DaemonResponse::CommandError {
+                            code: CommandErrorCode::LoginSubmissionRejected,
+                        }
+                    }
+                    Err(_) => {
+                        let _ = self.authorization.machine.submission_failed(challenge);
+                        DaemonResponse::CommandError {
+                            code: CommandErrorCode::TdlibTransport,
+                        }
+                    }
+                }
             }
             DaemonRequest::SchemaVersion => runtime.map_or_else(runtime_unavailable, |runtime| {
                 DaemonResponse::SchemaVersion {
@@ -397,20 +465,57 @@ impl EventBuffer {
     }
 }
 
-fn login_state(runtime: &CoreRuntime) -> LoginState {
-    let Some(state) = runtime.state().authorization() else {
-        return LoginState::Unknown;
-    };
-    let Ok(step) = AuthorizationMachine::default().observe_state(&state.value) else {
-        return LoginState::Unknown;
-    };
+#[derive(Default)]
+struct AuthorizationBroker {
+    machine: AuthorizationMachine,
+    step: Option<AuthorizationStep>,
+}
+
+impl AuthorizationBroker {
+    fn observe(&mut self, state: &Value) -> Result<(), AuthorizationError> {
+        self.step = Some(self.machine.observe_state(state)?);
+        Ok(())
+    }
+
+    fn status(&self) -> (LoginState, Option<u64>) {
+        let Some(step) = &self.step else {
+            return (LoginState::Unknown, None);
+        };
+        let challenge_id = match step {
+            AuthorizationStep::ParametersRequired { generation } => Some(generation.get()),
+            AuthorizationStep::Challenge(challenge) => Some(challenge.id.get()),
+            AuthorizationStep::Ready
+            | AuthorizationStep::LoggingOut
+            | AuthorizationStep::Closing
+            | AuthorizationStep::Closed => None,
+        };
+        (login_state(step), challenge_id)
+    }
+
+    fn submit(
+        &mut self,
+        challenge_id: u64,
+        input: LoginInput,
+    ) -> Result<(ChallengeId, AuthorizationRequest), AuthorizationError> {
+        let challenge = match &self.step {
+            Some(AuthorizationStep::Challenge(challenge)) if challenge.id.get() == challenge_id => {
+                challenge.id
+            }
+            _ => return Err(AuthorizationError::StaleChallenge),
+        };
+        let request = self.machine.submit(challenge, authorization_input(input))?;
+        Ok((challenge, request))
+    }
+}
+
+fn login_state(step: &AuthorizationStep) -> LoginState {
     match step {
         AuthorizationStep::ParametersRequired { .. } => LoginState::Parameters,
         AuthorizationStep::Ready => LoginState::Ready,
         AuthorizationStep::LoggingOut => LoginState::LoggingOut,
         AuthorizationStep::Closing => LoginState::Closing,
         AuthorizationStep::Closed => LoginState::Closed,
-        AuthorizationStep::Challenge(challenge) => match challenge.kind {
+        AuthorizationStep::Challenge(challenge) => match &challenge.kind {
             AuthorizationChallengeKind::PhoneNumber => LoginState::PhoneNumber,
             AuthorizationChallengeKind::PremiumPurchase { .. } => LoginState::PremiumPurchase,
             AuthorizationChallengeKind::EmailAddress { .. } => LoginState::EmailAddress,
@@ -419,6 +524,34 @@ fn login_state(runtime: &CoreRuntime) -> LoginState {
             AuthorizationChallengeKind::OtherDeviceConfirmation { .. } => LoginState::QrCode,
             AuthorizationChallengeKind::Registration(_) => LoginState::Registration,
             AuthorizationChallengeKind::Password { .. } => LoginState::Password,
+        },
+    }
+}
+
+fn authorization_input(input: LoginInput) -> AuthorizationInput {
+    match input {
+        LoginInput::PhoneNumber { value } => {
+            AuthorizationInput::PhoneNumber(SensitiveString::new(value.into_inner()))
+        }
+        LoginInput::AuthenticationCode { value } => {
+            AuthorizationInput::AuthenticationCode(SensitiveString::new(value.into_inner()))
+        }
+        LoginInput::Password { value } => {
+            AuthorizationInput::Password(SensitiveString::new(value.into_inner()))
+        }
+        LoginInput::EmailAddress { value } => {
+            AuthorizationInput::EmailAddress(SensitiveString::new(value.into_inner()))
+        }
+        LoginInput::EmailCode { value } => {
+            AuthorizationInput::EmailCode(SensitiveString::new(value.into_inner()))
+        }
+        LoginInput::Registration {
+            first_name,
+            last_name,
+        } => AuthorizationInput::Registration {
+            first_name: SensitiveString::new(first_name.into_inner()),
+            last_name: SensitiveString::new(last_name.into_inner()),
+            disable_notification: false,
         },
     }
 }
@@ -964,11 +1097,13 @@ fn raw_error(error: RawApiError) -> CommandErrorCode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServerError {
     Accept(io::ErrorKind),
     ClientIo(io::ErrorKind),
     SerializeResponse,
+    MissingAuthorizationState,
+    Authorization(AuthorizationError),
 }
 
 impl fmt::Display for ServerError {
@@ -977,6 +1112,10 @@ impl fmt::Display for ServerError {
             Self::Accept(kind) => write!(formatter, "profile socket accept failed: {kind:?}"),
             Self::ClientIo(kind) => write!(formatter, "profile client IO failed: {kind:?}"),
             Self::SerializeResponse => formatter.write_str("lease response serialization failed"),
+            Self::MissingAuthorizationState => {
+                formatter.write_str("daemon authorization state is missing")
+            }
+            Self::Authorization(error) => write!(formatter, "authorization broker failed: {error}"),
         }
     }
 }
@@ -1070,14 +1209,12 @@ mod tests {
         };
         assert!(workflows.iter().any(|name| name == "chat_history"));
         assert!(workflows.iter().any(|name| name == "open_web_app"));
-        assert!(
-            parse::<TargetInput>(json!({
-                "kind": "id",
-                "chat_id": 7,
-                "unexpected": true,
-            }))
-            .is_err()
-        );
+        assert!(parse::<TargetInput>(json!({
+            "kind": "id",
+            "chat_id": 7,
+            "unexpected": true,
+        }))
+        .is_err());
         assert_eq!(server.leases.active_count(), 0);
 
         drop(socket);
@@ -1114,6 +1251,29 @@ mod tests {
 
         events.reconcile(Some(15));
         assert_eq!(events.events.back().unwrap().kind, EventKind::Gap);
+    }
+
+    #[test]
+    fn authorization_broker_exposes_id_but_redacts_protected_input() {
+        let mut broker = AuthorizationBroker::default();
+        broker
+            .observe(&json!({"@type": "authorizationStateWaitPhoneNumber"}))
+            .unwrap();
+        let (state, challenge_id) = broker.status();
+        assert_eq!(state, LoginState::PhoneNumber);
+        let challenge_id = challenge_id.unwrap();
+        let canary = "AUTH_INPUT_CANARY";
+        let (challenge, request) = broker
+            .submit(
+                challenge_id,
+                LoginInput::PhoneNumber {
+                    value: telegram_protocol::ProtectedString::new(canary.to_owned()),
+                },
+            )
+            .unwrap();
+        assert_eq!(request.request_type(), "setAuthenticationPhoneNumber");
+        assert!(!format!("{request:?}").contains(canary));
+        broker.machine.submission_failed(challenge).unwrap();
     }
 
     fn exchange(

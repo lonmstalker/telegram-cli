@@ -8,12 +8,13 @@ telegram-cli events watch <lease_id> [cursor]
 ```
 
 `login` читает daemon-owned authorization state. Daemon преобразует уже разобранный
-`AuthorizationMachine` step в закрытый `LoginState`; CLI не видит TDJSON `@type`, phone,
-OTP, 2FA, email, QR link или другие challenge fields. При первом login daemon остаётся
-единственным владельцем DB и держит private socket доступным в состоянии `Starting`.
-До доказанного `Ready -> getMe -> expected identity` raw calls и workflows возвращают
-`runtime_unavailable`. Protected ввод challenge secrets принадлежит следующему P6 slice
-про secure TTY и не подменяется flags или raw call.
+`AuthorizationMachine` step в закрытый `LoginState`; status не содержит phone, OTP, 2FA,
+email, QR link или другие challenge values. `login tty` вводит owner secret только через
+`/dev/tty` с отключённым echo и передаёт typed input для exact challenge ID; flags, stdin и
+caller-authored TDJSON для login запрещены. При первом login daemon остаётся единственным
+владельцем DB и держит private socket доступным в состоянии `Starting`. До доказанного
+`Ready -> getMe -> expected identity` raw calls и workflows возвращают
+`runtime_unavailable`. Полный contract: [`cli-secure-login.md`](cli-secure-login.md).
 
 `events watch` требует действующий matching lease и возвращает только bounded metadata:
 monotonic local `sequence`, закрытый `kind`, `next_cursor` и `gap`. Первый вызов без cursor

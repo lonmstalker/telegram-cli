@@ -1,0 +1,29 @@
+# Защищённый CLI login
+
+`telegram-cli login` возвращает только закрытый `LoginState` и optional challenge ID.
+`telegram-cli login tty` запускает owner-operated loop для текущего challenge:
+
+1. CLI читает status из singleton daemon.
+2. Телефон, OTP, 2FA, email code и registration names вводятся только через
+   `/dev/tty` с отключённым echo.
+3. Input связывается с challenge ID и отправляется daemon через private profile socket.
+4. Daemon преобразует закрытый `LoginInput` в `AuthorizationInput` существующей
+   `AuthorizationMachine`; caller-authored TDJSON `@type` здесь отсутствует.
+5. CLI ждёт новый challenge либо доказанный `Ready`.
+
+Secret не принимается command-line argument, stdin, environment variable или machine
+output. `/dev/tty` открывается как character device с `O_NOFOLLOW`, `O_CLOEXEC` и
+`O_NONBLOCK`; echo восстанавливается RAII guard-ом при success, error, SIGINT и SIGTERM.
+Временные input/frame buffers zeroize при drop, а `Debug` для protected input всегда
+redacted. Closed client errors различают недоступный и сломанный secure TTY, не включая
+значение или произвольный error text.
+
+Повторная отправка того же challenge запрещена до нового authorization update. Stale ID,
+input другого типа и concurrent submission дают закрытый command error. QR challenge не
+печатает ссылку: CLI показывает на TTY только просьбу подтвердить уже начатый QR login на
+другом устройстве и продолжает ждать state transition.
+
+`LoginSubmitted` означает только принятую TDLib request. Terminal completion по-прежнему
+требует `authorizationStateReady`, успешный `getMe` и проверку expected identity в daemon.
+Первый live phone/OTP/2FA login этим пунктом не выполнялся; он остаётся live-acceptance
+границей P10.

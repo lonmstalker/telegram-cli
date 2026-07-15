@@ -14,7 +14,7 @@ from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parent.parent
 BINARY_MESSAGES = {
-    "telegram-cli": "telegram-cli: usage: telegram-cli session ... | schema ... | td call <lease_id> <json> | workflow list|run ...",
+    "telegram-cli": "telegram-cli: usage: telegram-cli session ... | login [tty] | schema ... | td call <lease_id> <json> | workflow list|run ... | events watch ...",
     "telegram-mcp": "telegram-mcp: runtime ещё не реализован",
     "telegram-webapp-runner": "telegram-webapp-runner: runtime ещё не реализован",
     "telegramd": "telegramd: runtime ещё не реализован",

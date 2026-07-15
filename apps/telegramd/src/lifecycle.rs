@@ -4,13 +4,13 @@ use std::fmt;
 use std::io;
 use std::time::{Duration, Instant};
 
-use serde_json::{Value, json};
-use telegram_core::NativeTdJson;
+use serde_json::{json, Value};
 use telegram_core::authorization::{AuthorizationError, AuthorizationMachine, AuthorizationStep};
 use telegram_core::database_key::DatabaseKey;
 use telegram_core::reducer::CachedUpdateKind;
 use telegram_core::runtime::{CoreRuntime, CoreRuntimeEvent, RuntimeError};
 use telegram_core::transport::TransportError;
+use telegram_core::NativeTdJson;
 
 use crate::config::DaemonConfig;
 use crate::identity::{self, IdentityError};
@@ -178,6 +178,9 @@ pub fn serve_until_authorized(
             Ok(CoreRuntimeEvent::State(applied)) => {
                 server.record_event(applied);
                 if applied.kind == CachedUpdateKind::Authorization {
+                    server
+                        .observe_authorization(runtime)
+                        .map_err(LifecycleError::Server)?;
                     match authorization_type(runtime) {
                         Some("authorizationStateReady") => {
                             let deadline = deadline_after(AUTHORIZATION_TIMEOUT)?;
@@ -271,7 +274,14 @@ pub fn serve_until_idle(
 
         let event_deadline = now.checked_add(READY_POLL).unwrap_or(now);
         match runtime.next_event_until(event_deadline) {
-            Ok(CoreRuntimeEvent::State(applied)) => server.record_event(applied),
+            Ok(CoreRuntimeEvent::State(applied)) => {
+                server.record_event(applied);
+                if applied.kind == CachedUpdateKind::Authorization {
+                    server
+                        .observe_authorization(&runtime)
+                        .map_err(LifecycleError::Server)?;
+                }
+            }
             Ok(CoreRuntimeEvent::UnmatchedResponse { .. }) => {}
             Err(RuntimeError::DeadlineExceeded) => {}
             Err(error) => return Err(LifecycleError::Runtime(error)),

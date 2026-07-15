@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: CLI-first rule; limits: none.
 - SRC002: HARNESS.md; type: file; supports: full API/parity; limits: none.
-- SRC003: plans.md P6; type: file; supports: commands/acceptance; limits: secure input pending.
+- SRC003: plans.md P6; type: file; supports: commands/acceptance; limits: agent skill/cold eval pending.
 
 ## TDLib API Coverage
 
@@ -67,8 +67,10 @@ lease-derived policy; CLI не зависит от core и не открывае
 lease без heartbeat loop. Login status использует typed authorization step без challenge
 values; one-shot events route переносит только sequence/kind/cursor/gap metadata. Human default
 и versioned compact JSON/JSONL с closed error/exit codes реализованы. Human/JSONL watch
-поддерживает cursor streaming, heartbeat и release после signal/pipe cancellation. Secure
-input принадлежит следующему P6 slice.
+поддерживает cursor streaming, heartbeat и release после signal/pipe cancellation.
+`login tty` связывает protected `/dev/tty` input с typed challenge ID; secrets отсутствуют
+в flags/stdin/output, echo восстанавливается после signal, stale/pending input fail closed.
+Live first-login остаётся P10 boundary.
 
 ## Scope
 

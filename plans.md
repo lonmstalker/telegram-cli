@@ -8,7 +8,7 @@ source_of_truth: true
 
 # План работ: Telegram Agent CLI
 
-Статусы, решения, доказательства и deferred scope ведём только в `plans.md`. `product.md`, `HARNESS.md` и feature harness описывают продукт и поведение, но не дублируют последовательность реализации.
+Статусы, решения и deferred scope ведём только в `plans.md`. `product.md`, `HARNESS.md` и feature harness описывают продукт и поведение, но не дублируют последовательность реализации. История выполнения — в git и `.memory/`, а не в этом файле.
 
 ## Outcome
 
@@ -16,23 +16,40 @@ source_of_truth: true
 
 ## Baseline на 2026-07-15
 
-- Новый workspace изначально не содержал исходников и документации.
-- Источник reusable решений: `tg-analytics/crates/telegram-tdlib`, `telegram-agent-gateway`, его policy/auth/rate-limit/fake backend и Web App runner.
-- Текущий `tg-analytics` working tree грязный; перенос должен быть выборочным и evidence-backed, без копирования оркестрации аналитического продукта.
-- Проверенный upstream snapshot: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`, 1010 functions.
-- Локальная production DB была зашифрована server key; 2026-07-15 key безопасно получен с VPS, digest совпал, права локального файла `0600`.
-- Одноразовый TDJSON probe доказал `authorizationStateReady`, успешный `getMe` для regular user и `authorizationStateClosed`; значение ключа и identity в артефакты не записывались.
-- Штатный `tg-analytics/scripts/tg-agent.sh` пока не принимает database key; это gap F002, а не потеря Telegram-авторизации.
+Сделано и проверено:
+
+- Документационный bootstrap: `product.md`, `HARNESS.md` c inventory F001–F022, harness-файлы, `docs/tdlib-api-coverage.md`.
+- Cargo workspace из шести пакетов; границы защищены `scripts/check-workspace-boundaries.py`.
+- Pinned schema: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`, 1010 functions; gate `scripts/check-tdlib-pin.py`.
+- Strict schema parser и deterministic inventory в `crates/telegram-core/src/schema.rs`.
+- macOS arm64 `tdjson` artifact с provenance; gate `scripts/check-tdlib-native-pin.py`.
+- Ручное capability-ревью 74 методов сохранено в `docs/capability-notes.md`; documentation-recognizer engine удалён как переусложнение (см. git history).
+- Существующая зашифрованная TDLib-сессия ранее достигала Ready; database key получен, `.env.local` contract настроен.
+- Источник reusable решений: `tg-analytics/crates/telegram-tdlib` и `telegram-agent-gateway`; перенос выборочный, без копирования analytics-оркестрации.
+
+Не сделано: весь runtime (P1–P10). Product binaries — fail-closed заглушки.
+
+## Правила работы
+
+Обязательные ограничения для любого агента, работающего по этому плану. Они существуют, потому что проект уже один раз ушёл в переусложнение (per-method модули, drift-тесты на pinned-схему, hash-pinned счётчики) и потерял день работы.
+
+1. **Размер задачи.** Единица работы — пункт списка Tasks фазы, не один TDLib-метод и не один файл. Если пункт не закрывается за разумную сессию — разбей его на 2–4 подпункта в plans.md, но не глубже.
+2. **Схема закреплена одним хешем.** `scripts/check-tdlib-pin.py` — единственная защита от drift. Запрещены тесты, мутирующие текст схемы («а что если описание изменится»), и любые per-method signature/documentation hash evidence.
+3. **Никаких self-referential тестов.** Тест, который хранит хеш или счётчик набора и требует правки при каждом добавлении данных, запрещён. Тесты проверяют поведение, не слепок данных.
+4. **Классификация — данные, не код.** Свойства методов (risk, capability, retry) живут в одной таблице данных. Запрещено заводить Rust-модуль на семейство методов или парсить документацию схемы как источник контрактов.
+5. **Default-deny — валидное состояние.** Неотревьюенный метод просто запрещён политикой. Ревью добирается пачками по мере надобности и не блокирует ни одну фазу.
+6. **Тесты пропорциональны коду.** Если diff содержит больше строк тестов, чем кода, и это не bugfix — остановись и пересмотри подход. Негативные контролы нужны только у trust boundaries (secrets, DB ownership, policy gate).
+7. **Память без ритуала.** Одна wiki-entry на завершённый пункт Tasks. `D-` — только долговечные архитектурные решения (не «решение» про один метод). Raw digest — только для внешних доказательств (сборка, сеть, live-сессия), не для пересказа кода.
+8. **Не углублять фазу сверх acceptance.** Когда критерии фазы выполнены — фаза закрыта, переходи дальше. Улучшения сверх acceptance — отдельный пункт в backlog фазы-владельца.
+9. **Никаких спекулятивных механизмов.** Format versions, byte caps, resource limits и конфиги появляются только вместе с потребителем, которому они нужны сегодня.
 
 ## Definition of full TDLib support
 
-Пользователь перечислил статистику, channel administration, emoji packs, bot и Mini App testing как remembered use cases. Они задают приоритет, но не ограничивают scope.
-
-Полнота считается доказанной только когда:
+Именованные пользователем сценарии (статистика, администрирование каналов, emoji packs, тестирование ботов и Mini Apps) — приоритетные примеры, не граница scope. Полнота доказана, когда:
 
 1. Закреплены exact TDLib commit, native artifact и hash `td_api.tl`.
 2. Все functions, objects, updates и authorization states схемы попали в generated registry.
-3. Каждый method идентифицируется exact schema name/signature и имеет risk, capability, prerequisite и retry/idempotency class.
+3. Каждый method имеет risk, capability, prerequisite и retry/idempotency class (default-deny допустим).
 4. Любой method достижим через общий schema-validated `core.call` и CLI `td call`.
 5. MCP, если включён, использует тот же protocol и не создаёт отдельного TDLib owner.
 6. Stateful workflows не выдают terminal result до выполнения prerequisite/update/pagination chain.
@@ -52,19 +69,25 @@ flowchart LR
   D --> B["Browser runner для Mini Apps"]
 ```
 
-### Workspace boundaries
+## Зоны ответственности
 
-- `telegram-protocol`: stable request/response/error/event/freshness envelopes.
-- `telegram-core`: TDJSON FFI, authorization, ordered receive loop, update reducer, raw schema registry, workflows, limits, retries, idempotency, audit и metrics.
-- `telegramd`: единственный владелец DB/files, OS lock, Unix socket, leases, scheduling и lifecycle.
-- `telegram-cli`: обязательный human/JSON/JSONL client без собственной TDLib-сессии.
-- `telegram-mcp`: optional adapter к protocol; local stdio и защищённый server transport.
-- `telegram-webapp-runner`: browser-side Mini App harness, не часть TDLib core.
+| Компонент | Владеет | Не делает |
+|---|---|---|
+| `crates/telegram-protocol` | Stable request/response/error/event/freshness envelopes | Бизнес-логика, TDLib-типы, IO |
+| `crates/telegram-core` | TDJSON FFI, authorization, ordered receive loop, update reducer, schema parser, generated registry, workflows, retries, idempotency | Владение DB/process lifecycle, транспорт до клиентов |
+| `apps/telegramd` | Единственный владелец TDLib DB: OS lock, Unix socket, leases, scheduling, policy enforcement, lifecycle | Прямые TDLib-вызовы в обход core, парсинг схемы |
+| `apps/telegram-cli` | Human/JSON/JSONL client поверх protocol | Собственная TDLib-сессия, собственная workflow-логика |
+| `apps/telegram-mcp` | Optional adapter protocol→MCP | Отдельная бизнес-логика, второй TDLib owner |
+| `apps/telegram-webapp-runner` | Browser-side Mini App harness | Что-либо TDLib-side |
+| `tools/tdlib-registry-gen` | Offline-генерация registry из pinned schema + capability-таблицы | Runtime-код, сеть, TDLib DB |
+| `scripts/` | Fail-closed gates: schema pin, native pin, workspace/planning boundaries, wiki rotation | Дублирование проверок, которые уже делает cargo |
+
+Правило: product-пакеты не зависят от tools; только daemon открывает DB; CLI/MCP не содержат TDLib.
 
 ## Product decisions
 
-- MVP: один основной regular user account; архитектура допускает отдельные profiles для bot/test accounts, каждый со своей DB.
-- На один canonical DB directory допускается один daemon/client owner.
+- MVP: один основной regular user account; архитектура допускает отдельные profiles, каждый со своей DB.
+- На один canonical DB directory — один daemon/client owner.
 - Local-first: CLI обязателен; MCP начинается только после acceptance core/CLI.
 - Default lifecycle: lazy start + lease heartbeat + idle close; resident/scheduled mode разрешён для фонового сбора.
 - `close` — штатная остановка; `logOut`/`destroy` — отдельные destructive workflows.
@@ -76,10 +99,10 @@ flowchart LR
 
 | Phase | Результат | Status |
 |---|---|---|
-| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-037 |
+| P0 | Контракт, repository skeleton и pinned schema | in_progress — остались Linux target и перенос из tg-analytics |
 | P1 | Core transport, authorization и ordered updates | pending |
 | P2 | Singleton daemon и shared session lifecycle | pending |
-| P3 | Полный generated raw API | pending |
+| P3 | Полный generated raw API и capability-таблица | pending |
 | P4 | Stateful request-chain engine | pending |
 | P5 | Reliability, policy, limits и observability | pending |
 | P6 | Полный CLI и компактный agent skill | pending |
@@ -88,152 +111,76 @@ flowchart LR
 | P9 | Local/server packaging и upgrade/rollback | pending |
 | P10 | Live end-to-end acceptance | pending |
 
-## Documentation bootstrap
-
-- [x] `product.md` фиксирует product boundary и то, что remembered use cases не ограничивают scope.
-- [x] `HARNESS.md` адаптирует структуру feature-logic-harness из `tg-analytics` и содержит inventory F001–F022.
-- [x] Для каждого feature F001–F022 создан отдельный intended-behavior harness в `docs/feature-logic-harness/`.
-- [x] `docs/tdlib-api-coverage.md` фиксирует pinned snapshot и fail-closed контракт полной schema coverage.
-- [x] SSH/key/live-access baseline проверен без публикации секрета; реализация безопасного key provider остаётся задачей P1/F002.
-
-Документационный bootstrap завершён; implementation phases P0–P10 остаются незавершёнными.
-
 ## P0 — Contract и pinned TDLib snapshot
 
 ### Tasks
 
-- [x] Создать Cargo workspace и crate boundaries из раздела Architecture.
-- [x] Зафиксировать exact TDLib commit/native build и сохранить `td_api.tl` + SHA-256.
-- [x] Реализовать schema parser и deterministic method/type/update/auth-state inventory.
-  - [x] Строгий Rust parser и deterministic inventory закреплённой TDLib schema.
-  - [x] Planning IDs отделены от executable architecture; raw methods идентифицируются exact schema name/signature.
-- [ ] Зафиксировать capability matrix: regular user, bot, Business/Premium, admin-gated, official-only.
-  - [x] Closed bounded domain model и pure fail-closed generator для schema-bound capability policy.
-  - [x] Exact real-schema capability-signal baseline и all-tag authorization evidence.
-  - [x] Closed `ChatKind` predicate и exact conditional DNF для первой reviewed source family.
-  - [x] Exact per-signal oracle, quantified `MessageProperties`, typed `GroupCall`, `SupergroupFullInfo` и runtime boolean option predicates.
-- [ ] Closed typed dispositions для 117 распознанных, но ещё unsupported runtime-signal methods.
-  - [x] Exact `SupergroupFullInfo` schema/property family: 5 complete typed DNF, 7 mixed methods deferred.
-  - [x] Exact `OptionGate` family: `setNewChatPrivacySettings` complete, `postStory` и withdrawal mixed semantics deferred.
-  - [x] Exact owner family: 4 username contracts, 2 complete contracts в других semantic families и 12 mixed owner methods deferred.
-  - [x] Exact chat invite-link creation family: 2 complete three-kind `ChatAdministratorRight(can_invite_users)` DNF, 9 own/other-link methods deferred.
-  - [x] Exact supergroup setting-right family: 4 complete kind/right contracts, 1 prior complete, 4 boost/input/ordinary-kind-dependent methods deferred.
-  - [x] Exact chat setting-right family: 3 complete kind/right/account contracts, 1 prior complete, 12 boost/input/value/target/account-dependent methods deferred.
-  - [x] Correction: неполный `addChatMember` contract удалён; regular-user и direct-messages-group gates снова fail closed до появления точного subtype predicate.
-  - [x] Exact schema-bound ordinary-supergroup subtype: `toggleSupergroupJoinToSendMessages` закрыт через regular-user scope, rights и Boolean facts; оба invite methods остаются deferred из-за self/cardinality partition.
-  - [x] Exact chat event log contract: `getChatEventLog` требует regular user и `supergroup|channel AND administrator`; source/signature/account/additional-signal drift fail closed.
-  - [x] Correction: description-only `unpinChatMessage` DNF удалён; secret-chat rejection, bot/basic-group appointed-admin guard, monoforum и message-state branches сохраняют method deferred.
-  - [x] Exact invite-link count contract: `getChatInviteLinkCounts` требует regular user, write-access path и owner в active basic group, supergroup или channel.
-  - [x] Exact video-chat RTMP access contract: `getVideoChatRtmpUrl` требует regular user и `basic_group|supergroup|channel AND can_manage_video_chats`; read-access freshness остаётся runtime boundary.
-  - [x] Exact video-chat RTMP replacement contract: `replaceVideoChatRtmpUrl` требует regular user и `basic_group|supergroup|channel AND owner`; shared admin precheck не заменяет stricter revoke contract.
-  - [x] Exact video-chat creation contract: `createVideoChat` требует regular user и `basic_group|supergroup|channel AND can_manage_video_chats`; request values и dialog freshness не превращаются в capability atoms.
-  - [x] Correction: `deleteChatMessagesBySender` требует regular user и non-direct-messages supergroup (`is_direct_messages_group=false`) сверх `can_delete_messages`; прежний broad contract удалён.
-  - [x] Exact reaction-moderation contract: `deleteAllRecentMessageReactionsFromSender` допускает regular user и bot, требует `basic_group|supergroup AND can_delete_messages`; subtype flags не изобретаются.
-  - [x] Exact channel gift-notification contract: `toggleChatGiftNotifications` требует regular user и `channel AND can_post_messages`; `are_enabled` остаётся request value.
-  - [x] Exact chat-boost list contract: `getChatBoosts` требует regular user и `ChatAdministrator(chat_id)` без недоказанного `ChatKind`; request fields остаются values.
-  - [ ] Reviewed canonical capability policy/artifact для всех 1010 methods.
-- [ ] Определить supported targets: macOS arm64 и Linux x86_64 минимум.
+- [x] Cargo workspace и crate boundaries из раздела «Зоны ответственности».
+- [x] Exact TDLib commit/native build; `td_api.tl` + SHA-256 под gate.
+- [x] Schema parser и deterministic inventory.
+- [x] Ручное capability-ревью первых семейств; результаты в `docs/capability-notes.md`. Продолжение ревью — по потребности в P3+, пачками, без выделенных задач.
+- [ ] Определить supported targets: закрепить Linux x86_64 native artifact (macOS arm64 уже есть).
 - [ ] Перенести только доказанно reusable части `tg-analytics`; не переносить NATS/Postgres/analytics orchestration.
 
 ### Acceptance
 
-- [ ] CI обнаруживает любое schema drift.
-- [x] Planning IDs отсутствуют в executable code и machine-readable contracts; gate имеет семь negative controls, включая root/script discovery и file/root symlink fail-closed.
-- [ ] Все constructors, updates и authorization states имеют registry/codec/router/handler parity с pinned schema.
-- [ ] Для каждого method заполнены risk/retry/prerequisite/capability поля.
-- [ ] Account/session model принят до начала runtime implementation.
-
-### Checkpoints
-
-- `W-20260715-005`: создан workspace из шести целевых packages; optional `telegram-mcp` исключён из `default-members`; skeleton binaries fail closed. Доказательства: `scripts/check-workspace-boundaries.py` с двумя negative controls, `scripts/test-skeleton-process-guard.py`, `scripts/check-skeleton-fails-closed.py`, `cargo test --workspace --all-targets --jobs 2`, `cargo clippy --workspace --all-targets --jobs 2 -- -D warnings`; независимое ревью — approved. Build footprint после gate: 9.1 MiB.
-- `W-20260715-006`: exact TDLib schema pin сохранён в `vendor/tdlib` для commit `07d3a097...`; offline gate подтверждает SHA-256, 2168 definitions, 1010 functions, 184 updates и 13 authorization states; independent review — approved. Решение: `D-20260715-003`. Native artifact/build provenance ещё не закреплены, поэтому объединённый task checkbox остаётся open.
-- `W-20260715-007`: exact macOS arm64 `tdjson` собран bounded `jobs=2` recipe из pinned source; artifact 27 637 784 bytes, SHA-256 `99e7cdb1...fbb6b49`; committed provenance фиксирует policy/recipe/toolchain/peak resources/Mach-O/dependencies/exports/runtime version+commit и `reproducibility=not_verified`. `provenance-only` и `artifact-verified` gates, 8 tar, 7 process-group, lock, commit и 16 provenance negative controls passed; scratch/process cleanup доказан. Решение: `D-20260715-004`; Linux x86_64 остаётся отдельным open target `P-20260715-003`.
-- `W-20260715-008` supersedes current artifact/resource facts из `W-20260715-007` после crash-safety review: offline `jobs=2` rebuild дал 27 654 296 bytes, SHA-256 `5dbd3009...6852e7e`; build 330.225 s, peak sampled RSS 2 064 613 376 bytes, tree 310 298 581 bytes, processes 13. Global lock наследуют все watchdog paths; target gate, recursive stale-state recovery и proof-backed finalization проверены parent/inspection `SIGKILL` controls. Оба checker mode, 17 provenance controls и шесть crash/build suites green; cache `1`, leftovers `0`, `target` 42 MiB. Решение: `D-20260715-005`; Linux `P-20260715-003` и bit-for-bit reproducibility остаются open.
-- `W-20260715-009`: в `telegram-core` реализован pure strict-subset parser pinned `td_api.tl` без сторонних dependencies и новых Cargo targets. Он сохраняет raw/structured documentation, строит canonical signatures и sorted inventory, отделяет 9 builtins от 2159 object constructors и подтверждает 1010 methods, 745 type families, 184 updates и 13 authorization states. Input ограничен 2 MiB, type nesting — 32; 12 TDD/negative tests, workspace boundary, Clippy и independent re-review green. Решение: `D-20260715-006`. Generated registry/codec/router parity и runtime остаются незавершёнными, поэтому parent task и P0 acceptance не закрыты.
-- `W-20260715-010` и `W-20260715-011`: исторические owner-classification checkpoints. Реализация, policy и artifact полностью удалены correction checkpoint `W-20260715-021`: planning inventory оказался ошибочно превращён в runtime taxonomy и не является частью текущей архитектуры. Сохранён только полезный schema parser/capability work; полный method registry всё ещё open.
-- `W-20260715-012`: P0.5a закрепляет closed static capability model и pure schema-bound generator foundation без runtime claims. Exact auth/account/Premium/Business/application/DC axes, additive synchronous path, typed bounded DNF runtime evidence и parameter-value notices fail closed сверяются с signature/documentation hashes и exact reviewed wording; распознанные capability/runtime gate signals вне exact reviewed corpus дают schema drift, а лишнее сужение policy отклоняется. Public core constructors наследуют caps: 16 clauses, 32 atoms, 32 notices и 16 sync values; business evidence совместимо только с bot alternatives, owner-prerequisite evidence — с regular-user alternatives. После `W-20260715-021` generator больше не зависит от planning owner mapping. Полный 1010-method capability policy/artifact, runtime evaluator, risk/prerequisite/retry и live acceptance остаются open.
-- `W-20260715-013`: exact corpus gate связывает 193 methods с capability-like documentation set SHA-256 `cbe074...8706` и сохраняет fail-closed open set из 188 methods с SHA-256 `c9e513...0a34`; authorization recognizer читает все structured documentation tags, учитывает `setCustomLanguagePack.@info` и закрепляет exact 73-method non-Ready set. 37 generator и 20 core tests, Clippy/fmt/workspace/wiki/diff gates green с bounded `jobs=2`; independent review — `Approved`. Решение `D-20260715-010`, open boundary `P-20260715-005`. Ни один из 188 methods не считается capability coverage до typed disposition.
-- `W-20260715-014`: closed `ResolvedChatKind`/`ChatKindCondition`, exact four-constructor `ChatType` pin и capability format `2` закрепляют conditional DNF шести real methods. `unpinChatMessage` имеет five-branch private/secret/basic-group/supergroup/channel contract; пять прежних contracts также явно сужены по kind. Signal set остаётся 193; supported set — 6, open set — 187 с SHA-256 `beea6c...3c03`. 41 generator и 21 core tests, whole workspace, Clippy/fmt/boundary/pin/diff gates green с `jobs=2`; два final reviewer verdict — `Approved`. Решение `D-20260715-011`; `P-20260715-005` остаётся open до zero-open gate.
-- `W-20260715-015`: exact per-signal scan сохраняет 208 source tags и 398 `(method, source, family)` keys; explicit consumed-key equality блокирует partial completion, duplicate/unbound sources и same-family lexical drift fail closed. Два exact `ChatBoost` vocabulary methods terminally classified как non-gate; signal set остаётся 193, terminal complete set — 8, open set — 185 с SHA-256 `b4b68d...009c8`. 48 generator и 21 core tests, whole workspace, Clippy/fmt/diff/boundary/pin gates green с `jobs=2`; два final reviewers — `Approved`. Решение `D-20260715-012`; `P-20260715-005` остаётся open до zero-open gate.
-- `W-20260715-016`: exact ordered `messageProperties` vocabulary закрепляет 36 action capabilities и typed `One/Each` message subjects. Schema-derived 33-method family разделена exhaustive на 29 complete contracts и 4 deferred mixed methods; `addOffer` имеет две OR-ветки, `reportSupergroupSpam` — `supergroup + administrator + all(message_ids)`. Consumed-key set — 59, terminal complete set — 37, open set — 156 с SHA-256 `e3ce3e...54`. 52 generator и 22 core tests, 74 whole-workspace tests, Clippy/fmt/diff/boundary/pin gates green с `jobs=2`; три final reviews — `Approved`. Решение `D-20260715-013`; `P-20260715-005` остаётся open до zero-open gate.
-- `W-20260715-017`: exact `getChatBoostLinkInfo` description классифицирована как lexical non-gate: `internalLinkTypeChatBoost` описывает тип входной ссылки, pinned request path не проверяет right/boostability. Unique-tag exact matcher и same-family drift control сохраняют fail-closed semantics. Terminal complete set — 38, open set — 155 с SHA-256 `4ed02d...9c1b`; 74 whole-workspace tests и два independent reviews green. `P-20260715-005` остаётся open.
-- `W-20260715-018`: exact ordered `groupCall`/`groupCallMessage` vocabulary, closed three-kind/seven-property model и schema-bound `group_call_id:int32`/`Each(message_ids:vector<int32>)` закрепляют 12 reviewed DNF; два argument-dependent methods остаются deferred. `toggleVideoChatMuteNewParticipants.only by administrators` корректно отделён как semantics настраиваемого значения, не caller prerequisite. Consumed keys — 38, supported typed set — 47, terminal complete — 50, open set — 143 с SHA-256 `a6e5b3...3a12`. 80 workspace tests, Clippy/fmt/boundary/pin/wiki/diff gates green с `jobs=2`; три final reviews — `Approved`. Решение `D-20260715-014`; runtime lifecycle/freshness и `P-20260715-005` остаются open.
-- `W-20260715-019`: exact ordered 42-field `supergroupFullInfo`, closed eight-property model и semantic `chat_id`/`supergroup_id:int53` закрепляют 5 reviewed DNF; 7 owner/filter/value/password-dependent methods остаются deferred. `setChatPaidMessageStarCount` требует `can_restrict_members AND can_enable_paid_messages`; два cross-token `OnlyIfAdministrator` false positives отделены exact lexical non-gate, а реальная filter-dependent administrator оговорка остаётся open. Consumed keys — 12, supported typed set — 52, terminal complete — 55, open set — 138 с SHA-256 `a2028d7a...c9aa67`. 85 workspace tests, Clippy/fmt/diff/wiki gates green с `jobs=2`; Rust/evidence reviews и independent oracle audit — `Approved`. Решение `D-20260715-015`; runtime freshness/evaluator и `P-20260715-005` остаются open.
-- `W-20260715-020`: exact four-constructor `OptionValue`, `getOption`/`updateOption` ingress и closed three-name `RuntimeBooleanOption` закрепляют method-level gate `setNewChatPrivacySettings`; method regular-user-only, atom account-neutral. `postStory` и `getChatRevenueWithdrawalUrl` остаются deferred из-за caption/account/owner/full-info/input semantics; positive paid-message payload имеет отдельный `can_enable_paid_messages` prerequisite. Capability format — `6`; supported typed set — 53, terminal complete — 56, open set — 137 с SHA-256 `c05b2827...db6c959e`. 90 workspace tests, Clippy/fmt/diff green с `jobs=2`; reviewer P2 exact-string oracle исправлен и Rust/evidence/oracle reviews — `Approved`. Решение `D-20260715-016`; runtime option freshness/evaluator и `P-20260715-005` остаются open.
-- `W-20260715-021`: correction полностью удаляет planning taxonomy из executable architecture: `FeatureId`, owner engine/CLI, 1010-row policy/artifact и capability owner field. Raw identity теперь exact TDLib method/signature; `tdlib-registry-gen` library-only, capability input schema+policy, format `7`. Planning gate имеет 7 filesystem/matcher negative controls, сканирует scripts/root machine files и fail closed на file/root symlink. 69 Rust tests, Clippy/fmt/workspace/schema/native/skeleton/diff gates green с `jobs=2`; более 20 000 строк owner-taxonomy implementation удалено, `target` 150 MiB, project processes `0`. Решение `D-20260715-017`, `P-20260715-006` resolved; independent whole-diff review — `APPROVED`, findings отсутствуют. Full registry/runtime и `P-20260715-005` остаются open.
-- `W-20260715-022`: semantic module `capability/supergroup_usernames.rs` закрепляет exact signature/source contracts для четырёх операций управления username супергруппы/канала. Каждая операция требует одну из двух DNF-веток: `supergroup AND owner` или `channel AND owner`; bot policy, source/signature drift и дополнительный непоглощённый signal fail closed. `RequiresOwnerPrivileges` family исчерпывающе разделена на 4 new complete, 1 prior complete и 13 deferred methods. Supported typed set — 57, terminal complete — 60, open set — 133 с SHA-256 `cd2b13cc...e5a914`; capability format остаётся `7`. 71 workspace test, Clippy/fmt/workspace/planning/schema/native/skeleton/wiki/diff gates green с `jobs=2`; independent code review — `APPROVED`, findings отсутствуют. Решение `D-20260715-018`; `P-20260715-005` остаётся open.
-- `W-20260715-023`: semantic module `capability/chat_invite_links.rs` закрепляет exact create/replace contracts для basic group, supergroup и channel с `ChatAdministratorRight(can_invite_users)`. Regular user и bot допустимы по pinned C++ path; missing kind branch, member-right substitution, source/signature drift и extra argument signal fail closed. Triple-signal family исчерпывающе разделена на 2 complete и 9 mixed own/other-link methods. Supported typed set — 59, terminal complete — 62, open set — 131 с SHA-256 `49480a48...886fbf`; format остаётся `7`. 73 workspace tests и Clippy/planning/diff gates green с `jobs=2`; independent code review — `APPROVED`, findings отсутствуют. Решение `D-20260715-019`; `P-20260715-005` остаётся open.
-- `W-20260715-024`: четыре exact kind/right/account contracts для channel/supergroup settings (теперь в `capability/chat_settings.rs`) сохраняют distinction `ChatAdministratorRight`/`ChatMemberRight`; три handlers regular-only, один допускает bot по pinned C++ path. Reviewer P2 вернул `toggleSupergroupJoinToSendMessages` в deferred: method требует ordinary discussion supergroup, а current kind не различает gigagroup/monoforum. Family исчерпывающе разделена на 4 new complete, 1 prior complete и 4 deferred methods. Supported typed set — 63, terminal complete — 66, open set — 127 с SHA-256 `b872e1f3...65aa8d`; format остаётся `7`. 75 workspace tests и Clippy/planning/diff gates green с `jobs=2`; post-fix independent review — `APPROVED`, новых findings нет. Решение `D-20260715-020`; `P-20260715-005` остаётся open.
-- `W-20260715-025`: `capability/chat_settings.rs` объединяет прежние supergroup setting contracts и три exact `setChat*` contracts: permissions, description и slow mode. DNF сохраняет supported kinds, administrator/member right и account scope. Initial reviewer P2 обнаружил скрытый bot/basic-group appointed-admin guard для title/photo; оба methods возвращены в explicit deferred вместо member-only overclaim, post-fix review — `APPROVED`. Family разделена на 3 new complete, 1 prior complete и 12 deferred methods. Supported typed set — 66, terminal complete — 69, open set — 124 с SHA-256 `9286c8f2...80d04c`; format остаётся `7`. 77 workspace tests, Clippy/fmt/planning/workspace/schema/native/skeleton/diff gates green с `jobs=2`. Решение `D-20260715-021`; `P-20260715-005` остаётся open.
-- `W-20260715-026`: correction возвращает `addChatMember` в deferred: pinned `Requests.cpp` требует regular user, а channel path запрещает `is_monoforum`, соответствующий `supergroup.is_direct_messages_group`. Broad `basic_group|supergroup|channel + can_invite_users` DNF и использовавшийся только ею `MemberRightInKinds` удалены. Supported typed set — 65, terminal complete — 68, open set — 125 с SHA-256 `ff2f1639...13af6`; semantic disposition SHA-256 `9bc6e056...012dc`. 78 workspace tests, Clippy/fmt/planning/workspace/schema/diff gates green с `jobs=2`; independent Rust review — `APPROVED`. Решение `D-20260715-022`; `P-20260715-009` resolved, `P-20260715-005` остаётся open.
-- `W-20260715-027`: closed `SupergroupFlag` vocabulary pin-ит только `is_broadcast_group` и `is_direct_messages_group` через exact ordered `supergroup`/`updateSupergroup` schema. `toggleSupergroupJoinToSendMessages` требует regular user, broad supergroup kind, оба subtype flags `false` и administrator `can_restrict_members`. Reviewer P2 сохранил оба `addChatMember*` methods в deferred: singular self-join обходит invite right, а plural size-one basic-group path делегирует в тот же self/non-self flow. Missing/inverted flags, bot policy, source/signature/update drift и non-supergroup combinations fail closed. Capability format — `8`; supported typed set — 66, terminal complete — 69, open set — 124 с SHA-256 `437c17ed...7ce796`; semantic disposition SHA-256 `49a6419c...aac051`. 82 workspace tests, Clippy/fmt и planning/workspace/schema/native/skeleton/process/rotation/diff gates green с `jobs=2`; target 151 MiB, leftovers 0, final independent code review — `APPROVED`. Решение `D-20260715-023`; `P-20260715-009` остаётся resolved, `P-20260715-005` остаётся open.
-- `W-20260715-028`: semantic module `capability/chat_event_logs.rs` закрепляет exact `getChatEventLog` signature/source и две DNF-ветки `supergroup|channel AND ChatAdministrator`. Pinned `Requests.cpp` доказывает regular-user-only scope, `DialogEventLog.cpp` — channel-dialog kind и current administrator check. Bot-enabled policy, source/signature drift и extra argument signal fail closed. Capability format остаётся `8`; supported typed set — 67, terminal complete — 70, open set — 123 с SHA-256 `a142adc3...72b10`; semantic disposition SHA-256 `1059126b...f1414`. 83 workspace tests, Clippy/fmt/planning/workspace/schema/native/skeleton/diff gates green с `jobs=2`; independent code review — `APPROVED`. Решение `D-20260715-024`; `P-20260715-005` остаётся open.
-- `W-20260715-029`: correction возвращает `unpinChatMessage` в deferred: pinned handler запрещает secret chat, добавляет bot/basic-group appointed-admin guard, отдельно обрабатывает monoforum и проверяет concrete message/write access. Inaccurate real-method fixture переименован в explicit synthetic method. Supported typed set — 66, terminal — 69, open — 124 с SHA-256 `ffd5fe2e...59fb1`; semantic disposition SHA-256 `15f4aba2...53fa2`. 84 workspace tests, Clippy/fmt/planning/workspace/schema/native/skeleton/process/diff gates green с `jobs=2`; independent code review — `APPROVED`. Решение `D-20260715-025`; `P-20260715-010` resolved как removed overclaim, `P-20260715-005` open at 124.
-- `W-20260715-030`: `capability/chat_invite_links.rs` расширен closed `RequiredAccess::Owner` contract для `getChatInviteLinkCounts`. Pinned dispatcher требует regular user; manager — write access, active basic group и creator/owner для basic group/supergroup/channel, отклоняя private/secret. Account scope, DNF и consumed keys derived из одного access enum. Supported 67, terminal 70, open 123 с SHA-256 `38dd369d...19fbb`; semantic SHA-256 `841d9b9e...1f14f`. 85 workspace tests, Clippy/fmt/planning/diff green; independent review — `APPROVED`. Решение `D-20260715-026`; `P-20260715-005` open at 123.
-- `W-20260715-031`: semantic module `capability/video_chat_streaming.rs` закрепляет exact `getVideoChatRtmpUrl` signature/source и три DNF-ветки `basic_group|supergroup|channel AND ChatAdministratorRight(can_manage_video_chats)`. Pinned dispatcher требует regular user; handler требует dialog read access и chat/channel `can_manage_calls`, отклоняя private/secret без owner/active-call/RTMP-state gates. Bot policy, source/signature drift и extra argument signal fail closed. Supported 68, terminal 71, open 122 с SHA-256 `df35fcbf...e35da`; semantic SHA-256 `1c607a62...6b5268`. 86 workspace tests, Clippy/fmt/project gates green с `jobs=2`; target 151 MiB, processes 0, independent source/Rust review — `APPROVED`. Решение `D-20260715-027`; `P-20260715-005` open at 122.
-- `W-20260715-032`: `capability/video_chat_streaming.rs` расширен closed `RequiredAccess::Owner` для `replaceVideoChatRtmpUrl`. Exact schema owner contract строже shared local `can_manage_video_chats` precheck; DNF содержит regular user и три `chat kind AND ChatOwner` ветки без redundant admin-right/call-state atoms. Supported 69, terminal 72, open 121 с SHA-256 `f12c4e51...2faf0c`; semantic SHA-256 `4cf97a1d...6c40d3`. 87 workspace tests, Clippy/fmt/planning/diff green с `jobs=2`; independent source/Rust review — `APPROVED`. Решение `D-20260715-028`; `P-20260715-005` open at 121.
-- `W-20260715-033`: domain module переименован в `capability/video_chats.rs` и расширен exact `createVideoChat` contract. Pinned dispatcher требует regular user; handler — dialog read access и `can_manage_video_chats`; DNF содержит три `chat kind AND ChatAdministratorRight` ветки. `title`, `start_date`, `is_rtmp_stream` остаются value/RPC semantics, не capability atoms. Supported 70, terminal 73, open 120 с SHA-256 `c525212c...e4922d`; semantic SHA-256 `d050be73...370e`. 88 workspace tests, Clippy/fmt/project gates green с `jobs=2`; independent source/Rust review — `APPROVED`. Решение `D-20260715-029`; `P-20260715-005` open at 120.
-- `W-20260715-034`: correction переносит `deleteChatMessagesBySender` из generic table в `capability/message_moderation.rs`. Pinned dispatcher/deeper handler требуют regular user, supergroup, `is_direct_messages_group=false` и `can_delete_messages`; прежние bot-enabled и broad-supergroup descriptors теперь fail closed. Supported/terminal/open остаются 70/73/120, semantic SHA-256 `d050be73...370e`. 89 workspace tests и independent source/Rust review — `APPROVED`; решение `D-20260715-030`, `P-20260715-011` resolved.
-- `W-20260715-035`: `capability/message_moderation.rs` расширен exact `deleteAllRecentMessageReactionsFromSender` row. Pinned request/deeper path не добавляет account/subtype guard; static DNF содержит `basic_group|supergroup AND can_delete_messages`, account scope — regular user и bot. Supported 71, terminal 74, open 119 с SHA-256 `27dd1e3d...c6ca2`; semantic SHA-256 `44c17d11...d4b1`. 90 workspace tests, independent source/Rust review — `APPROVED`; решение `D-20260715-031`, `P-20260715-005` open at 119.
-- `W-20260715-036`: existing `capability/chat_settings.rs` расширен exact `toggleChatGiftNotifications` row. Pinned dispatcher требует regular user; handler — read access, public channel и `can_post_messages`. DNF содержит одну `channel AND ChatAdministratorRight(can_post_messages)` ветку; `are_enabled` не превращён в capability atom. Supported 72, terminal 75, open 118 с SHA-256 `090cf24d...a6c29a`; semantic SHA-256 `f6d02581...1742b7f`. 91 workspace test, independent source/Rust review — `APPROVED`; решение `D-20260715-032`, `P-20260715-005` open at 118.
-- `W-20260715-037`: новый semantic module `capability/chat_boosts.rs` закрепляет exact `getChatBoosts` contract. Pinned dispatcher требует regular user; schema — administrator, а handler/query добавляет только read access и request-value validation без chat-kind branch. DNF содержит только `ChatAdministrator(chat_id)`; `only_gift_codes`, `offset`, `limit` остаются values. Supported 73, terminal 76, open 117 с SHA-256 `e39bd801...078e98`; semantic SHA-256 `6cf71ae7...a534b`. 92 workspace tests, independent source/Rust review — `APPROVED`; решение `D-20260715-033`, `P-20260715-005` open at 117.
+- [x] CI обнаруживает любое schema/native drift — зачем: всё остальное (registry, policy, codec) строится на неизменности snapshot; один сломанный hash-gate дешевле тысяч defensive-тестов.
+- [ ] Оба target (macOS arm64, Linux x86_64) имеют pinned artifact с provenance — зачем: сервер деплоится на Linux; без этого P9 не начать.
+- [x] Planning IDs (F001–F022) отсутствуют в executable code — зачем: номера документации не должны становиться runtime-таксономией; это уже приводило к удалению 20k строк.
+- [ ] Account/session model принят до начала runtime — зачем: смена модели после P2 означает переписывание daemon.
 
 ## P1 — Core transport, authorization и ordered state
 
 ### Tasks
 
-- [ ] Реализовать прямой TDJSON transport, один receive loop и `@extra` correlation.
-- [ ] Поддержать всю authorization state machine, including QR/phone/code/2FA/email/device/registration branches как schema capabilities.
-- [ ] Поддержать database encryption key из file descriptor/file secret/OS keychain; wrong key fail-closed.
-- [ ] Реализовать ordered reducer и caches для auth, user, chat, basic/supergroup, file, connection и message send state.
-- [ ] Сохранять неизвестные updates как raw, не теряя их.
-- [ ] Добавить deadlines, cancellation, startup `getCurrentState` и runtime version handshake.
+- [ ] Прямой TDJSON transport, один receive loop и `@extra` correlation.
+- [ ] Полная authorization state machine: QR/phone/code/2FA/email/device/registration branches.
+- [ ] Database encryption key из file descriptor/file secret/OS keychain; wrong key fail-closed.
+- [ ] Ordered reducer и caches для auth, user, chat, basic/supergroup, file, connection и message send state.
+- [ ] Неизвестные updates сохраняются raw, без потери.
+- [ ] Deadlines, cancellation, startup `getCurrentState`, runtime version handshake.
 
 ### Acceptance
 
-- [ ] Параллельные requests не путают responses.
-- [ ] Updates воспроизводятся строго в receive order.
-- [ ] Restart возвращает Ready без нового login.
-- [ ] Wrong/missing key не запускает phone authorization и не повреждает DB.
-- [ ] Secrets отсутствуют в logs, metrics и crash output.
+- [ ] Параллельные requests не путают responses — зачем: это фундамент корректности всего API; ошибка здесь ломает каждый вызов выше.
+- [ ] Updates воспроизводятся строго в receive order — зачем: state-machine TDLib предполагает ordering; нарушение даёт тихо неверный cache.
+- [ ] Restart возвращает Ready без нового login — зачем: повторные login-flows ведут к rate-limits и риску блокировки аккаунта.
+- [ ] Wrong/missing key не запускает phone authorization и не повреждает DB — зачем: авто-fallback на новый login уничтожил бы существующую сессию.
+- [ ] Secrets отсутствуют в logs, metrics и crash output — зачем: невыполнение — прямая утечка доступа к аккаунту; проверяется secret-scanning тестом.
 
 ## P2 — Singleton daemon и shared session
 
 ### Tasks
 
-- [ ] Один `telegramd` и ClientId на profile; exclusive OS lock по canonical DB path.
-- [ ] Unix socket `0600`, atomic startup election и stale-socket recovery.
-- [ ] Lease ID, principal/scopes, TTL, heartbeat и explicit release.
+- [ ] Один `telegramd` на profile; exclusive OS lock по canonical DB path.
+- [ ] Unix socket `0600`, atomic startup election, stale-socket recovery.
+- [ ] Lease: ID, principal/scopes, TTL, heartbeat, explicit release.
 - [ ] Fair per-account queue; bounded concurrent reads, serialized mutations в MVP.
-- [ ] Lifecycle `Stopped -> Starting -> Ready -> Draining -> Closed`.
-- [ ] Idle shutdown только при отсутствии leases, in-flight workflows, watchers и jobs.
-- [ ] `close` с ожиданием `authorizationStateClosed` до release lock.
+- [ ] Lifecycle `Stopped -> Starting -> Ready -> Draining -> Closed`; idle shutdown только без активных leases/workflows; `close` с ожиданием `authorizationStateClosed`.
 
 ### Acceptance
 
-- [ ] Несколько одновременно стартующих агентов сходятся на одном daemon.
-- [ ] Второй владелец никогда не открывает ту же DB.
-- [ ] Crash клиента освобождает lease по TTL; crash daemon не требует нового login.
-- [ ] Acquire во время draining получает детерминированный retry/reattach result.
-- [ ] Idle restart сохраняет ту же Telegram authorization.
+- [ ] Несколько одновременно стартующих агентов сходятся на одном daemon — зачем: гонка стартов — главный сценарий реальной эксплуатации несколькими агентами.
+- [ ] Второй владелец никогда не открывает ту же DB — зачем: двойное владение необратимо повреждает TDLib DB.
+- [ ] Crash клиента освобождает lease по TTL; crash daemon не требует нового login — зачем: без этого любой сбой блокирует всех или жжёт авторизацию.
+- [ ] Idle restart сохраняет ту же Telegram authorization — зачем: подтверждает, что lifecycle не деградирует сессию.
 
-## P3 — Полный generated raw API
+## P3 — Полный generated raw API и capability-таблица
 
 ### Tasks
 
-- [ ] Сгенерировать request/type validation и self-describing registry из pinned schema.
-- [ ] Реализовать `version`, `capabilities`, `schema search`, `schema describe`, `td call`.
-- [ ] Сохранить forward-compatible unknown fields.
-- [ ] Применять policy до raw dispatch.
-- [ ] Генерировать [coverage report](docs/tdlib-api-coverage.md) из manifest.
+- [ ] Generated registry из pinned schema: request/type validation, self-describing descriptors, forward-compatible unknown fields.
+- [ ] Capability-таблица (данные): risk class, account scope, runtime requirements, retry/idempotency. Стартовое наполнение — `docs/capability-notes.md`; всё остальное default-deny.
+- [ ] `version`, `capabilities`, `schema search`, `schema describe`, `td call` в core.
+- [ ] Policy применяется до raw dispatch.
+- [ ] Coverage report генерируется из manifest в `docs/tdlib-api-coverage.md`.
 
 ### Acceptance
 
-- [ ] `schema_functions == classified_methods == core_raw_methods == cli_raw_methods`.
-- [ ] Round-trip tests покрывают все constructors закреплённой схемы.
-- [ ] `schema_updates == lossless_routed_updates`, а все authorization states имеют explicit handler.
-- [ ] Runtime/schema mismatch обнаруживается до первого рабочего call.
-- [ ] Ни один raw method не обходит risk/policy classification.
+- [ ] `schema_functions == registry_methods == core_raw_methods` — зачем: числовое равенство — единственное честное доказательство «полного API», иначе coverage — мнение.
+- [ ] Round-trip tests покрывают все constructors; updates маршрутизируются losslessly — зачем: потеря неизвестного поля незаметна сегодня и фатальна при следующем upstream bump.
+- [ ] Runtime/schema mismatch обнаруживается до первого рабочего call — зачем: расхождение runtime и registry даёт недиагностируемые ошибки сериализации.
+- [ ] Ни один raw method не обходит policy; неклассифицированный метод — deny — зачем: raw API даёт доступ к destructive/financial операциям.
 
 ## P4 — Stateful request-chain engine
 
@@ -242,44 +189,37 @@ flowchart LR
 - [ ] Разделить `resolve` и `ensure_membership`.
 - [ ] Chat list: повторный `loadChats`, ordered position cache, documented terminal condition.
 - [ ] Chat workflow: resolve username/link/invite, wait cache, optional `openChat` lease, full info.
-- [ ] History/search: pagination по returned cursor до count/date/no-progress boundary; короткая page не терминальна.
-- [ ] Members/statistics: проверка capability fields, async graph tokens и freshness rules.
+- [ ] History/search: pagination по returned cursor до count/date/no-progress boundary.
+- [ ] Members/statistics: capability fields, async graph tokens, freshness rules.
 - [ ] File/sticker/bot/Web App workflows с ожиданием terminal updates.
 - [ ] Gap marker и обязательный resync после update lag.
 
-### Result envelope
-
-Каждый workflow возвращает `status`, `complete`, `source`, `observed_at`, domain-specific freshness, cursor/next_action, warnings и reconciliation state.
+Каждый workflow возвращает envelope: `status`, `complete`, `source`, `observed_at`, freshness, cursor/next_action, warnings, reconciliation state.
 
 ### Acceptance
 
-- [ ] `Chat not found` сначала запускает разрешённый prerequisite resolver.
-- [ ] Empty/short response не превращается в terminal proof без method-specific правила.
-- [ ] `openChat`/`closeChat` lifecycle выполняется в finally.
-- [ ] Send ждёт `updateMessageSendSucceeded` или `Failed`.
-- [ ] Mini App workflow возвращает redacted browser handoff, а не заявляет UI success.
+- [ ] `Chat not found` сначала запускает разрешённый prerequisite resolver — зачем: это pain №1 из product.md; агент не должен получать false not_found.
+- [ ] Empty/short response не превращается в terminal proof без method-specific правила — зачем: короткая страница пагинации — норма TDLib, а не конец данных.
+- [ ] `openChat`/`closeChat` lifecycle выполняется в finally — зачем: незакрытые чаты копят server-side подписки и искажают updates.
+- [ ] Send ждёт `updateMessageSendSucceeded`/`Failed` — зачем: ответ на sendMessage — не доказательство доставки; без ожидания невозможен честный idempotency.
 
 ## P5 — Reliability, policy, limits и observability
 
 ### Tasks
 
-- [ ] Per-account, per-chat и method-class queue/rate budgets без выдуманных глобальных лимитов Telegram.
-- [ ] Bounded backoff с jitter и respect server/flood delay.
+- [ ] Per-account, per-chat и method-class queue/rate budgets; bounded backoff с jitter, respect flood delay.
 - [ ] Retry только для safe reads и convergent desired-state operations.
-- [ ] Durable idempotency journal: fingerprint + pending/succeeded/failed/uncertain.
-- [ ] Reconciliation вместо blind retry для send/create/delete/join/payment unknown outcome.
+- [ ] Durable idempotency journal: fingerprint + pending/succeeded/failed/uncertain; reconciliation вместо blind retry.
 - [ ] Risk scopes: read, presence, send, reversible mutation, admin, destructive, financial, auth/security.
-- [ ] Preview -> plan hash -> external approval/capability для опасных операций.
-- [ ] Metrics: latency, queue wait/depth, retry/flood, update lag, cache/freshness, workflow step, leases, close duration.
-- [ ] Redacted audit без high-cardinality Telegram identifiers в labels.
+- [ ] Preview -> plan hash -> external approval для опасных операций.
+- [ ] Metrics (latency, queue, retry/flood, update lag, freshness, leases) и redacted audit.
 
 ### Acceptance
 
-- [ ] Read retry не выполняется раньше разрешённого delay.
-- [ ] Write timeout не создаёт дубль.
-- [ ] Queue overflow/cancellation дают стабильный error envelope.
-- [ ] Agent не может сам сфабриковать human approval.
-- [ ] Secret scanning и telemetry tests не находят sensitive values.
+- [ ] Write timeout не создаёт дубль — зачем: дубль-сообщение или двойное удаление — видимый пользователю ущерб; ядро promise продукта.
+- [ ] Read retry не выполняется раньше разрешённого delay — зачем: игнорирование flood wait ведёт к эскалации банов от Telegram.
+- [ ] Agent не может сам сфабриковать human approval — зачем: policy gate бессмыслен, если вызывающая сторона может его пройти сама.
+- [ ] Secret scanning и telemetry tests не находят sensitive values — зачем: metrics/audit — самый частый канал непреднамеренной утечки.
 
 ## P6 — CLI и компактный agent skill
 
@@ -287,40 +227,26 @@ flowchart LR
 
 - [ ] CLI commands: session/status/login/hold/release, schema, call, workflow, events/watch.
 - [ ] Human output и стабильный compact JSON/JSONL; versioned error/exit-code contract.
-- [ ] Streaming, cancellation и signal-safe lease release.
-- [ ] Secure TTY для OTP/2FA; secrets никогда не являются обычными flags.
-- [ ] Agent skill не перечисляет API: acquire -> discover -> workflow/call -> follow next_action -> release.
-- [ ] Context budget skill не более 1500 tokens; detailed schema загружается on demand.
+- [ ] Streaming, cancellation, signal-safe lease release.
+- [ ] Secure TTY для OTP/2FA; secrets никогда не flags.
+- [ ] Agent skill: acquire -> discover -> workflow/call -> follow next_action -> release; ≤1500 tokens, без каталога API.
 
 ### Acceptance
 
-- [ ] Каждый core raw method и workflow доступен из CLI.
-- [ ] Агент не парсит prose для machine decisions.
-- [ ] Cold-agent eval проходит history, statistics, sticker, bot и Mini App handoff scenarios.
-- [ ] Skill не создаёт новый login/daemon и не повторяет uncertain mutation.
+- [ ] Каждый core raw method и workflow доступен из CLI — зачем: CLI — обязательная поверхность; дыра в parity делает «полный API» ложью.
+- [ ] Агент не парсит prose для machine decisions — зачем: prose-parsing ломается при каждой правке текста; JSON contract — нет.
+- [ ] Cold-agent eval проходит history, statistics, sticker, bot и Mini App handoff scenarios — зачем: skill проверяется на агенте без контекста проекта, как в реальности.
 
 ## P7 — Domain workflows F007–F020
 
-Реализовывать вертикальными slices с feature harness как intended-behavior source:
+Вертикальные slices, feature harness — intended-behavior source. Для каждого slice: schema mapping, capability/risk rules, success/error/cancellation/recovery tests, live proof только там, где права аккаунта позволяют.
 
-- [ ] F007 users/contacts/profile.
-- [ ] F008 chats/folders/topics/secret chats.
-- [ ] F009 messages/history/search/interactions.
-- [ ] F010 files/media.
-- [ ] F011 groups/channels/moderation/forums/boosts.
-- [ ] F012 bots/testing.
-- [ ] F013 Mini Apps.
-- [ ] F014 stickers/custom emoji.
-- [ ] F015 stories/calls/live.
-- [ ] F016 account settings/privacy/notifications/sessions.
-- [ ] F017 Business.
-- [ ] F018 payments/digital assets/Passport.
-- [ ] F019 statistics/resources.
-- [ ] F020 platform utilities/custom/test API.
-- [ ] F021 reliability/policy/limits/metrics/audit как сквозной feature contract.
-- [ ] F022 compact agent skill/self-discovery.
+- [ ] F007 users/contacts/profile; F008 chats/folders/topics; F009 messages/search; F010 files/media.
+- [ ] F011 groups/channels/moderation; F012 bots/testing; F013 Mini Apps; F014 stickers/custom emoji.
+- [ ] F015 stories/calls/live; F016 account settings; F017 Business; F018 payments/digital assets.
+- [ ] F019 statistics/resources; F020 platform utilities; F021 reliability как сквозной contract; F022 agent skill.
 
-Для каждого slice обязательны schema mapping, capability/risk rules, success/error/cancellation/recovery tests и live proof только там, где права аккаунта это позволяют.
+Acceptance: критерии соответствующего harness-файла выполнены и подтверждены тестами — зачем: harness уже описывает intended behavior; дублировать его в плане — расхождение двух источников.
 
 ## P8 — Optional MCP
 
@@ -328,96 +254,56 @@ Decision gate: начинать только после acceptance P0–P7.
 
 ### Tasks
 
-- [ ] MCP — adapter к daemon/protocol, не TDLib owner.
-- [ ] Небольшой набор tools: session status, `auth.begin/status/wait`, capabilities/schema, workflow, call, events.
+- [ ] MCP — adapter к daemon/protocol; небольшой набор tools (session, auth.begin/status/wait, schema, workflow, call, events).
 - [ ] Local stdio и аутентифицированный remote transport.
-- [ ] Brokered login возвращает challenge ID/next action; владелец вводит OTP/2FA/database key через защищённый local TTY или SSH operator channel, а не model-visible MCP arguments.
-- [ ] Общая generated parity matrix CLI/MCP.
+- [ ] Brokered login: challenge ID/next action; secret вводится вне model-visible transport.
 
 ### Acceptance
 
-- [ ] Запуск MCP не создаёт новую Telegram session.
-- [ ] Fresh-profile login, инициированный через MCP, использует тот же daemon/auth state machine, достигает Ready/getMe и не помещает secret в MCP transcript.
-- [ ] Отключение MCP не уменьшает core/CLI functionality.
-- [ ] Remote endpoint требует identity, scoped authorization и encryption.
-- [ ] MCP context не содержит каталог из 1000 tools.
+- [ ] Запуск MCP не создаёт новую Telegram session; отключение MCP не уменьшает core/CLI — зачем: MCP — adapter, а не второй продукт; это главный анти-drift критерий.
+- [ ] Remote endpoint требует identity, scoped authorization и encryption — зачем: неаутентифицированный endpoint — это чужой полный доступ к аккаунту.
+- [ ] MCP context не содержит каталог из 1000 tools — зачем: контекст агента — ограниченный ресурс; discovery должен быть on-demand.
 
 ## P9 — Packaging, server и upgrades
 
 ### Tasks
 
-- [ ] Reproducible pinned TDLib builds для macOS arm64 и Linux x86_64.
+- [ ] Reproducible pinned TDLib builds для обоих targets.
 - [ ] launchd/systemd socket activation, persistent DB, keychain/file-secret integration.
-- [ ] Local paths vs remote upload/download semantics.
 - [ ] Backup только после Closed; restore, schema upgrade, rollback на копии DB.
-- [ ] Server deployment без публичного unauthenticated port; SSH/TLS transport.
-- [ ] One account/profile per isolated DB and secret scope.
+- [ ] Server deployment без публичного unauthenticated port.
 
 ### Acceptance
 
-- [ ] Clean install, host restart и upgrade сохраняют authorization.
-- [ ] Rollback проверен без открытия одной DB двумя версиями одновременно.
-- [ ] File/key permissions fail closed.
-- [ ] Удаление клиента не удаляет account session без явного logout workflow.
+- [ ] Clean install, host restart и upgrade сохраняют authorization — зачем: потеря сессии при апгрейде делает продукт неэксплуатируемым.
+- [ ] Rollback проверен без открытия одной DB двумя версиями — зачем: даунгрейд поверх новой DB-схемы — классический сценарий corruption.
+- [ ] File/key permissions fail closed — зачем: DB и ключи — это аккаунт целиком.
 
 ## P10 — Live end-to-end gate
 
 ### Scenarios
 
-- [ ] First login и returning encrypted login.
-- [ ] Два параллельных агента и crash одного lease holder.
+- [ ] First login и returning encrypted login; два параллельных агента; crash одного lease holder.
 - [ ] List/resolve/open/history/search/full info/members/statistics.
 - [ ] Channel configuration и moderation с preview/verify.
-- [ ] Sticker/custom emoji create/update/delete на disposable наборе.
-- [ ] Bot start/send/reply/callback и terminal send states.
-- [ ] Mini App launch + browser bridge/DOM/network/screenshot handoff.
-- [ ] Network loss, flood wait, update lag, cancellation, daemon crash.
-- [ ] Idle stop/start с Closed/Ready proof.
-- [ ] Audit active Telegram sessions до/после и отсутствие нового login-дубля.
+- [ ] Sticker/emoji lifecycle на disposable наборе; bot start/send/reply/callback; Mini App launch + browser handoff.
+- [ ] Network loss, flood wait, update lag, cancellation, daemon crash; idle stop/start.
 
 ### Final gate
 
-- [ ] Requirement-by-requirement evidence приложено к plan checkpoints.
-- [ ] Generated coverage доказывает полный pinned API.
-- [ ] Deferred/rights-limited/official-only cases перечислены честно.
-- [ ] Тестовые сообщения, packs, files и browser artifacts очищены.
-- [ ] Secrets отсутствуют в Git, output и artifacts.
+- [ ] Requirement-by-requirement evidence приложено к фазам — зачем: «работает у меня» не является приёмкой; нужен воспроизводимый след.
+- [ ] Generated coverage доказывает полный pinned API; deferred/rights-limited cases перечислены честно — зачем: продукт обещает полноту с честной разметкой, а не идеальность.
+- [ ] Тестовые артефакты очищены; secrets отсутствуют в Git/output — зачем: e2e-прогон не должен оставлять мусор в реальном аккаунте и утечки в репозитории.
 
 ## Risks and mitigations
 
 | Risk | Mitigation |
 |---|---|
-| Schema/native drift | Exact commit/hash, startup handshake, CI inventory diff |
-| DB corruption или двойной owner | OS lock, one daemon, close-before-backup |
+| Schema/native drift | Exact commit/hash, startup handshake, CI pin gates |
+| DB corruption или двойной owner | OS lock, один daemon, close-before-backup |
 | False `not_found` | Update cache, prerequisite graph, completeness envelope |
 | Duplicate mutation | Idempotency journal, terminal updates, reconciliation |
 | Agent self-approval | External plan capability, scoped leases, audit |
-| Secret exposure | File descriptor/keychain/TTY, redaction and secret scanning |
-| MCP expands attack surface | Deferred adapter, auth/TLS/scopes, no direct DB |
-| Mini App false confidence | Explicit browser handoff and separate UI assertions |
-
-## Open decisions with defaults
-
-- Multiple accounts: architecture supports; MVP ships one primary regular profile.
-- Resident analytics: configurable, default `on-demand` with idle timeout.
-- MCP: deferred; local agents use CLI.
-- Remote login: secure operator channel/SSH, never ordinary MCP arguments.
-- Official-only methods: present and classified; expected runtime denial is a supported result.
-- Generated typed bindings: raw registry required; typed wrappers added only for workflows where they improve correctness.
-
-## Living-plan rules
-
-- При начале phase перевести её status в `in_progress` и указать owner/checkpoint.
-- Checkbox закрывать только со свежей командой или artifact evidence.
-- Любой обнаруженный TDLib method без owner сначала блокирует coverage gate, затем добавляется в существующую фичу либо новым решением в `HARNESS.md`.
-- Не переписывать baseline как implementation claim.
-- После финальной проверки перечитать status и удалить устаревшие blocker statements.
-
-## References
-
-- [Product context](product.md)
-- [Harness profile](HARNESS.md)
-- [TDLib API coverage contract](docs/tdlib-api-coverage.md)
-- [Feature harness directory](docs/feature-logic-harness/)
-- [Official TDLib repository](https://github.com/tdlib/td)
-- [Official TDLib getting started](https://core.telegram.org/tdlib/getting-started)
+| Secret exposure | FD/keychain/TTY, redaction, secret scanning |
+| Возврат к переусложнению | Раздел «Правила работы» обязателен; ревью diff на пропорцию тестов и self-referential проверки |
+| Mini App false confidence | Explicit browser handoff, отдельные UI assertions |

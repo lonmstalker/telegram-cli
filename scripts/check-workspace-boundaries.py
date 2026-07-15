@@ -21,7 +21,7 @@ PRODUCT_PACKAGES = {
     "telegram-webapp-runner": ("bin", {"telegram-protocol"}),
 }
 TOOL_PACKAGES = {
-    "tdlib-registry-gen": ("lib", {"telegram-core"}),
+    "tdlib-registry-gen": ("lib", set()),
 }
 EXPECTED = PRODUCT_PACKAGES | TOOL_PACKAGES
 DEFAULT_MEMBERS = set(PRODUCT_PACKAGES) - {"telegram-mcp"}
@@ -144,12 +144,16 @@ def validate_negative_controls(metadata: dict[str, object]) -> list[str]:
         for package in product_depends_on_tool["packages"]
         if package["name"] == "telegram-cli"
     )
-    generator_core_dependency = next(
+    telegramd_core_dependency = next(
         dependency
-        for dependency in generator["dependencies"]
+        for dependency in next(
+            package
+            for package in product_depends_on_tool["packages"]
+            if package["name"] == "telegramd"
+        )["dependencies"]
         if dependency["name"] == "telegram-core"
     )
-    forbidden_dependency = copy.deepcopy(generator_core_dependency)
+    forbidden_dependency = copy.deepcopy(telegramd_core_dependency)
     forbidden_dependency["name"] = "tdlib-registry-gen"
     forbidden_dependency["path"] = str(ROOT / "tools/tdlib-registry-gen")
     cli["dependencies"].append(forbidden_dependency)

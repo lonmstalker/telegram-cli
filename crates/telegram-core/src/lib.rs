@@ -2,5 +2,4 @@
 
 #![forbid(unsafe_code)]
 
-pub mod method_capability;
 pub mod schema;

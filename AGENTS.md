@@ -6,13 +6,18 @@
 - Используй `plans.md` как living implementation plan, `product.md` как product boundary, `HARNESS.md` как feature inventory, а `.memory/wiki/index.md` как вход в долговечную project memory.
 - Не выдавай документационный bootstrap за реализованный Rust core/CLI/MCP.
 
+## Правила работы
+
+- Раздел «Правила работы» в `plans.md` обязателен: размер задачи — пункт Tasks фазы (не один TDLib-метод), схема закреплена одним хешем, никаких self-referential тестов, классификация — данные, default-deny валиден, тесты пропорциональны коду.
+
 ## Karpathy Wiki
 
 - Для любой нетривиальной задачи используй `.agents/skills/karpathy-wiki` и сначала прочитай `.memory/wiki/index.md`.
 - Загружай только связанные topic/raw pages и последние нужные entries активных журналов; не тащи всю wiki в контекст.
-- Храни sanitized immutable evidence в `.memory/raw/`, compact reusable synthesis в `.memory/wiki/`.
+- Гранулярность памяти — завершённый пункт Tasks фазы, не отдельный метод или файл. Одна work-entry на пункт; никаких entries про бухгалтерию ротаций и правку ссылок.
+- Храни sanitized immutable evidence в `.memory/raw/` только для внешних доказательств (сборка, сеть, live-сессия) — не для пересказа кода; compact reusable synthesis в `.memory/wiki/`.
 - Храни выполнение и checkpoints только в `.memory/logs/work.md`.
-- Храни долговечные решения только в `.memory/decisions/decisions.md` с ID `D-YYYYMMDD-NNN`.
+- Храни долговечные решения только в `.memory/decisions/decisions.md` с ID `D-YYYYMMDD-NNN`. Долговечное решение — архитектурное, переживающее фазу; вывод про один метод решением не является.
 - Храни проблемы, риски и их status transitions только в `.memory/problems/problems.md` с ID `P-YYYYMMDD-NNN`.
 - В work log ссылайся на `D/P` IDs; не копируй туда полное тело решения или проблемы.
 - Старые entries не переписывай. Correction, supersede, resolution или смену статуса добавляй новой entry с тем же связанным ID.

@@ -1,6 +1,6 @@
 # Полнота TDLib API
 
-Статус: exact schema snapshot, strict Rust parser/inventory, schema-bound capability foundation и macOS arm64 native artifact закреплены. Linux artifact, полный capability/risk/retry policy, generated raw registry/codec/router и runtime implementation ещё не созданы.
+Статус: exact schema snapshot, strict Rust parser/inventory и macOS arm64 native artifact закреплены; результаты ручного capability-ревью сохранены в [`capability-notes.md`](capability-notes.md). Linux artifact, полная capability/risk/retry таблица, generated raw registry/codec/router и runtime implementation ещё не созданы.
 
 ## Проверенный upstream baseline
 
@@ -12,7 +12,7 @@
 - Source: <https://github.com/tdlib/td/tree/07d3a0973f5113b0827a04d54a93aaaa9e288348>.
 - Local manifest: [`vendor/tdlib/manifest.json`](../vendor/tdlib/manifest.json); gate: `python3 scripts/check-tdlib-pin.py`.
 - Strict parser/inventory: [`crates/telegram-core/src/schema.rs`](../crates/telegram-core/src/schema.rs); gate: `cargo test --locked --offline -p telegram-core --lib --jobs 2`.
-- Schema-bound capability module: [`tools/tdlib-registry-gen/src/capability.rs`](../tools/tdlib-registry-gen/src/capability.rs); gate: `cargo test --locked --offline -p tdlib-registry-gen --lib --jobs 2`.
+- Reviewed capability contracts: [`capability-notes.md`](capability-notes.md) — вход для будущей capability-таблицы P3.
 - Planning boundary: `python3 scripts/check-planning-boundary.py` запрещает переносить номера из `HARNESS.md` в runtime code и machine-readable contracts.
 - macOS arm64 native provenance: [`vendor/tdlib/native-builds/aarch64-apple-darwin.json`](../vendor/tdlib/native-builds/aarch64-apple-darwin.json); artifact gate: `python3 scripts/check-tdlib-native-pin.py --require-local-artifact`.
 
@@ -22,18 +22,20 @@ Exact schema pin принят в `D-20260715-003`, strict parser — в `D-20260
 
 `F001`…`F022` — только номера разделов документационного inventory в [`HARNESS.md`](../HARNESS.md) и связанных harness-файлах. Они не являются доменными типами, владельцами TDLib methods или полями generated contracts.
 
-В коде используются предметные имена модулей и сущностей: `schema`, `method_capability`, `capability`, а позднее — `authorization`, `session`, `updates`, `messages`, `statistics` и другие семантические bounded contexts. Стабильный идентификатор raw API — точное имя TDLib method/constructor вместе с закреплённой signature evidence.
+В коде используются предметные имена модулей и сущностей: `schema`, а позднее — `authorization`, `session`, `updates`, `messages`, `statistics` и другие семантические bounded contexts. Стабильный идентификатор raw API — точное имя TDLib method/constructor вместе с закреплённой signature evidence.
 
-## Capability generator contract
+## Capability classification contract
 
-`tdlib-registry-gen` — non-default library tooling package. Его `capability` module является pure bounded transformation и не открывает TDLib DB, не использует сеть, subprocesses или resident resources.
+Классификация методов — данные, а не код. В P3 `tdlib-registry-gen` строит registry из pinned
+schema и одной capability-таблицы (файл данных: method → risk, account scope, runtime
+requirements, retry/idempotency class):
 
-- Inputs: pinned `td_api.tl` bytes и capability policy bytes. Vendor manifest проверяется отдельным schema-pin gate и не дублируется как непрозрачный generator input.
-- Policy method set обязан в точности совпасть со schema method set; duplicate/missing/unknown rows fail closed.
-- Каждая строка привязана к exact method name, canonical signature SHA-256 и documentation SHA-256.
-- Static prerequisites представлены closed typed model; runtime-факты не выдаются за удовлетворённые.
-- Bounds: schema 2 MiB, capability policy 4 MiB, output 4 MiB, максимум 2048 methods.
-- Output детерминирован, отсортирован по method name и строится в памяти. Committed 1010-method capability policy/artifact пока отсутствует.
+- Каждый метод таблицы обязан существовать в pinned schema; duplicate/unknown rows fail closed.
+- Метод без строки или без ревью получает `default-deny` — это валидное состояние, не ошибка.
+- Схема закреплена одним SHA-256 (`scripts/check-tdlib-pin.py`); per-method signature/documentation
+  hash evidence и тесты на мутации текста схемы не используются.
+- Static prerequisites не выдаются за удовлетворённые; runtime-проверка — отдельный слой.
+- Стартовое наполнение таблицы: [`capability-notes.md`](capability-notes.md).
 
 ## Что входит в coverage
 

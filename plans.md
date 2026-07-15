@@ -106,7 +106,7 @@ flowchart LR
 | P0 | Контракт, repository skeleton и pinned schema | accepted |
 | P1 | Core transport, authorization и ordered updates | accepted |
 | P2 | Singleton daemon и shared session lifecycle | accepted |
-| P3 | Полный generated raw API и capability-таблица | pending |
+| P3 | Полный generated raw API и capability-таблица | accepted |
 | P4 | Stateful request-chain engine | pending |
 | P5 | Reliability, policy, limits и observability | pending |
 | P6 | Полный CLI и компактный agent skill | pending |
@@ -177,14 +177,14 @@ flowchart LR
 - [x] Capability-таблица (данные): risk class, account scope, runtime requirements, retry/idempotency. Стартовое наполнение — `docs/capability-notes.md`; всё остальное default-deny.
 - [x] `version`, `capabilities`, `schema search`, `schema describe`, `td call` в core.
 - [x] Policy применяется до raw dispatch.
-- [ ] Coverage report генерируется из manifest в `docs/tdlib-api-coverage.md`.
+- [x] Coverage report генерируется из manifest в `docs/tdlib-api-coverage.md`.
 
 ### Acceptance
 
-- [ ] `schema_functions == registry_methods == core_raw_methods` — зачем: числовое равенство — единственное честное доказательство «полного API», иначе coverage — мнение.
-- [ ] Round-trip tests покрывают все constructors; updates маршрутизируются losslessly — зачем: потеря неизвестного поля незаметна сегодня и фатальна при следующем upstream bump.
-- [ ] Runtime/schema mismatch обнаруживается до первого рабочего call — зачем: расхождение runtime и registry даёт недиагностируемые ошибки сериализации.
-- [ ] Ни один raw method не обходит policy; неклассифицированный метод — deny — зачем: raw API даёт доступ к destructive/financial операциям.
+- [x] `schema_functions == registry_methods == core_raw_methods` — зачем: числовое равенство — единственное честное доказательство «полного API», иначе coverage — мнение.
+- [x] Round-trip tests покрывают все constructors; updates маршрутизируются losslessly — зачем: потеря неизвестного поля незаметна сегодня и фатальна при следующем upstream bump.
+- [x] Runtime/schema mismatch обнаруживается до первого рабочего call — зачем: расхождение runtime и registry даёт недиагностируемые ошибки сериализации.
+- [x] Ни один raw method не обходит policy; неклассифицированный метод — deny — зачем: raw API даёт доступ к destructive/financial операциям.
 
 ## P4 — Stateful request-chain engine
 

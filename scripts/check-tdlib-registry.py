@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Проверяет, что committed Rust registry соответствует pinned schema."""
+"""Проверяет generated Rust registry и coverage report pinned schema."""
 
 from pathlib import Path
 import subprocess
@@ -16,9 +16,9 @@ def main() -> int:
         check=False,
     )
     if result.returncode:
-        print("generated TDLib registry gate: failed", file=sys.stderr)
+        print("generated TDLib registry/report gate: failed", file=sys.stderr)
         return result.returncode
-    print("generated TDLib registry gate: ok")
+    print("generated TDLib registry/report gate: ok")
     return 0
 
 

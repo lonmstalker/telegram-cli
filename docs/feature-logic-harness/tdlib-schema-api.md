@@ -12,7 +12,7 @@
 - product_context_source: product.md
 - Feature purpose: сделать всю закреплённую TDLib-схему discoverable, валидируемой и вызываемой без ручного wrapper на каждый method.
 - Product workflow/job served: version -> search/describe -> policy -> call -> typed/raw result.
-- Primary ambiguity to keep explicit: generated registry/capabilities/policy/core dispatch приняты, но generated coverage report и CLI wiring ещё отсутствуют.
+- Primary ambiguity to keep explicit: P3 core accepted; CLI parity и live per-method evidence принадлежат поздним phases.
 
 ## Product Context
 
@@ -66,7 +66,7 @@ Registry records user/bot/business/premium/admin/official-only constraints separ
 
 ## Live Verification Boundary
 
-Current counts/hash проверены against upstream и vendored offline; artifacts обоих targets закреплены provenance. macOS native no-client smoke доказал `getOption version` через один receive loop и transport-owned `@extra`. Generated registry покрывает pinned symbols, lossless raw objects и capability disposition каждого method; core dispatch и pre-send policy проверены на transport mock, CLI/live per-method matrix отсутствуют.
+Current counts/hash проверены against upstream и vendored offline; artifacts обоих targets закреплены provenance. macOS native no-client smoke доказал `getOption version` через один receive loop и transport-owned `@extra`. Generated report доказывает manifest/registry/core equality, constructor/update/auth coverage и default-deny counts; core dispatch/pre-send policy проверены на transport mock, CLI/live per-method matrix отсутствуют.
 
 ## Scope
 
@@ -158,8 +158,8 @@ Current counts/hash проверены against upstream и vendored offline; art
 
 ## Coverage Notes
 
-- Kernel coverage: generated registry/validation/classification/policy/core dispatch implemented; report/CLI pending.
+- Kernel coverage: generated registry/validation/classification/policy/core dispatch/report accepted.
 - Modeled: pin/diff/classify/discover/call claims.
-- Partial: native artifacts, low-level transport, generated registry, default-deny policy и core dispatch доказаны; report/CLI отсутствуют.
+- Partial: P3 core accepted; CLI/live matrix отсутствуют и не входят в P3 Acceptance.
 - Unknown: none for schema source identity.
 - Not applicable: domain-specific request chains.

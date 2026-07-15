@@ -12,26 +12,52 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use telegram_core::schema::{Definition, DefinitionKind, Parameter, Schema, TypeRef};
 
+const COVERAGE_BEGIN: &str = "<!-- BEGIN GENERATED TDLIB COVERAGE -->";
+const COVERAGE_END: &str = "<!-- END GENERATED TDLIB COVERAGE -->";
+
+struct GeneratedArtifacts {
+    registry: String,
+    coverage: String,
+}
+
+struct CoverageCounts {
+    schema_methods: usize,
+    registry_methods: usize,
+    schema_constructors: usize,
+    registry_constructors: usize,
+    types: usize,
+    schema_updates: usize,
+    registry_updates: usize,
+    schema_authorization_states: usize,
+    registry_authorization_states: usize,
+    reviewed: usize,
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let generated_path = root.join("crates/telegram-core/src/registry/generated.rs");
+    let coverage_path = root.join("docs/tdlib-api-coverage.md");
     let generated = generate(&root)?;
 
     if env::args().nth(1).as_deref() == Some("--check") {
-        if fs::read_to_string(&generated_path)? != generated {
+        if fs::read_to_string(&generated_path)? != generated.registry
+            || fs::read_to_string(&coverage_path)? != generated.coverage
+        {
             return Err(
-                "generated TDLib registry is stale; run `cargo run -p tdlib-registry-gen`".into(),
+                "generated TDLib registry/report is stale; run `cargo run -p tdlib-registry-gen`"
+                    .into(),
             );
         }
-        println!("generated TDLib registry: current");
+        println!("generated TDLib registry/report: current");
     } else {
-        fs::write(&generated_path, generated)?;
-        println!("generated TDLib registry: updated");
+        fs::write(&generated_path, generated.registry)?;
+        fs::write(&coverage_path, generated.coverage)?;
+        println!("generated TDLib registry/report: updated");
     }
     Ok(())
 }
 
-fn generate(root: &Path) -> Result<String, Box<dyn Error>> {
+fn generate(root: &Path) -> Result<GeneratedArtifacts, Box<dyn Error>> {
     let source = fs::read_to_string(root.join("vendor/tdlib/td_api.tl"))?;
     let manifest: Value = serde_json::from_str(&fs::read_to_string(
         root.join("vendor/tdlib/manifest.json"),
@@ -89,7 +115,132 @@ fn generate(root: &Path) -> Result<String, Box<dyn Error>> {
         "AUTHORIZATION_STATES",
         inventory.authorization_state_names(),
     )?;
+    let coverage_block = coverage_block(
+        text(upstream, "version")?,
+        text(upstream, "commit")?,
+        text(schema_manifest, "sha256")?,
+        CoverageCounts {
+            schema_methods: number(schema_manifest, "functions")?,
+            registry_methods: methods.len(),
+            schema_constructors: number(schema_manifest, "definitions")?
+                .checked_sub(builtins.len())
+                .ok_or("manifest definitions are fewer than schema builtins")?,
+            registry_constructors: constructors.len(),
+            types: inventory.type_names().len(),
+            schema_updates: number(schema_manifest, "updates")?,
+            registry_updates: inventory.update_names().len(),
+            schema_authorization_states: number(schema_manifest, "authorization_states")?,
+            registry_authorization_states: inventory.authorization_state_names().len(),
+            reviewed: capabilities.len(),
+        },
+    )?;
+    let coverage_source = fs::read_to_string(root.join("docs/tdlib-api-coverage.md"))?;
+    Ok(GeneratedArtifacts {
+        registry: output,
+        coverage: replace_generated_coverage(&coverage_source, &coverage_block)?,
+    })
+}
+
+fn coverage_block(
+    version: &str,
+    commit: &str,
+    schema_sha256: &str,
+    counts: CoverageCounts,
+) -> Result<String, std::fmt::Error> {
+    let CoverageCounts {
+        schema_methods,
+        registry_methods,
+        schema_constructors,
+        registry_constructors,
+        types,
+        schema_updates,
+        registry_updates,
+        schema_authorization_states,
+        registry_authorization_states,
+        reviewed,
+    } = counts;
+    let mut output = String::new();
+    writeln!(
+        output,
+        "TDLib `{version}`, commit `{commit}`, schema `{schema_sha256}`."
+    )?;
+    writeln!(output)?;
+    writeln!(output, "| Contract metric | Count | Status |")?;
+    writeln!(output, "|---|---:|---|")?;
+    writeln!(
+        output,
+        "| `schema_functions` | {schema_methods} | pinned manifest |"
+    )?;
+    writeln!(
+        output,
+        "| `registry_methods` | {registry_methods} | generated |"
+    )?;
+    writeln!(
+        output,
+        "| `core_raw_methods` | {registry_methods} | one validated `td_call` |"
+    )?;
+    writeln!(
+        output,
+        "| capability descriptors | {registry_methods} | reviewed or `DefaultDeny` |"
+    )?;
+    writeln!(
+        output,
+        "| reviewed methods | {reviewed} | explicit data rows |"
+    )?;
+    writeln!(
+        output,
+        "| default-deny methods | {} | valid unreviewed state |",
+        registry_methods - reviewed
+    )?;
+    writeln!(
+        output,
+        "| schema object constructors | {schema_constructors} | manifest definitions minus parsed builtins |"
+    )?;
+    writeln!(
+        output,
+        "| registry/codec constructors | {registry_constructors} | generated/lossless |"
+    )?;
+    writeln!(output, "| distinct result types | {types} | generated |")?;
+    writeln!(
+        output,
+        "| schema updates | {schema_updates} | pinned manifest |"
+    )?;
+    writeln!(
+        output,
+        "| registry/lossless updates | {registry_updates} | ordered reducer + raw fallback |"
+    )?;
+    writeln!(
+        output,
+        "| schema authorization states | {schema_authorization_states} | pinned manifest |"
+    )?;
+    writeln!(
+        output,
+        "| registry/handled auth states | {registry_authorization_states} | exhaustive auth machine |"
+    )?;
+    writeln!(output)?;
+    writeln!(output, "Core equality: `schema_functions({schema_methods}) == registry_methods({registry_methods}) == core_raw_methods({registry_methods})`. CLI/MCP parity остаётся незакрытой до соответствующих phases; workflow/live levels считаются отдельно.")?;
     Ok(output)
+}
+
+fn replace_generated_coverage(source: &str, block: &str) -> Result<String, Box<dyn Error>> {
+    if source.matches(COVERAGE_BEGIN).count() != 1 || source.matches(COVERAGE_END).count() != 1 {
+        return Err("coverage report markers must be unique".into());
+    }
+    let begin = source
+        .find(COVERAGE_BEGIN)
+        .ok_or("coverage report is missing begin marker")?;
+    let content_start = begin + COVERAGE_BEGIN.len();
+    let relative_end = source[content_start..]
+        .find(COVERAGE_END)
+        .ok_or("coverage report is missing end marker")?;
+    let end = content_start + relative_end;
+    Ok(format!(
+        "{}\n{}{}{}",
+        &source[..content_start],
+        block,
+        COVERAGE_END,
+        &source[end + COVERAGE_END.len()..]
+    ))
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -184,6 +335,13 @@ fn text<'a>(value: &'a Value, field: &str) -> Result<&'a str, Box<dyn Error>> {
     value[field]
         .as_str()
         .ok_or_else(|| format!("manifest field `{field}` must be a string").into())
+}
+
+fn number(value: &Value, field: &str) -> Result<usize, Box<dyn Error>> {
+    value[field]
+        .as_u64()
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| format!("manifest field `{field}` must be an unsigned integer").into())
 }
 
 fn write_symbols(
@@ -318,5 +476,15 @@ mod tests {
             &methods
         )
         .is_err());
+    }
+
+    #[test]
+    fn coverage_markers_replace_only_generated_content() {
+        let source = format!("before\n{COVERAGE_BEGIN}\nold\n{COVERAGE_END}\nafter\n");
+        assert_eq!(
+            replace_generated_coverage(&source, "new\n").unwrap(),
+            format!("before\n{COVERAGE_BEGIN}\nnew\n{COVERAGE_END}\nafter\n")
+        );
+        assert!(replace_generated_coverage("no markers", "new").is_err());
     }
 }

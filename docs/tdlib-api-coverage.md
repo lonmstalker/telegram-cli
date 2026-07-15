@@ -1,6 +1,30 @@
 # Полнота TDLib API
 
-Статус: exact schema snapshot, strict Rust parser/inventory, generated Rust registry и native artifacts для macOS arm64 и Linux x86_64 закреплены; low-level TDJSON transport реализован с одним receive loop и `@extra` correlation. Registry даёт descriptors, recursive request validation, lossless unknown-object codec и generated capability disposition для каждого method. Reviewed risk/account/runtime/retry rows хранятся в [`capability-notes.md`](capability-notes.md), всё остальное — `DefaultDeny`. Universal core discovery/call и mandatory account/risk policy-before-send реализованы; coverage report и CLI surface ещё не закрыты.
+Статус: P3 accepted. Exact schema snapshot, strict Rust parser/inventory, generated Rust registry и native artifacts для macOS arm64 и Linux x86_64 закреплены; low-level TDJSON transport реализован с одним receive loop и `@extra` correlation. Registry даёт descriptors, recursive request validation, lossless unknown-object codec и generated capability disposition для каждого method. Reviewed risk/account/runtime/retry rows хранятся в [`capability-notes.md`](capability-notes.md), всё остальное — `DefaultDeny`. Universal core discovery/call, mandatory account/risk policy-before-send и generated coverage report реализованы; CLI surface принадлежит P6.
+
+## Generated coverage report
+
+<!-- BEGIN GENERATED TDLIB COVERAGE -->
+TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`, schema `10a00b48d557d00c0daa231a8dad38a9d0c99de78360a1e4b0b7579b28188f31`.
+
+| Contract metric | Count | Status |
+|---|---:|---|
+| `schema_functions` | 1010 | pinned manifest |
+| `registry_methods` | 1010 | generated |
+| `core_raw_methods` | 1010 | one validated `td_call` |
+| capability descriptors | 1010 | reviewed or `DefaultDeny` |
+| reviewed methods | 74 | explicit data rows |
+| default-deny methods | 936 | valid unreviewed state |
+| schema object constructors | 2159 | manifest definitions minus parsed builtins |
+| registry/codec constructors | 2159 | generated/lossless |
+| distinct result types | 745 | generated |
+| schema updates | 184 | pinned manifest |
+| registry/lossless updates | 184 | ordered reducer + raw fallback |
+| schema authorization states | 13 | pinned manifest |
+| registry/handled auth states | 13 | exhaustive auth machine |
+
+Core equality: `schema_functions(1010) == registry_methods(1010) == core_raw_methods(1010)`. CLI/MCP parity остаётся незакрытой до соответствующих phases; workflow/live levels считаются отдельно.
+<!-- END GENERATED TDLIB COVERAGE -->
 
 ## Проверенный upstream baseline
 

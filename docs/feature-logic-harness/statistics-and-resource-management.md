@@ -27,14 +27,14 @@
 
 - SRC001: product.md; type: file; supports: primary analytics job and honest freshness; limits: none.
 - SRC002: HARNESS.md; type: file; supports: request-chain/completion dimensions; limits: none.
-- SRC003: pinned official schema; type: supplied; supports: statistics/resource method families; limits: generated mapping absent.
+- SRC003: pinned official schema; type: supplied; supports: statistics/resource method families; limits: full generated registry absent.
 - SRC004: plans.md P4/P7/P10; type: file; supports: graph tokens, terminal rules and live acceptance; limits: implementation absent.
 
 ## TDLib API Coverage
 
 - Primary owner: chat/message/story/revenue statistics, statistical graphs and async graph loading; storage/database/network/download statistics and related resource-management operations.
 - Entity resolution/history belongs to F008/F009; channel rights to F011; file transfers to F010.
-- Generated owner manifest classifies every matching pinned-schema function, object and update.
+- Generated registry classifies every matching pinned-schema function, object and update by exact schema identity.
 
 ## Request Graph
 

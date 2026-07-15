@@ -1,0 +1,3 @@
+/vendor/tdlib/td_api.tl linguist-vendored=true
+/vendor/tdlib/LICENSE_1_0.txt linguist-vendored=true
+/vendor/tdlib/CMakeLists.txt linguist-vendored=true

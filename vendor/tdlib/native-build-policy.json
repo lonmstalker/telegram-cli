@@ -1,0 +1,78 @@
+{
+  "format_version": 1,
+  "source": {
+    "repository": "https://github.com/tdlib/td",
+    "commit": "07d3a0973f5113b0827a04d54a93aaaa9e288348",
+    "version": "1.8.66",
+    "schema_sha256": "10a00b48d557d00c0daa231a8dad38a9d0c99de78360a1e4b0b7579b28188f31",
+    "archive_url": "https://github.com/tdlib/td/archive/07d3a0973f5113b0827a04d54a93aaaa9e288348.tar.gz",
+    "archive_sha256": "1a8c9429af7b2eae2e36f24db9a9b8f523dbd5bd2ae448f8bb9322bb1c80dbfb",
+    "archive_bytes": 5785154,
+    "archive_root": "td-07d3a0973f5113b0827a04d54a93aaaa9e288348",
+    "content_length_policy": "verify-if-present",
+    "commit_identity_strategy": "synthetic-detached-head",
+    "git_head_sha256": "037fbbb82c16d37a78e24bdf0a0d16075d0cb217da1f6f74b45e53df9e7a08a7",
+    "git_commit_template_sha256": "5acbcbb038b97ec3a05cf04c3b2e50cf7f846fdcfb03cdbe4a9d1ce6a7b3e1e7",
+    "git_commit_generated_sha256": "27d3e57adf55d87170b9390c54d287703d043094c84a78bdcf2e756aa0c30c0b"
+  },
+  "limits": {
+    "parallel_jobs": 2,
+    "download_seconds": 120,
+    "source_archive_bytes": 8388608,
+    "source_archive_members": 50000,
+    "source_archive_member_bytes": 16777216,
+    "source_archive_path_bytes": 512,
+    "source_archive_path_depth": 32,
+    "extracted_source_bytes": 268435456,
+    "build_tree_bytes": 4294967296,
+    "process_group_rss_bytes": 8589934592,
+    "process_group_processes": 16,
+    "log_bytes": 16777216,
+    "configure_seconds": 900,
+    "build_seconds": 5400,
+    "artifact_bytes": 67108864,
+    "cached_artifacts": 1,
+    "inspection_seconds": 20,
+    "inspection_rss_bytes": 536870912,
+    "termination_grace_seconds": 5,
+    "build_lock_wait_seconds": 30,
+    "stale_cleanup_seconds": 60,
+    "stale_cleanup_entries": 500000,
+    "stale_work_directories": 2,
+    "stale_guard_states": 2
+  },
+  "target": {
+    "triple": "aarch64-apple-darwin",
+    "cmake_generator": "Unix Makefiles",
+    "cmake_target": "tdjson",
+    "artifact_basename": "libtdjson.1.8.66.dylib",
+    "artifact_cache_directory": "target/tdlib-native/aarch64-apple-darwin/by-sha256",
+    "cmake_defines": [
+      "BUILD_TESTING=OFF",
+      "CCACHE_FOUND=CCACHE_FOUND-NOTFOUND",
+      "CMAKE_BUILD_TYPE=Release",
+      "CMAKE_FIND_USE_PACKAGE_REGISTRY=OFF",
+      "CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF",
+      "CMAKE_OSX_ARCHITECTURES=arm64",
+      "CMAKE_OSX_DEPLOYMENT_TARGET=11.0",
+      "MEMPROF=OFF",
+      "OPENSSL_USE_STATIC_LIBS=TRUE",
+      "TD_ENABLE_DOTNET=OFF",
+      "TD_ENABLE_JNI=OFF",
+      "TD_ENABLE_LTO=OFF",
+      "TD_INSTALL_SHARED_LIBRARIES=ON",
+      "TD_INSTALL_STATIC_LIBRARIES=OFF"
+    ],
+    "dependencies": {
+      "openssl": {
+        "provider": "homebrew",
+        "formula": "openssl@3",
+        "linkage": "static"
+      },
+      "zlib": {
+        "provider": "macos-sdk",
+        "linkage": "system"
+      }
+    }
+  }
+}

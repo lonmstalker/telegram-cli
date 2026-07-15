@@ -1,0 +1,13 @@
+[package]
+name = "telegramd"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+telegram-core = { path = "../../crates/telegram-core" }
+telegram-protocol = { path = "../../crates/telegram-protocol" }

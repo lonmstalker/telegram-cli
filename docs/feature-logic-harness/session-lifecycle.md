@@ -32,7 +32,7 @@
 
 ## TDLib API Coverage
 
-- Primary owner: lifecycle termination/status methods; exact assignments come from generated ownership manifest.
+- Semantic scope: lifecycle termination/status methods; exact registrations come from pinned schema identity.
 - Coverage levels: codec, surface, semantics, workflow, live proof are tracked separately.
 - Cross-feature dependencies: F002 authorization, F003 schema registry, F021 reliability.
 

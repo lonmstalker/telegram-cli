@@ -33,7 +33,7 @@
 ## TDLib API Coverage
 
 - Skill contains no hand-maintained method list. It calls `capabilities/schema describe` on demand.
-- Every feature owner supplies discoverable workflows/examples through protocol metadata, not skill prose.
+- Every semantic workflow supplies discoverable examples through protocol metadata, not skill prose.
 
 ## Request Graph
 

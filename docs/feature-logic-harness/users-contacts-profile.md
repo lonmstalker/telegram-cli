@@ -27,14 +27,14 @@
 
 - SRC001: product.md; type: file; supports: purpose/trust; limits: none.
 - SRC002: HARNESS.md; type: file; supports: full API/update invariants; limits: none.
-- SRC003: pinned official `td_api.tl`; type: supplied; supports: method/type/update families; limits: generated mapping absent.
+- SRC003: pinned official `td_api.tl`; type: supplied; supports: method/type/update families; limits: full generated registry absent.
 - SRC004: plans.md P7; type: file; supports: delivery gate; limits: implementation absent.
 
 ## TDLib API Coverage
 
 - Primary owner: user/profile/contact/import/search/status/username families and their updates.
 - Privacy/password/session methods remain F016; chat-member administration remains F011.
-- Exact assignments are generated; boundary methods have one owner and cross-feature dependencies.
+- Exact method registrations are generated from schema identity; cross-domain dependencies remain explicit.
 
 ## Request Graph
 
@@ -145,7 +145,7 @@ Current live proof only confirms regular-user `getMe`; contact/profile workflows
 
 ## Assumptions
 
-- A001: generated schema ownership resolves contact/privacy boundary explicitly; support_basis: inference.
+- A001: generated schema classification resolves contact/privacy boundary explicitly; support_basis: inference.
 
 ## Open Questions
 
@@ -155,6 +155,6 @@ Current live proof only confirms regular-user `getMe`; contact/profile workflows
 
 - Kernel coverage: identity/privacy/cache modeled.
 - Modeled: primary read/write flows.
-- Partial: exact schema ownership and live rights matrix.
+- Partial: exact schema classification and live rights matrix.
 - Unknown: none blocking.
 - Not applicable: chat content and payments.

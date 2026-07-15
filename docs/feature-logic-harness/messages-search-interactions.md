@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: use cases/safety; limits: none.
 - SRC002: HARNESS.md; type: file; supports: retry/completion invariants; limits: none.
-- SRC003: pinned official schema/getting-started; type: supplied; supports: message/history/update families; limits: generated mapping absent.
+- SRC003: pinned official schema/getting-started; type: supplied; supports: message/history/update families; limits: full generated registry absent.
 - SRC004: plans.md P4/P7; type: file; supports: workflow gates; limits: implementation absent.
 
 ## TDLib API Coverage

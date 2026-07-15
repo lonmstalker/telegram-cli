@@ -12,7 +12,7 @@
 - product_context_source: product.md
 - Feature purpose: сделать всю закреплённую TDLib-схему discoverable, валидируемой и вызываемой без ручного wrapper на каждый method.
 - Product workflow/job served: version -> search/describe -> policy -> call -> typed/raw result.
-- Primary ambiguity to keep explicit: production pin подтверждается в P0, текущий master snapshot является baseline.
+- Primary ambiguity to keep explicit: schema pin и macOS arm64 artifact приняты, но Linux x86_64 artifact и generated registry ещё отсутствуют.
 
 ## Product Context
 
@@ -20,29 +20,30 @@
 - Product purpose: named examples не ограничивают весь TDLib functionality.
 - Primary users: агент и разработчик интеграции.
 - Core workflows touched: capability discovery и universal call.
-- Domain terms used: pinned schema, raw registry, feature owner, coverage level.
+- Domain terms used: pinned schema, raw registry, policy classification, coverage level.
 - Open product questions: Q001.
 
 ## Source Ledger
 
 - SRC001: product.md; type: file; supports: full-scope rule; limits: none.
-- SRC002: HARNESS.md; type: file; supports: owner/classification gates; limits: none.
-- SRC003: docs/tdlib-api-coverage.md; type: file; supports: baseline/counts/formula; limits: generator absent.
-- SRC004: official schema commit `07d3a097...`; type: supplied; supports: 1010 functions/2168 definitions/184 updates/13 auth states; limits: baseline may be repinned.
+- SRC002: HARNESS.md; type: file; supports: classification gates; limits: planning IDs are documentation-only.
+- SRC003: docs/tdlib-api-coverage.md; type: file; supports: baseline/counts/formula; limits: full registry generator absent.
+- SRC004: `vendor/tdlib/manifest.json`, exact official commit `07d3a097...` и raw digest `.memory/raw/2026-07-15-tdlib-1.8.66-schema-pin.md`; type: verified repo source; supports: 1010 functions/2168 definitions/184 updates/13 auth states; limits: generated registry absent.
+- SRC005: `vendor/tdlib/native-build-policy.json`, `vendor/tdlib/native-builds/aarch64-apple-darwin.json` и `.memory/raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md`; type: verified repo source; supports: exact crash-safe macOS arm64 artifact identity, runtime version/commit and bounded recovery contract; limits: resource thresholds sampled, Linux artifact и bit-for-bit reproducibility не доказаны.
 
 ## TDLib API Coverage
 
-- This feature owns schema ingestion, not every method; generated manifest assigns each method exactly once across F001–F022.
+- Этот harness описывает schema ingestion. Generated registry keyed by exact method/constructor name and signature; planning inventory не назначает runtime owner.
 - Levels: L0 codec, L1 surface, L2 semantics/policy, L3 workflow, L4 live proof.
 - Product may claim full pinned API only after L0–L2 for every method/update/type; L3/L4 are reported separately.
 
 ## Request Graph
 
-`read pinned tl -> parse -> normalize signatures -> classify owner/risk/retry/surfaces -> generate registry/docs/tests -> runtime hash handshake -> call`.
+`read pinned tl -> parse -> normalize signatures -> classify risk/retry/capability/surfaces -> generate registry/docs/tests -> runtime hash handshake -> call`.
 
 ## Completion Proof
 
-Coverage complete when unowned, duplicate-owner, unclassified and schema-drift counts are zero and registry counts equal pinned schema counts.
+Coverage complete when missing, duplicate, unclassified and schema-drift counts are zero and registry counts equal pinned schema counts.
 
 ## Cache and Update Semantics
 
@@ -62,13 +63,13 @@ Registry records user/bot/business/premium/admin/official-only constraints separ
 
 ## Live Verification Boundary
 
-Current counts/hash are verified against upstream; no generated registry or live per-method matrix exists yet.
+Current counts/hash проверены against upstream и vendored offline; macOS arm64 artifact проверен по hash/Mach-O/dependencies/exports/runtime version+commit. Linux artifact, generated registry и live per-method matrix отсутствуют.
 
 ## Scope
 
 ### In scope
 
-- Pinning, parsing, code generation, raw validation, discovery, ownership, compatibility and coverage reporting.
+- Pinning, parsing, code generation, raw validation, discovery, capability classification, compatibility and coverage reporting.
 
 ### Out of scope
 
@@ -76,7 +77,7 @@ Current counts/hash are verified against upstream; no generated registry or live
 
 ### Ambiguous
 
-- The first production pin between a release commit and the verified master snapshot remains undecided; see Q001.
+- Linux x86_64 artifact identity и target-specific build provenance остаются незакрытой частью P0.
 
 ## Context Map
 
@@ -98,7 +99,7 @@ Current counts/hash are verified against upstream; no generated registry or live
 ## Domain Entities
 
 - SchemaManifest: commit/version/hash/counts.
-- CoverageRecord: method owner, risk, retry, prerequisites, surfaces, tests.
+- CoverageRecord: method identity, risk, retry, prerequisites, surfaces, tests.
 - CapabilityConstraint: account/rights/platform requirements.
 
 ## State Model
@@ -117,7 +118,7 @@ Current counts/hash are verified against upstream; no generated registry or live
 ## Contracts
 
 - C001: every pinned symbol is losslessly represented.
-- C002: every function has one owner and complete security/retry classification.
+- C002: every function has exact schema identity and complete security/retry classification.
 - C003: runtime/native mismatch blocks normal calls.
 
 ## Invariants
@@ -140,22 +141,22 @@ Current counts/hash are verified against upstream; no generated registry or live
 ## Scenario Cells
 
 - SC001 - Новый upstream method
-  - Dimensions: D001, D002; Workflow/entity anchor: schema diff; Scenario: added method without owner; Expected behavior: CI fails until classification; Related contracts: C002; Related invariants: I001-I003; Why this matters: prevents silent gap; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: schema diff; Scenario: added method without classification; Expected behavior: CI fails until classification; Related contracts: C002; Related invariants: I001-I003; Why this matters: prevents silent gap; Status: modeled.
 - SC002 - Rights-limited method
   - Dimensions: D001, D002; Workflow/entity anchor: call; Scenario: regular account invokes bot-only method; Expected behavior: structured requires_bot/capability error; Related contracts: C001; Related invariants: I002; Why this matters: full API without false success; Status: modeled.
 
 ## Assumptions
 
-- A001: exact upstream commit remains retrievable for reproducible builds; support_basis: repo_source.
+- A001: exact upstream commit remains retrievable for bounded repeat builds; bit-for-bit reproducibility после одной сборки не заявляется; support_basis: repo_source.
 
 ## Open Questions
 
-- Q001: какой exact commit станет первым production pin; owner: maintainer; blocking for P0 implementation.
+- Q001: resolved by `D-20260715-003`; initial production schema pin — exact commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`, никогда moving `master`.
 
 ## Coverage Notes
 
 - Kernel coverage: complete contract, no implementation.
 - Modeled: pin/diff/classify/discover/call claims.
-- Partial: generated artifacts absent.
-- Unknown: production pin decision.
+- Partial: macOS arm64 native proof complete; Linux artifact и generated registry отсутствуют.
+- Unknown: none for schema source identity.
 - Not applicable: domain-specific request chains.

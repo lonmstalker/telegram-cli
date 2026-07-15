@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: local/server boundary; limits: none.
 - SRC002: HARNESS.md; type: file; supports: secret/path dimensions; limits: none.
-- SRC003: pinned official schema; type: supplied; supports: file/media method/update families; limits: generated mapping absent.
+- SRC003: pinned official schema; type: supplied; supports: file/media method/update families; limits: full generated registry absent.
 - SRC004: plans.md P7/P9; type: file; supports: packaging/path gates; limits: implementation absent.
 
 ## TDLib API Coverage

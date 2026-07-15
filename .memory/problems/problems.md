@@ -2,11 +2,15 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] open | P-20260715-001 | Штатный gateway не принимает database key file
+## [2026-07-15] consolidation | P-20260715-012 | Журнал консолидирован
 
-- Evidence: `docs/feature-logic-harness/authorization.md` и baseline в `plans.md` фиксируют successful direct TDJSON access и отсутствие database-key wiring в штатном gateway.
-- Impact: стандартный development path не может открыть существующую encrypted TDLib DB через согласованный file reference.
-- Reproduction boundary: не повторять login и не выводить key; проверять только через existing encrypted session и protected file provider.
-- Status: open; implementation отсутствует.
-- Next check: в P1/F002 добавить file/keychain secret provider, negative wrong-key test и returning Ready/getMe/Closed acceptance.
-- Related decisions: [D-20260715-001](../decisions/decisions.md).
+- По явному указанию пользователя журнал очищен от per-method записей и бухгалтерии ротаций. Полная история — в git. Ниже восстановлены только актуальные открытые проблемы.
+- P-20260715-005 (116 методов без typed disposition) упразднена как проблема: по правилу plans.md неотревьюенный метод получает default-deny, ревью добирается пачками и ничего не блокирует. Списки методов — в `docs/capability-notes.md`.
+
+## [2026-07-15] open | P-20260715-001 | Database key не подключён к штатному gateway
+
+- Локальный database encryption key получен и хранится по `.env.local` contract, но штатный запуск пока не принимает его. Закрывается задачей P1 «Database encryption key из file descriptor/file secret/OS keychain».
+
+## [2026-07-15] open | P-20260715-003 | Linux x86_64 native artifact не закреплён
+
+- Закреплён только macOS arm64 `tdjson`. Linux x86_64 artifact с provenance — открытая задача P0; без него не начинается P9.

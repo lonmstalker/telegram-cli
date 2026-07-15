@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: complete-result rule; limits: none.
 - SRC002: HARNESS.md; type: file; supports: update/pagination invariants; limits: none.
-- SRC003: pinned official schema/getting-started; type: supplied; supports: chat list/update semantics; limits: generated ownership absent.
+- SRC003: pinned official schema/getting-started; type: supplied; supports: chat list/update semantics; limits: full generated registry absent.
 - SRC004: plans.md P4/P7; type: file; supports: chain acceptance; limits: implementation absent.
 
 ## TDLib API Coverage

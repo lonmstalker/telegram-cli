@@ -1,0 +1,32 @@
+{
+  "format_version": 1,
+  "upstream": {
+    "repository": "https://github.com/tdlib/td",
+    "commit": "07d3a0973f5113b0827a04d54a93aaaa9e288348",
+    "version": "1.8.66"
+  },
+  "cmake": {
+    "source_path": "CMakeLists.txt",
+    "vendored_path": "vendor/tdlib/CMakeLists.txt",
+    "sha256": "b9020710ba0ef55d684ef1dcfa90fa19ecba43ea6673f2de4efd182254ff6e06",
+    "bytes": 55226,
+    "version_declaration": "project(TDLib VERSION 1.8.66 LANGUAGES CXX C)"
+  },
+  "schema": {
+    "source_path": "td/generate/scheme/td_api.tl",
+    "vendored_path": "vendor/tdlib/td_api.tl",
+    "sha256": "10a00b48d557d00c0daa231a8dad38a9d0c99de78360a1e4b0b7579b28188f31",
+    "bytes": 1138081,
+    "definitions": 2168,
+    "functions": 1010,
+    "updates": 184,
+    "authorization_states": 13
+  },
+  "license": {
+    "spdx": "BSL-1.0",
+    "source_path": "LICENSE_1_0.txt",
+    "vendored_path": "vendor/tdlib/LICENSE_1_0.txt",
+    "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
+    "bytes": 1338
+  }
+}

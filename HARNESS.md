@@ -16,7 +16,9 @@
 
 Implementation enablers — конкретный crate, IPC library, Prometheus exporter или code generator — сами по себе не являются фичами. Они входят в contracts/invariants владеющей фичи.
 
-Новую фичу сначала добавляют в канонический inventory ниже, затем создают harness-файл. ID и внутренние `SRC/C/I/D/SC/A/Q` append-only: их нельзя перенумеровывать или переиспользовать.
+Гранулярность фиксирована инвентарём F001–F022. Отдельный TDLib-метод, семейство методов, «semantic family», модуль кода или задача плана фичей не являются и не получают ни harness-файла, ни собственного ID; такая работа живёт внутри существующей фичи и в `plans.md`. Добавление новой фичи — редкое продуктовое событие, требующее явного обоснования, почему возможность не помещается ни в одну из F001–F022 (см. также `plans.md`, «Правила работы»).
+
+Новую фичу сначала добавляют в канонический inventory ниже, затем создают harness-файл. ID и внутренние `SRC/C/I/D/SC/A/Q` append-only: их нельзя перенумеровывать или переиспользовать. Feature ID — только навигация документации: он не становится Rust-типом, именем runtime-модуля или полем machine-readable contract.
 
 ## Определение полной поддержки TDLib
 
@@ -24,7 +26,7 @@ Implementation enablers — конкретный crate, IPC library, Prometheus 
 
 - все functions закреплённого `td_api.tl` присутствуют в generated raw registry;
 - все objects, unions, updates и authorization states могут быть провалидированы, маршрутизированы и сохранены без потери неизвестных полей;
-- каждый method назначен ровно одному feature owner и имеет risk, retry/idempotency, prerequisite и capability classification;
+- каждый method идентифицируется exact schema name/signature и имеет risk, retry/idempotency, prerequisite и capability classification;
 - core и CLI имеют полный raw coverage; MCP при наличии использует тот же protocol;
 - curated workflows отдельно покрывают stateful операции, где одиночный raw call недостаточен.
 
@@ -59,7 +61,7 @@ Bot-only, Premium/Business, admin-gated, financial и official-app-only мето
 
 ## Обязательные инварианты продукта
 
-- Ни один method закреплённой схемы не остаётся без feature owner и policy classification.
+- Ни один method закреплённой схемы не остаётся без policy classification; planning ID в runtime contract не переносится.
 - CLI, MCP и внутренние автоматизации используют один protocol/core и не дублируют workflow-логику.
 - Только daemon открывает TDLib DB; несколько агентов используют leases одной сессии.
 - `close` сохраняет авторизацию; `logOut` и `destroy` всегда явно destructive.

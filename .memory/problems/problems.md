@@ -57,3 +57,11 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Exact evidence: source archive имеет private immutable snapshot; exact resolved OpenSSL Cellar archives остаются на canonical path и проходят pre/post bytes/SHA-256 validation.
 - Status: `P-20260715-004` остаётся resolved; correction сужает durable claim и не меняет crash-recovery result.
 - Related decisions: [D-20260715-005](../decisions/decisions.md).
+
+## [2026-07-15] open | P-20260715-005 | 188 pinned runtime-signal methods не имеют typed disposition
+
+- Evidence: [capability evidence baseline](../raw/2026-07-15-tdlib-capability-evidence-baseline.md); exact 193-method signal set SHA-256 `cbe074...8706`, exact 188-method open set SHA-256 `c9e513...0a34`; corpus test требует `SchemaDrift` для каждой open row.
+- Impact: canonical 1010-method capability artifact и P0 capability checkbox заблокированы. Замена unsupported contracts на permissive `always` дала бы ложное расширение API.
+- Status: open; baseline измерен, typed source families ещё не реализованы.
+- Next check: добавить exact per-signal disposition oracle и bounded `ChatKind` atom для conditional chat rights, затем closed `MessageProperties` facts; после каждого reviewed task пересчитать exact open set. Закрытие требует zero-open gate и independent semantic review.
+- Related decisions: [D-20260715-009](../decisions/decisions.md), [D-20260715-010](../decisions/decisions.md).

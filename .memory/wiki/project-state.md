@@ -21,10 +21,11 @@
 - Non-default `tdlib-registry-gen` отделён от product packages и реализует bounded deterministic owner rule engine: one-rule-per-feature candidate sets, reviewed set/signature hashes, exact overlap overrides и fail-closed coverage. `check` read-only; `generate` получает один fixed-temp lease до input snapshot, проверяет path/inode identity и публикует atomic rename. Independent re-review — Approved.
 - Exact owner corpus закреплён для 1010/1010 methods: 17 rules, 252 atoms, 372 reviewed overlap overrides; schema-derived signatures, 22 per-feature hashes, independent exact owner digest и adversarial semantic boundaries проверяются corpus gate. Canonical artifact остаётся owner-only; independent final review — Approved.
 - P0.5a capability foundation закрепляет closed account/auth/entitlement/application/DC vocabularies, additive synchronous path, typed bounded runtime DNF и parameter notices. Pure generator требует exact schema/owner/method/signature/documentation evidence, отклоняет распознанные unsupported capability/runtime gate signals и скрытое policy-сужение; два independent reviews — Approved.
+- P0.5b0 evidence baseline связывает current recognizer с exact 193-method signal set и 188-method fail-closed open set. Authorization validation читает все structured documentation tags; `setCustomLanguagePack.@info` больше не теряет pre-authorization contract. Open rows не считаются capability coverage.
 
 ## Not implemented
 
-- Linux x86_64 TDLib artifact, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
+- Linux x86_64 TDLib artifact, typed dispositions для 188 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
 - Stateful request-chain engine, retry/reconciliation, policy, metrics и agent skill остаются планом.
 
 ## Active boundary
@@ -56,5 +57,7 @@
 - [D-20260715-008](../decisions/decisions.md)
 - [W-20260715-011](../logs/work.md)
 - [TDLib capability generator foundation digest](../raw/2026-07-15-tdlib-capability-generator-foundation.md)
+- [TDLib capability evidence baseline](../raw/2026-07-15-tdlib-capability-evidence-baseline.md)
 - [D-20260715-009](../decisions/decisions.md)
 - [W-20260715-012](../logs/work.md)
+- [W-20260715-013](../logs/work.md)

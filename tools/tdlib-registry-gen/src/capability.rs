@@ -734,12 +734,12 @@ fn validate_documented_authorization_states(
     method: &Definition,
     descriptor: &CapabilityDescriptor,
 ) -> Result<(), CapabilityGenerationError> {
-    let description = method_description(method);
-    let normalized = description.to_ascii_lowercase();
+    let documentation = method_documentation_text(method);
+    let normalized = documentation.to_ascii_lowercase();
     let mentioned = AuthorizationState::ALL
         .iter()
         .copied()
-        .filter(|state| description.contains(state.as_str()))
+        .filter(|state| documentation.contains(state.as_str()))
         .collect::<BTreeSet<_>>();
     let expected = if method.name() == "destroy"
         && normalized.contains("can be called before authorization")
@@ -783,7 +783,7 @@ fn validate_documented_authorization_states(
         .is_some_and(|expected| actual != *expected);
     if contradicts {
         return Err(CapabilityGenerationError::invalid_policy(format!(
-            "authorization states for {:?} contradict @description",
+            "authorization states for {:?} contradict method documentation",
             method.name()
         )));
     }
@@ -1364,6 +1364,16 @@ fn method_description(method: &Definition) -> String {
         .tags()
         .iter()
         .filter(|tag| tag.name() == "description")
+        .map(|tag| tag.value())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn method_documentation_text(method: &Definition) -> String {
+    method
+        .documentation()
+        .tags()
+        .iter()
         .map(|tag| tag.value())
         .collect::<Vec<_>>()
         .join("\n")

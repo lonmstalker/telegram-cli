@@ -11,10 +11,11 @@ use telegram_core::schema::Schema;
 
 use super::{
     CapabilityGenerationErrorKind, MAX_CAPABILITY_POLICY_BYTES, MAX_MANIFEST_BYTES,
-    MAX_OWNER_POLICY_BYTES, MAX_SCHEMA_BYTES, documentation_sha256, generate,
-    serialize_pretty_with_limit, sha256_hex, validate_documented_authorization_states,
-    validate_documented_method_constraints, validate_documented_parameter_notices,
-    validate_documented_runtime_requirements,
+    MAX_OWNER_POLICY_BYTES, MAX_SCHEMA_BYTES, documentation_sha256,
+    documented_runtime_requirements, field_type, generate, has_runtime_gate_signal,
+    method_documentation_text, normalized_text, serialize_pretty_with_limit, sha256_hex,
+    validate_documented_authorization_states, validate_documented_method_constraints,
+    validate_documented_parameter_notices, validate_documented_runtime_requirements,
 };
 
 type PolicyMutation = Box<dyn Fn(&mut Value)>;
@@ -209,8 +210,198 @@ fn binds_method_rows_to_documented_authorization_contracts() {
         }
         let error = fixture.generate_value(&policy).expect_err(method);
         assert_eq!(error.kind(), CapabilityGenerationErrorKind::InvalidPolicy);
-        assert!(error.to_string().contains("contradict @description"));
+        assert!(
+            error
+                .to_string()
+                .contains("contradict method documentation")
+        );
     }
+}
+
+#[test]
+fn authorization_contract_reads_all_method_documentation_tags() {
+    let schema =
+        Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
+    let method = find_method(&schema, "setCustomLanguagePack");
+    let pre_authorization = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser, AccountKind::Bot],
+        requestable_authorization_states()
+            .into_iter()
+            .map(|state| AuthorizationState::try_from(state).expect("known state"))
+            .collect(),
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        RequirementAlternatives::always(),
+        Vec::new(),
+    )
+    .expect("pre-authorization descriptor");
+
+    validate_documented_authorization_states(method, &pre_authorization)
+        .expect("@info carries the method-level pre-authorization contract");
+    let error = validate_documented_authorization_states(
+        method,
+        &ready_descriptor(ApplicationRequirement::Any),
+    )
+    .expect_err("Ready-only policy must not ignore a contract outside @description");
+    assert_eq!(error.kind(), CapabilityGenerationErrorKind::InvalidPolicy);
+}
+
+#[test]
+fn pinned_non_ready_authorization_contract_inventory_is_exact() {
+    let schema =
+        Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
+    let ready_only = ready_descriptor(ApplicationRequirement::Any);
+    let mut methods = schema
+        .methods()
+        .iter()
+        .filter(|method| validate_documented_authorization_states(method, &ready_only).is_err())
+        .map(|method| method.name())
+        .collect::<Vec<_>>();
+    methods.sort_unstable();
+    let mut oracle = methods.join("\n");
+    oracle.push('\n');
+    assert_eq!(methods.len(), 73, "authorization-contract set drift");
+    assert_eq!(
+        sha256_hex(oracle.as_bytes()),
+        "89a4dd651b3372d2310ddb6fa16e2e6827d0bd67b6555a8e5800694ceb0440b3",
+        "authorization-contract method-set hash drift"
+    );
+}
+
+#[test]
+fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
+    let capability_source = include_str!("../capability.rs");
+    let recognizer_start = capability_source
+        .find("fn has_runtime_gate_signal")
+        .expect("runtime recognizer start");
+    let recognizer_end = capability_source[recognizer_start..]
+        .find("fn contains_word_sequence")
+        .map(|offset| recognizer_start + offset)
+        .expect("runtime recognizer end");
+    assert_eq!(
+        sha256_hex(&capability_source.as_bytes()[recognizer_start..recognizer_end]),
+        "5cdf338bec6fa08d0f69d31c999c8ca384581f96cb6105384cebf754e3e65f1a",
+        "runtime recognizer body drift"
+    );
+
+    let schema =
+        Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
+    let signaled = schema
+        .methods()
+        .iter()
+        .filter(|method| {
+            has_runtime_gate_signal(&normalized_text(&method_documentation_text(method)))
+        })
+        .collect::<Vec<_>>();
+    let mut names = signaled
+        .iter()
+        .map(|method| method.name())
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    let mut oracle = names.join("\n");
+    oracle.push('\n');
+    assert_eq!(names.len(), 193, "runtime-signal method-set drift");
+    assert_eq!(
+        sha256_hex(oracle.as_bytes()),
+        "cbe074623352b1b4e970af939aed6297e7ce37366d7fd5ad7cedcf1a36848706",
+        "runtime-signal method-set hash drift"
+    );
+
+    let hash_method_set = |mut values: Vec<&str>| {
+        values.sort_unstable();
+        let mut payload = values.join("\n");
+        payload.push('\n');
+        (values.len(), sha256_hex(payload.as_bytes()))
+    };
+    let description_signals = schema
+        .methods()
+        .iter()
+        .filter(|method| {
+            method.documentation().tags().iter().any(|tag| {
+                tag.name() == "description"
+                    && has_runtime_gate_signal(&normalized_text(tag.value()))
+            })
+        })
+        .map(|method| method.name())
+        .collect::<Vec<_>>();
+    let parameter_signals = schema
+        .methods()
+        .iter()
+        .filter(|method| {
+            method.documentation().tags().iter().any(|tag| {
+                tag.name() != "description"
+                    && field_type(method, tag.name()).is_some()
+                    && has_runtime_gate_signal(&normalized_text(tag.value()))
+            })
+        })
+        .map(|method| method.name())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        hash_method_set(description_signals),
+        (
+            162,
+            "f0ce76fbe2c80365483306b65f1334fdc20a6ad93d956d32aec45c0c1d3b99fa".to_owned()
+        ),
+        "description runtime-signal set drift"
+    );
+    assert_eq!(
+        hash_method_set(parameter_signals),
+        (
+            42,
+            "aff7c31486573fe7c5d3c5b3fb586e1499d0816f6c9b857c1d48700c415deb9b".to_owned()
+        ),
+        "parameter runtime-signal set drift"
+    );
+
+    let mut supported = Vec::new();
+    let mut unsupported = signaled
+        .into_iter()
+        .filter_map(|method| match documented_runtime_requirements(method) {
+            Ok(_) => {
+                supported.push(method.name());
+                None
+            }
+            Err(error) => {
+                assert_eq!(
+                    error.kind(),
+                    CapabilityGenerationErrorKind::SchemaDrift,
+                    "unexpected disposition failure for {}: {error}",
+                    method.name()
+                );
+                assert!(
+                    error
+                        .to_string()
+                        .contains("unsupported runtime documentation"),
+                    "unexpected disposition failure for {}: {error}",
+                    method.name()
+                );
+                Some(method.name())
+            }
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        hash_method_set(supported),
+        (
+            5,
+            "fe9034c9b7022707b3b29090ea6891209130cfb1b3acf69642bfbab652ee286d".to_owned()
+        ),
+        "reviewed real runtime-contract set drift"
+    );
+    unsupported.sort_unstable();
+    let mut unsupported_oracle = unsupported.join("\n");
+    unsupported_oracle.push('\n');
+    assert_eq!(
+        unsupported.len(),
+        188,
+        "reviewed runtime-disposition boundary drift"
+    );
+    assert_eq!(
+        sha256_hex(unsupported_oracle.as_bytes()),
+        "c9e5131cd86d5ebe7eb697f409953d4090c58a4c21ba9e442075701c6d950a34",
+        "reviewed runtime-disposition boundary hash drift"
+    );
 }
 
 #[test]

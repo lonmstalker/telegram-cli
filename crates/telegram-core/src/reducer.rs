@@ -146,7 +146,8 @@ impl StateReducer {
     ) -> Result<Option<AppliedUpdate>, ReducerError> {
         match event {
             crate::transport::TdJsonEvent::Update(update) => self.apply(update).map(Some),
-            crate::transport::TdJsonEvent::UnmatchedResponse { .. }
+            crate::transport::TdJsonEvent::ResponseBoundary { .. }
+            | crate::transport::TdJsonEvent::UnmatchedResponse { .. }
             | crate::transport::TdJsonEvent::Fatal(_) => Ok(None),
         }
     }

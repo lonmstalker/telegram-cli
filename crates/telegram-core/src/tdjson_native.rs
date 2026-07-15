@@ -153,10 +153,16 @@ impl Drop for NativeTdJson {
 #[cfg(test)]
 mod tests {
     use std::env;
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use serde_json::json;
 
-    use crate::transport::TdJsonTransport;
+    use crate::authorization::{AuthorizationMachine, AuthorizationStep, SensitiveString};
+    use crate::database_key::{DatabaseKey, DatabaseKeySource, TdlibParameters};
+    use crate::runtime::CoreRuntime;
 
     use super::*;
 
@@ -164,17 +170,223 @@ mod tests {
     #[ignore = "requires TDJSON_LIBRARY_PATH pointing to a pinned local artifact"]
     fn pinned_native_no_client_call_uses_real_tdjson_transport() {
         let path = env::var_os("TDJSON_LIBRARY_PATH").expect("TDJSON_LIBRARY_PATH");
-        // SAFETY: test command points at the locally hash-verified pinned artifact.
-        let backend = unsafe { NativeTdJson::load(path) }.unwrap();
-        let (transport, _events) = TdJsonTransport::start(backend).unwrap();
-        let response = transport
+        let runtime = start_native(&path);
+        let response = runtime
+            .transport()
             .call(
-                json!({"@type": "getOption", "name": "version"}),
+                json!({"@type":"checkAuthenticationPassword","password":"TDLIB_SECRET_CANARY_DO_NOT_LOG"}),
                 Duration::from_secs(5),
             )
             .unwrap();
-        assert_eq!(response["@type"], "optionValueString");
-        assert_eq!(response["value"], "1.8.66");
-        transport.shutdown().unwrap();
+        assert_eq!(response["@type"], "error");
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    #[ignore = "requires TDJSON_LIBRARY_PATH pointing to a pinned local artifact"]
+    fn pinned_native_wrong_or_missing_database_key_is_fail_closed() {
+        let library = env::var_os("TDJSON_LIBRARY_PATH").expect("TDJSON_LIBRARY_PATH");
+        let root = temporary_path("wrong-key");
+        let database = root.join("database");
+        let files = root.join("files");
+        let key_file = root.join("key");
+        fs::create_dir_all(&database).unwrap();
+        fs::create_dir_all(&files).unwrap();
+        write_secret(&key_file, b"synthetic-correct-key");
+
+        let mut runtime = start_native(&library);
+        let correct = parameters_request(&runtime, &key_file, &database, &files);
+        assert_call_type(&runtime, correct, "ok");
+        wait_authorization(&mut runtime, "authorizationStateWaitPhoneNumber");
+        assert_call_type(&runtime, json!({"@type":"close"}), "ok");
+        wait_authorization(&mut runtime, "authorizationStateClosed");
+        runtime.shutdown().unwrap();
+        let before = directory_snapshot(&database);
+        assert!(!before.is_empty());
+
+        write_secret(&key_file, b"synthetic-wrong-key");
+        let mut runtime = start_native(&library);
+        let wrong = parameters_request(&runtime, &key_file, &database, &files);
+        let response = runtime
+            .transport()
+            .call(wrong, Duration::from_secs(5))
+            .unwrap();
+        assert_eq!(response["@type"], "error");
+        assert_eq!(response["code"], 401);
+        let deadline = std::time::Instant::now() + Duration::from_millis(100);
+        while runtime.next_event_until(deadline).is_ok() {
+            assert_ne!(
+                runtime.state().authorization().unwrap().value["@type"],
+                "authorizationStateWaitPhoneNumber"
+            );
+        }
+        runtime.shutdown().unwrap();
+        assert_eq!(directory_snapshot(&database), before);
+
+        fs::remove_file(&key_file).unwrap();
+        assert!(DatabaseKey::load(DatabaseKeySource::FileSecret(key_file)).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    #[ignore = "requires protected .env.local loader and pinned TDJSON artifact"]
+    fn live_returning_session_reaches_ready_without_login_input() {
+        assert_eq!(
+            env::var("TELEGRAM_CORE_LIVE_RETURNING").ok().as_deref(),
+            Some("1")
+        );
+        let library = env::var_os("TDJSON_LIBRARY_PATH").expect("TDJSON_LIBRARY_PATH");
+        let mut runtime = start_native(&library);
+        let key_path = PathBuf::from(required_env("TDLIB_DATABASE_KEY_FILE"));
+        let key = DatabaseKey::load(DatabaseKeySource::Base64FileSecret(key_path)).unwrap();
+        let request = submit_parameters(
+            &runtime,
+            &key,
+            TdlibParameters {
+                use_test_dc: parse_bool_env("TDLIB_USE_TEST_DC"),
+                database_directory: PathBuf::from(required_env("TDLIB_DATABASE_DIR")),
+                files_directory: PathBuf::from(required_env("TDLIB_FILES_DIR")),
+                use_file_database: true,
+                use_chat_info_database: true,
+                use_message_database: true,
+                use_secret_chats: false,
+                api_id: required_env("TELEGRAM_API_ID")
+                    .parse()
+                    .unwrap_or_else(|_| panic!("TELEGRAM_API_ID must be an integer")),
+                api_hash: SensitiveString::new(required_env("TELEGRAM_API_HASH")),
+                system_language_code: "en".to_owned(),
+                device_model: "telegram-core-live-test".to_owned(),
+                system_version: "test".to_owned(),
+                application_version: "test".to_owned(),
+            },
+        );
+        let response = runtime
+            .transport()
+            .call(request, Duration::from_secs(10))
+            .unwrap();
+        assert_eq!(
+            response["@type"],
+            "ok",
+            "setTdlibParameters failed with code {}: {}",
+            response["code"],
+            response["message"].as_str().unwrap_or("missing message")
+        );
+        wait_authorization(&mut runtime, "authorizationStateReady");
+        assert_call_type(&runtime, json!({"@type":"getMe"}), "user");
+        assert_call_type(&runtime, json!({"@type":"close"}), "ok");
+        wait_authorization(&mut runtime, "authorizationStateClosed");
+        runtime.shutdown().unwrap();
+    }
+
+    fn start_native(library: &std::ffi::OsStr) -> CoreRuntime {
+        // SAFETY: caller supplies the locally hash-verified pinned artifact.
+        let backend = unsafe { NativeTdJson::load(library) }.unwrap();
+        CoreRuntime::start(backend, std::time::Instant::now() + Duration::from_secs(5)).unwrap()
+    }
+
+    fn parameters_request(
+        runtime: &CoreRuntime,
+        key_file: &Path,
+        database: &Path,
+        files: &Path,
+    ) -> serde_json::Value {
+        let key = DatabaseKey::load(DatabaseKeySource::FileSecret(key_file.to_owned())).unwrap();
+        submit_parameters(
+            runtime,
+            &key,
+            TdlibParameters {
+                use_test_dc: true,
+                database_directory: database.to_owned(),
+                files_directory: files.to_owned(),
+                use_file_database: true,
+                use_chat_info_database: true,
+                use_message_database: true,
+                use_secret_chats: false,
+                api_id: 1,
+                api_hash: SensitiveString::new("synthetic-api-hash"),
+                system_language_code: "en".to_owned(),
+                device_model: "telegram-core-test".to_owned(),
+                system_version: "test".to_owned(),
+                application_version: "test".to_owned(),
+            },
+        )
+    }
+
+    fn submit_parameters(
+        runtime: &CoreRuntime,
+        key: &DatabaseKey,
+        parameters: TdlibParameters,
+    ) -> serde_json::Value {
+        let mut machine = AuthorizationMachine::default();
+        let generation = match machine
+            .observe_state(&runtime.state().authorization().unwrap().value)
+            .unwrap()
+        {
+            AuthorizationStep::ParametersRequired { generation } => generation,
+            step => panic!("expected parameters, got {step:?}"),
+        };
+        machine
+            .submit_parameters(generation, parameters, key)
+            .unwrap()
+            .into_value()
+    }
+
+    fn wait_authorization(runtime: &mut CoreRuntime, expected: &str) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while runtime.state().authorization().unwrap().value["@type"] != expected {
+            runtime.next_event_until(deadline).unwrap();
+        }
+    }
+
+    fn assert_call_type(runtime: &CoreRuntime, request: serde_json::Value, expected: &str) {
+        let response = runtime
+            .transport()
+            .call(request, Duration::from_secs(10))
+            .unwrap();
+        assert_eq!(response["@type"], expected);
+    }
+
+    fn temporary_path(name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        env::temp_dir().join(format!(
+            "telegram-core-{name}-{}-{nonce}",
+            std::process::id()
+        ))
+    }
+
+    fn write_secret(path: &Path, value: &[u8]) {
+        fs::write(path, value).unwrap();
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
+    }
+
+    fn directory_snapshot(path: &Path) -> Vec<(PathBuf, Vec<u8>)> {
+        let mut files = fs::read_dir(path)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.is_file())
+            .map(|file| {
+                (
+                    PathBuf::from(file.file_name().unwrap()),
+                    fs::read(file).unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        files.sort_by(|left, right| left.0.cmp(&right.0));
+        files
+    }
+
+    fn required_env(name: &'static str) -> String {
+        env::var(name).unwrap_or_else(|_| panic!("missing {name}"))
+    }
+
+    fn parse_bool_env(name: &'static str) -> bool {
+        match required_env(name).trim().to_ascii_lowercase().as_str() {
+            "true" | "1" | "yes" => true,
+            "false" | "0" | "no" | "" => false,
+            _ => panic!("{name} must be true or false"),
+        }
     }
 }

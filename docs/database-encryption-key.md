@@ -5,10 +5,11 @@
 ## Источники
 
 - `FileDescriptor(OwnedFd)` принимает уже открытый brokered descriptor и consume-ит его без преобразования в model-visible integer argument.
-- `FileSecret(PathBuf)` требует absolute path, regular file текущего effective user, exact mode `0600`, `O_NOFOLLOW` и `O_CLOEXEC`.
+- `FileSecret(PathBuf)` читает raw key bytes и требует absolute path, regular file текущего effective user, exact mode `0600`, `O_NOFOLLOW` и `O_CLOEXEC`.
+- `Base64FileSecret(PathBuf)` применяет те же file gates, затем явно декодирует standard Base64 с допустимым одним завершающим LF/CRLF. Этот variant нужен для исторического `.env.local` file contract; auto-detect запрещён, чтобы текстовый raw key не интерпретировался неоднозначно.
 - `OsKeychain` использует opaque service/account reference: macOS `security find-generic-password`, Linux Secret Service через `secret-tool`. Stdout захватывается в память и никогда не наследуется терминалом; command stderr не включается в ошибку.
 
-Все источники отклоняют missing/empty key до TDLib. Чтение ограничено 4096 bytes на текущем secret-input boundary; raw buffer и временный Base64 encoder buffer zeroize-ятся при drop. Собранный request payload остаётся sensitive до немедленной передачи transport и не должен логироваться. `Debug` для key, source, TDLib parameters и authorization request не содержит secret value, path или keychain reference.
+Все источники отклоняют missing/empty key до TDLib; Base64 variant отдельно отклоняет malformed encoding. Чтение ограничено 4096 bytes на текущем secret-input boundary; raw/encoded buffers и временный Base64 encoder buffer zeroize-ятся при drop. Собранный request payload остаётся sensitive до немедленной передачи transport и не должен логироваться. `Debug` для key, source, TDLib parameters и authorization request не содержит secret value, path или keychain reference.
 
 ## TDJSON и fail-closed
 

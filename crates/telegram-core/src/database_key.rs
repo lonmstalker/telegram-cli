@@ -20,6 +20,7 @@ const MAX_DATABASE_KEY_BYTES: u64 = 4_096;
 pub enum DatabaseKeySource {
     FileDescriptor(OwnedFd),
     FileSecret(PathBuf),
+    Base64FileSecret(PathBuf),
     OsKeychain { service: String, account: String },
 }
 
@@ -28,6 +29,7 @@ impl fmt::Debug for DatabaseKeySource {
         match self {
             Self::FileDescriptor(_) => formatter.write_str("FileDescriptor(<redacted>)"),
             Self::FileSecret(_) => formatter.write_str("FileSecret(<redacted>)"),
+            Self::Base64FileSecret(_) => formatter.write_str("Base64FileSecret(<redacted>)"),
             Self::OsKeychain { .. } => formatter.write_str("OsKeychain(<redacted>)"),
         }
     }
@@ -40,6 +42,7 @@ impl DatabaseKey {
         let bytes = match source {
             DatabaseKeySource::FileDescriptor(fd) => read_key(File::from(fd))?,
             DatabaseKeySource::FileSecret(path) => read_file_secret(&path)?,
+            DatabaseKeySource::Base64FileSecret(path) => read_base64_file_secret(&path)?,
             DatabaseKeySource::OsKeychain { service, account } => {
                 read_os_keychain(&service, &account)?
             }
@@ -76,6 +79,7 @@ pub enum DatabaseKeyError {
     Empty,
     TooLarge,
     InvalidKeychainReference,
+    InvalidBase64,
     KeychainUnavailable,
     KeychainReadFailed,
 }
@@ -100,6 +104,7 @@ impl fmt::Display for DatabaseKeyError {
             Self::InvalidKeychainReference => {
                 formatter.write_str("OS keychain reference is invalid")
             }
+            Self::InvalidBase64 => formatter.write_str("database key file is not valid Base64"),
             Self::KeychainUnavailable => formatter.write_str("OS keychain is unavailable"),
             Self::KeychainReadFailed => formatter.write_str("OS keychain lookup failed"),
         }
@@ -223,6 +228,20 @@ fn read_file_secret(path: &Path) -> Result<Zeroizing<Vec<u8>>, DatabaseKeyError>
     read_key(file)
 }
 
+fn read_base64_file_secret(path: &Path) -> Result<Zeroizing<Vec<u8>>, DatabaseKeyError> {
+    let mut encoded = read_file_secret(path)?;
+    if encoded.ends_with(b"\n") {
+        encoded.pop();
+        if encoded.ends_with(b"\r") {
+            encoded.pop();
+        }
+    }
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(encoded.as_slice())
+        .map_err(|_| DatabaseKeyError::InvalidBase64)?;
+    Ok(Zeroizing::new(decoded))
+}
+
 fn read_key(mut source: impl Read) -> Result<Zeroizing<Vec<u8>>, DatabaseKeyError> {
     let mut bytes = Zeroizing::new(Vec::new());
     source
@@ -318,6 +337,9 @@ mod tests {
             descriptor_key.tdjson_base64().as_str(),
             "c3ludGhldGljLWtleQ=="
         );
+        fs::write(&path, b"c3ludGhldGljLWtleQ==\n").unwrap();
+        let encoded = DatabaseKey::load(DatabaseKeySource::Base64FileSecret(path.clone())).unwrap();
+        assert_eq!(encoded.tdjson_base64().as_str(), "c3ludGhldGljLWtleQ==");
         fs::remove_file(path).unwrap();
     }
 

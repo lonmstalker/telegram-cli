@@ -77,3 +77,12 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Durable journal, queue limits и gap recovery не заявлены раньше своих runtime/reliability consumers. Durable contract: [D-20260715-041](../decisions/decisions.md).
 - Verification перед коммитом: обязательные workspace tests, Clippy, все `scripts/check-*.py` и wiki rotation gate.
 - Следующий Tasks-пункт P1: deadlines, cancellation, startup `getCurrentState`, runtime version handshake.
+
+## [2026-07-15] completed | W-20260715-047 | Реализован bounded core runtime, P1 accepted
+
+- Закрыт шестой Tasks-пункт P1: transport поддерживает absolute deadlines и explicit/drop cancellation; `CoreRuntime` выполняет log disable, pinned version/commit handshake, startup `getCurrentState` и response-boundary snapshot reduction.
+- Production/test additions соблюдают правило пропорциональности: 398/397 Rust lines после удаления дублирующего native harness; trust-boundary проверки сохранены.
+- Pinned native gates свежо подтвердили handshake/current state, secret-output canary и synthetic wrong/missing-key boundary. Protected loader live gate прошёл returning `Ready -> getMe -> close -> Closed` без login input. Evidence: [P1 runtime acceptance](../raw/2026-07-15-p1-runtime-acceptance.md).
+- Все P1 Acceptance-критерии закрыты: correlation, receive ordering, returning restart, wrong/missing-key fail-closed и отсутствие secret canary в captured output. Durable contract: [D-20260715-042](../decisions/decisions.md).
+- Verification перед коммитом: обязательные workspace tests, Clippy, все `scripts/check-*.py` и wiki rotation gate.
+- Следующий Tasks-пункт: P2 singleton `telegramd` и exclusive lock по canonical DB path.

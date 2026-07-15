@@ -5,7 +5,7 @@ use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
@@ -76,20 +76,70 @@ impl std::error::Error for TransportError {}
 #[derive(Debug, Clone, PartialEq)]
 pub enum TdJsonEvent {
     Update(Value),
+    ResponseBoundary { correlation_id: u64 },
     UnmatchedResponse { extra: Value, response: Value },
     Fatal(TransportError),
 }
 
 pub struct PendingResponse {
     receiver: Receiver<Result<Value, TransportError>>,
+    commands: Sender<Command>,
+    correlation_id: u64,
+    finished: bool,
 }
 
 impl PendingResponse {
+    pub fn correlation_id(&self) -> u64 {
+        self.correlation_id
+    }
+
     pub fn wait_timeout(self, timeout: Duration) -> Result<Value, TransportError> {
-        match self.receiver.recv_timeout(timeout) {
-            Ok(result) => result,
+        let Some(deadline) = Instant::now().checked_add(timeout) else {
+            return Err(TransportError::ResponseTimeout);
+        };
+        self.wait_until(deadline)
+    }
+
+    pub fn wait_until(mut self, deadline: Instant) -> Result<Value, TransportError> {
+        let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+            return Err(TransportError::ResponseTimeout);
+        };
+        match self.receiver.recv_timeout(remaining) {
+            Ok(result) => {
+                self.finished = true;
+                result
+            }
             Err(RecvTimeoutError::Timeout) => Err(TransportError::ResponseTimeout),
-            Err(RecvTimeoutError::Disconnected) => Err(TransportError::TransportStopped),
+            Err(RecvTimeoutError::Disconnected) => {
+                self.finished = true;
+                Err(TransportError::TransportStopped)
+            }
+        }
+    }
+
+    pub fn cancel(mut self) -> Result<(), TransportError> {
+        let (acknowledgement, acknowledged) = mpsc::channel();
+        self.commands
+            .send(Command::Cancel {
+                extra: self.correlation_id,
+                acknowledgement: Some(acknowledgement),
+            })
+            .map_err(|_| TransportError::TransportStopped)?;
+        acknowledged
+            .recv()
+            .map_err(|_| TransportError::TransportStopped)?;
+        self.finished = true;
+        Ok(())
+    }
+}
+
+impl Drop for PendingResponse {
+    fn drop(&mut self) {
+        if !self.finished {
+            let _ = self.commands.send(Command::Cancel {
+                extra: self.correlation_id,
+                acknowledgement: None,
+            });
         }
     }
 }
@@ -99,6 +149,10 @@ enum Command {
         extra: u64,
         json: String,
         response: Sender<Result<Value, TransportError>>,
+    },
+    Cancel {
+        extra: u64,
+        acknowledgement: Option<Sender<()>>,
     },
     Shutdown,
 }
@@ -152,11 +206,18 @@ impl TdJsonTransport {
             .map_err(|_| TransportError::TransportStopped)?;
         Ok(PendingResponse {
             receiver: response_rx,
+            commands: self.commands.clone(),
+            correlation_id: extra,
+            finished: false,
         })
     }
 
     pub fn call(&self, request: Value, timeout: Duration) -> Result<Value, TransportError> {
         self.request(request)?.wait_timeout(timeout)
+    }
+
+    pub fn call_until(&self, request: Value, deadline: Instant) -> Result<Value, TransportError> {
+        self.request(request)?.wait_until(deadline)
     }
 
     pub fn shutdown(mut self) -> Result<(), TransportError> {
@@ -210,6 +271,15 @@ fn receive_loop<B: TdJsonBackend>(
                         }
                     }
                 }
+                Ok(Command::Cancel {
+                    extra,
+                    acknowledgement,
+                }) => {
+                    pending.remove(&extra);
+                    if let Some(acknowledgement) = acknowledgement {
+                        let _ = acknowledgement.send(());
+                    }
+                }
                 Ok(Command::Shutdown) | Err(TryRecvError::Disconnected) => {
                     shutdown = true;
                     break;
@@ -248,17 +318,23 @@ fn receive_loop<B: TdJsonBackend>(
             None => {
                 let _ = events.send(TdJsonEvent::Update(value));
             }
-            Some(extra) => match extra.as_u64().and_then(|id| pending.remove(&id)) {
-                Some(response) => {
-                    let _ = response.send(Ok(value));
+            Some(extra) => {
+                let response = extra
+                    .as_u64()
+                    .and_then(|id| pending.remove(&id).map(|response| (id, response)));
+                match response {
+                    Some((correlation_id, response)) => {
+                        let _ = events.send(TdJsonEvent::ResponseBoundary { correlation_id });
+                        let _ = response.send(Ok(value));
+                    }
+                    None => {
+                        let _ = events.send(TdJsonEvent::UnmatchedResponse {
+                            extra,
+                            response: value,
+                        });
+                    }
                 }
-                None => {
-                    let _ = events.send(TdJsonEvent::UnmatchedResponse {
-                        extra,
-                        response: value,
-                    });
-                }
-            },
+            }
         }
     }
 }
@@ -426,5 +502,33 @@ mod tests {
             pending.wait_timeout(Duration::from_secs(1)),
             Err(TransportError::InvalidTdJsonResponse)
         );
+    }
+
+    #[test]
+    fn deadline_and_explicit_cancellation_remove_pending_response() {
+        let state = ScriptedState::default();
+        let (transport, events) =
+            TdJsonTransport::start(ScriptedBackend::new(state.clone())).unwrap();
+        assert_eq!(
+            transport.call_until(json!({"@type":"slow"}), Instant::now()),
+            Err(TransportError::ResponseTimeout)
+        );
+        let pending = transport.request(json!({"@type":"cancelled"})).unwrap();
+        let extra = pending.correlation_id();
+        pending.cancel().unwrap();
+        state
+            .inner
+            .lock()
+            .unwrap()
+            .incoming
+            .push_back(json!({"@type":"ok","@extra":extra}).to_string());
+        assert_eq!(
+            events.recv_timeout(Duration::from_secs(1)).unwrap(),
+            TdJsonEvent::UnmatchedResponse {
+                extra: Value::from(extra),
+                response: json!({"@type":"ok"}),
+            }
+        );
+        transport.shutdown().unwrap();
     }
 }

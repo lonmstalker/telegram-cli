@@ -14,6 +14,7 @@
 - [Authorization state machine contract](../../docs/authorization-state-machine.md)
 - [Database encryption key contract](../../docs/database-encryption-key.md)
 - [Ordered state reducer contract](../../docs/ordered-state-reducer.md)
+- [Core runtime startup contract](../../docs/core-runtime-startup.md)
 - [Current project state](project-state.md)
 
 ## Memory streams
@@ -32,10 +33,11 @@
 - [`tg-analytics` reuse audit](../raw/2026-07-15-tg-analytics-reuse-audit.md) — exact source snapshot и test evidence
 - [TDJSON transport native smoke](../raw/2026-07-15-tdjson-transport-native-smoke.md) — real correlated request
 - [TDLib database-key codec](../raw/2026-07-15-tdlib-database-key-codec.md) — Base64, empty-key и wrong-key upstream semantics
+- [P1 runtime acceptance](../raw/2026-07-15-p1-runtime-acceptance.md) — native handshake, wrong/missing-key, secret canary и returning live session
 
 ## Current records
 
-- Implementation: P1 in_progress — ordered/lossless reducer закрыт, следующий пункт deadlines/cancellation/startup handshake; см. [project-state.md](project-state.md).
+- Implementation: P1 accepted; следующий пункт — singleton lock P2; см. [project-state.md](project-state.md).
 - Открытые проблемы: [P-20260715-001](../problems/problems.md) (gateway key wiring). Linux artifact закрыт в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -45,6 +47,7 @@
 - Database key provider: [D-20260715-039](../decisions/decisions.md), [W-20260715-044](../logs/work.md), [`docs/database-encryption-key.md`](../../docs/database-encryption-key.md).
 - Ordered reducer: [D-20260715-040](../decisions/decisions.md), [W-20260715-045](../logs/work.md), [`docs/ordered-state-reducer.md`](../../docs/ordered-state-reducer.md).
 - Lossless unknown updates: [D-20260715-041](../decisions/decisions.md), [W-20260715-046](../logs/work.md), [`docs/ordered-state-reducer.md`](../../docs/ordered-state-reducer.md).
+- Bounded startup runtime и P1 acceptance: [D-20260715-042](../decisions/decisions.md), [W-20260715-047](../logs/work.md), [`docs/core-runtime-startup.md`](../../docs/core-runtime-startup.md).
 
 ## Operating rules
 

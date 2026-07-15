@@ -61,7 +61,7 @@ Graph checks rights/capability fields before protected steps and returns forbidd
 
 ## Live Verification Boundary
 
-Pure core tests подтверждают transport-order sequence, representative caches, exact unknown payload/order и terminal message-send state. Durable raw journal, generalized workflow engine и live reducer path ещё не реализованы.
+Pure core tests подтверждают transport-order sequence, representative caches, exact unknown payload/order, terminal message-send state и startup snapshot boundary. Pinned native runtime применяет `getCurrentState` к reducer до дальнейших events. Durable raw journal, generalized workflow engine, gap/resync и domain completion proofs ещё не реализованы.
 
 ## Scope
 
@@ -155,5 +155,5 @@ Pure core tests подтверждают transport-order sequence, representativ
 
 - Kernel coverage: state/paging/gap/concurrency modeled.
 - Modeled: generic engine and result semantics.
-- Partial: ordered/lossless in-memory core caches реализованы; domain completion rules остаются в F007–F020 drafts, durable journal, gap/resync, paging и workflow execution отсутствуют.
+- Partial: ordered/lossless in-memory core caches и startup snapshot path реализованы; domain completion rules остаются в F007–F020 drafts, durable journal, gap/resync, paging и workflow execution отсутствуют.
 - Not applicable: account secret entry.

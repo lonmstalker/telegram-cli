@@ -25,3 +25,8 @@ Active append-only problem lifecycle. Status changes добавляются но
 
 - P1 protected provider и `setTdlibParameters` integration готовы: FD/file/keychain sources, empty-key preflight deny и wrong-key 401 latch проверены synthetic tests.
 - Проблема остаётся открытой до P2: product binaries всё ещё fail-closed заглушки, поэтому штатный `telegramd` пока не выбирает profile secret reference и не доказывает returning `Ready`. Исходная фраза «закрывается задачей P1 provider» уточнена по live repository truth.
+
+## [2026-07-15] narrowed | P-20260715-001 | Core returning path доказан, product daemon всё ещё не wired
+
+- P1 `CoreRuntime` и protected loader свежо доказали returning `Ready`, `getMe` и normal Closed без нового login; wrong/missing-key native boundary также green.
+- Проблема остаётся открытой уже только на product boundary P2: `telegramd` пока не выбирает profile key reference, не владеет runtime/DB и не предоставляет lifecycle через protocol.

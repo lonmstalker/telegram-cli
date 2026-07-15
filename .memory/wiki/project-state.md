@@ -10,7 +10,7 @@
 - Strict schema parser в `telegram-core::schema` (12 тестов, без внешних dependencies).
 - macOS arm64 и Linux x86_64 `tdjson` с provenance в content-addressed cache; общий gate `scripts/check-tdlib-native-pin.py`, локальная проверка обоих artifacts — с `--require-local-artifact`.
 - Ручное capability-ревью: 74 supported contract и 116 deferred методов сохранены в `docs/capability-notes.md`. Recognizer engine удалён ([D-20260715-035](../decisions/decisions.md)); классификация — данные с default-deny.
-- Существующая зашифрованная сессия ранее достигала Ready/getMe; database key получен; `.env.local` contract (mode `0600`, protected loader) настроен.
+- Свежий protected live gate существующей зашифрованной сессии прошёл `WaitTdlibParameters -> Ready -> getMe -> close -> Closed` без нового login input; `.env.local` contract (mode `0600`, protected loader) соблюдён.
 - Canonical GitHub remote: `https://github.com/lonmstalker/telegram-cli.git` (public, принято пользователем).
 - P0 accepted: `tg-analytics@e35c54ce213aa170fb0b411eab614485424b3e60` audited from clean archive (97 tests); phase-neutral patterns перенесены, runtime contracts распределены по owner-фазам в `docs/tg-analytics-reuse.md`.
 - Account/session model [D-20260715-036](../decisions/decisions.md): один `telegramd` owner на profile, CLI/MCP lease clients, returning auth с `Ready` + `getMe` proof.
@@ -19,10 +19,12 @@
 - P1 database key [D-20260715-039](../decisions/decisions.md): FD/strict `0600` file/macOS-Linux keychain sources, zeroizing raw bytes, Base64 TDJSON, empty-key preflight deny и wrong-key 401 latch без phone fallback.
 - P1 reducer [D-20260715-040](../decisions/decisions.md): transport-order sequence и versioned auth/user/chat/group/file/connection/message-send caches; partial updates require base entity, send terminal states не регрессируют.
 - P1 unknown updates [D-20260715-041](../decisions/decisions.md): unknown constructors сохраняются exact raw Value в FIFO sequence; field patches известных objects сохраняют будущие поля.
+- P1 runtime [D-20260715-042](../decisions/decisions.md): один абсолютный deadline, cancellable pending responses, log disable before secret-shaped calls, pinned version/commit handshake и `getCurrentState` snapshot boundary. Native wrong/missing-key, secret canary и returning-session gates green.
+- P1 accepted: transport correlation, authorization, protected key, ordered/lossless state и bounded startup runtime закрывают все Acceptance-критерии фазы.
 
 ## Not implemented
 
-- Остальной runtime P1–P10: deadlines/cancellation/startup handshake, daemon, generated registry, capability-таблица, workflows, policy, CLI, MCP, packaging.
+- Runtime P2–P10: singleton daemon, generated registry, capability-таблица, workflows, policy, CLI, MCP и packaging.
 
 ## Active boundary
 
@@ -31,4 +33,4 @@
 - Core key provider готов; wiring в штатный daemon всё ещё открыт как [P-20260715-001](../problems/problems.md).
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: шестой Tasks-пункт P1 — deadlines, cancellation, startup `getCurrentState` и runtime version handshake.
+- Следующий implementation boundary: первый Tasks-пункт P2 — один `telegramd` на profile и exclusive OS lock по canonical DB path.

@@ -62,7 +62,7 @@ Scopes: read, presence, send, reversible mutation, admin, destructive, financial
 
 ## Live Verification Boundary
 
-No new platform fault/live tests exist; tg-analytics policy/rate-limit code is only a reuse candidate.
+P1 реализует только нижнюю transport boundary: абсолютные deadlines/cancellation и native secret-output canary после `setLogStream(logStreamEmpty)`. Scanner имеет внутренний negative control; Rust secret types/errors redacted. Retry, policy, metrics exporter, fault injection и operation reconciliation остаются P5.
 
 ## Scope
 

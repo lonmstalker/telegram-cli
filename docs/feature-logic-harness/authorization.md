@@ -63,7 +63,7 @@ Only account owner/operator may submit auth secrets. Agent may wait/poll status 
 
 ## Live Verification Boundary
 
-Server key was copied over SSH to ignored local storage with mode `0600`; digest matched generation 25. Returning regular-user session reached Ready/getMe and clean Closed. Pure core machine обрабатывает все pinned states и exact auth requests; database-key providers и wrong-key latch проверены только synthetic values. Штатный daemon/runtime и live wrong-key probe ещё отсутствуют. Secret value was not emitted.
+Свежий P1 live gate через protected `.env.local` loader подтвердил returning regular-user session: `WaitTdlibParameters -> Ready -> getMe(user) -> close -> Closed` без phone/OTP/2FA input и без вывода identity/secret. Pure core machine обрабатывает все pinned states и exact auth requests. Отдельный pinned-native synthetic test-DC probe подтвердил wrong-key 401, отсутствие перехода к phone authorization, неизменность DB bytes и preflight reject missing key. Штатный daemon/profile wiring остаётся P2.
 
 ## Scope
 
@@ -158,6 +158,7 @@ Server key was copied over SSH to ignored local storage with mode `0600`; digest
 
 - Kernel coverage: all auth states identified.
 - Modeled: returning/wrong-key/security semantics.
-- Partial: state/challenge core и database-key provider готовы; runtime driver, UI, key rotation и live wrong-key proof отсутствуют.
+- Verified: P1 core runtime returning session и pinned-native wrong/missing-key boundary.
+- Partial: production daemon broker/UI, key rotation и device-confirm completion отсутствуют.
 - Unknown: default local secret backend.
 - Not applicable: chat/message domain behavior.

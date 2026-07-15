@@ -62,7 +62,7 @@ Any authenticated principal may hold a scoped lease; force-stop, logout and dest
 
 ## Live Verification Boundary
 
-Account/session model принят до runtime в `D-20260715-036`. Current evidence proves one encrypted returning session can reach Ready, `getMe` and Closed. Multi-agent/lease behavior remains unimplemented.
+Account/session model принят до runtime в `D-20260715-036`. Свежий protected P1 live gate proves encrypted returning session can reach Ready, `getMe` and Closed без нового login input. Это доказывает core restart boundary, но не daemon lifecycle: singleton election, lock, socket, leases и idle restart остаются P2.
 
 ## Scope
 

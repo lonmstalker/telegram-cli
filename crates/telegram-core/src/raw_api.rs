@@ -6,8 +6,8 @@ use std::fmt;
 use std::time::Instant;
 
 use crate::registry::{
-    self, CapabilityDescriptor, SymbolDescriptor, TdObject, ValidatedRequest, ValidationError,
-    BUILTINS, CAPABILITIES, CONSTRUCTORS, TYPES,
+    self, AccountKind, CapabilityDescriptor, CapabilityDisposition, RiskClass, SymbolDescriptor,
+    TdObject, ValidatedRequest, ValidationError, BUILTINS, CAPABILITIES, CONSTRUCTORS, TYPES,
 };
 use crate::runtime::CoreRuntime;
 use crate::transport::TransportError;
@@ -106,11 +106,13 @@ pub fn schema_describe(name: &str) -> Option<SchemaDescription> {
 
 pub fn td_call(
     runtime: &CoreRuntime,
+    policy: &RawPolicy,
     request: Value,
     deadline: Instant,
 ) -> Result<TdObject, RawApiError> {
     let request = ValidatedRequest::from_value(request).map_err(RawApiError::Validation)?;
     let method = request.descriptor();
+    policy.authorize(method.name).map_err(RawApiError::Policy)?;
     let response = runtime
         .transport()
         .call_until(request.into_value(), deadline)
@@ -131,8 +133,61 @@ pub fn td_call(
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RawPolicy {
+    account: AccountKind,
+    allowed_risks: Vec<RiskClass>,
+}
+
+impl RawPolicy {
+    pub fn new(account: AccountKind, allowed_risks: Vec<RiskClass>) -> Self {
+        Self {
+            account,
+            allowed_risks,
+        }
+    }
+
+    fn authorize(&self, method: &str) -> Result<(), PolicyError> {
+        let capability = registry::capability(method).ok_or(PolicyError::DefaultDeny)?;
+        let CapabilityDisposition::Reviewed { risk, accounts, .. } = capability.disposition else {
+            return Err(PolicyError::DefaultDeny);
+        };
+        if !accounts.contains(&self.account) {
+            return Err(PolicyError::AccountScopeDenied);
+        }
+        if !self.allowed_risks.contains(&risk) {
+            return Err(PolicyError::RiskDenied { risk });
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PolicyError {
+    DefaultDeny,
+    AccountScopeDenied,
+    RiskDenied { risk: RiskClass },
+}
+
+impl fmt::Display for PolicyError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DefaultDeny => formatter.write_str("TDLib method is not reviewed"),
+            Self::AccountScopeDenied => {
+                formatter.write_str("TDLib method is unavailable for this account kind")
+            }
+            Self::RiskDenied { .. } => {
+                formatter.write_str("TDLib method risk is not granted by policy")
+            }
+        }
+    }
+}
+
+impl Error for PolicyError {}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RawApiError {
     Validation(ValidationError),
+    Policy(PolicyError),
     Transport(TransportError),
     UnexpectedResult {
         method: &'static str,
@@ -144,6 +199,7 @@ impl fmt::Display for RawApiError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Validation(error) => write!(formatter, "TDJSON validation failed: {error}"),
+            Self::Policy(error) => write!(formatter, "TDJSON policy denied call: {error}"),
             Self::Transport(error) => write!(formatter, "TDJSON transport failed: {error}"),
             Self::UnexpectedResult { method, expected } => {
                 write!(

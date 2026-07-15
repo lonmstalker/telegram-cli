@@ -110,3 +110,12 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Durable contract: [D-20260715-050](../decisions/decisions.md); implementation contract: [`docs/core-raw-api.md`](../../docs/core-raw-api.md).
 - Verification перед коммитом: обязательные workspace tests, Clippy, все `scripts/check-*.py` и wiki rotation gate.
 - Следующий Tasks-пункт P3: policy применяется до raw dispatch.
+
+## [2026-07-15] completed | W-20260715-056 | Policy встроена до raw dispatch
+
+- Закрыт четвёртый Tasks-пункт P3: единственная `raw_api::td_call` теперь требует `RawPolicy`; schema validation и generated capability lookup выполняются до любого transport send.
+- Reviewed method допускается только при matching account kind и granted risk. Unreviewed row, wrong account и missing risk fail closed отдельными `PolicyError`; runtime requirement не выдаётся за live proof.
+- Trust-boundary tests подтверждают positive reviewed read и отсутствие backend send при default-deny; pure policy checks покрывают account/risk negative paths.
+- Durable contract: [D-20260715-051](../decisions/decisions.md); implementation contract: [`docs/core-raw-api.md`](../../docs/core-raw-api.md).
+- Verification перед коммитом: обязательные workspace tests, Clippy, все `scripts/check-*.py` и wiki rotation gate.
+- Следующий Tasks-пункт P3: coverage report генерируется из manifest/registry в `docs/tdlib-api-coverage.md`.

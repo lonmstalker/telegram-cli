@@ -373,6 +373,10 @@ mod tests {
                 "getMe" => inner
                     .incoming
                     .push_back(json!({"@type":"user","id":"7","@extra":extra}).to_string()),
+                "getChatStatistics" => inner.incoming.push_back(
+                    json!({"@type":"error","code":400,"message":"not available","@extra":extra})
+                        .to_string(),
+                ),
                 _ => unreachable!(),
             }
             Ok(())
@@ -415,21 +419,34 @@ mod tests {
         );
         let version = crate::raw_api::version(&runtime);
         assert_eq!(version.tdlib_version, identity.version());
+        let policy = crate::raw_api::RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![crate::registry::RiskClass::Read],
+        );
         let response = crate::raw_api::td_call(
             &runtime,
-            json!({"@type":"getMe"}),
+            &policy,
+            json!({"@type":"getChatStatistics"}),
             Instant::now() + Duration::from_secs(1),
         )
         .unwrap();
-        assert_eq!(response.as_value()["@type"], "user");
+        assert_eq!(response.as_value()["@type"], "error");
+        let sent_after_allowed = state.inner.lock().unwrap().sent_types.len();
         assert!(matches!(
             crate::raw_api::td_call(
                 &runtime,
-                json!({"@type":"futureMethod"}),
+                &policy,
+                json!({"@type":"getMe"}),
                 Instant::now() + Duration::from_secs(1),
             ),
-            Err(crate::raw_api::RawApiError::Validation(_))
+            Err(crate::raw_api::RawApiError::Policy(
+                crate::raw_api::PolicyError::DefaultDeny
+            ))
         ));
+        assert_eq!(
+            state.inner.lock().unwrap().sent_types.len(),
+            sent_after_allowed
+        );
         runtime.shutdown().unwrap();
     }
 

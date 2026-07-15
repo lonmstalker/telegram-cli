@@ -1,6 +1,6 @@
 # Полнота TDLib API
 
-Статус: exact schema snapshot, strict Rust parser/inventory, generated Rust registry и native artifacts для macOS arm64 и Linux x86_64 закреплены; low-level TDJSON transport реализован с одним receive loop и `@extra` correlation. Registry даёт descriptors, recursive request validation, lossless unknown-object codec и generated capability disposition для каждого method. Reviewed risk/account/runtime/retry rows хранятся в [`capability-notes.md`](capability-notes.md), всё остальное — `DefaultDeny`. Universal core discovery/call реализован; policy gate, coverage report и CLI surface ещё не закрыты.
+Статус: exact schema snapshot, strict Rust parser/inventory, generated Rust registry и native artifacts для macOS arm64 и Linux x86_64 закреплены; low-level TDJSON transport реализован с одним receive loop и `@extra` correlation. Registry даёт descriptors, recursive request validation, lossless unknown-object codec и generated capability disposition для каждого method. Reviewed risk/account/runtime/retry rows хранятся в [`capability-notes.md`](capability-notes.md), всё остальное — `DefaultDeny`. Universal core discovery/call и mandatory account/risk policy-before-send реализованы; coverage report и CLI surface ещё не закрыты.
 
 ## Проверенный upstream baseline
 

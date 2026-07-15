@@ -1,5 +1,5 @@
 use super::*;
-use crate::registry::{CapabilityDisposition, SymbolKind};
+use crate::registry::{AccountKind, CapabilityDisposition, RiskClass, SymbolKind};
 
 #[test]
 fn discovery_uses_generated_registry_without_method_wrappers() {
@@ -31,4 +31,21 @@ fn discovery_uses_generated_registry_without_method_wrappers() {
     assert!(constructors
         .iter()
         .any(|constructor| constructor.name == "user"));
+}
+
+#[test]
+fn policy_is_default_deny_and_requires_account_and_risk() {
+    let read = RawPolicy::new(AccountKind::RegularUser, vec![RiskClass::Read]);
+    assert_eq!(read.authorize("getChatStatistics"), Ok(()));
+    assert_eq!(read.authorize("getMe"), Err(PolicyError::DefaultDeny));
+    assert_eq!(
+        RawPolicy::new(AccountKind::RegularUser, vec![]).authorize("getChatStatistics"),
+        Err(PolicyError::RiskDenied {
+            risk: RiskClass::Read
+        })
+    );
+    assert_eq!(
+        RawPolicy::new(AccountKind::Bot, vec![RiskClass::Read]).authorize("getChatStatistics"),
+        Err(PolicyError::AccountScopeDenied)
+    );
 }

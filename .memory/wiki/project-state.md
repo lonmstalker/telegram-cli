@@ -30,10 +30,11 @@
 - Первый пункт P3 закрыт: exact generated Rust registry содержит descriptors pinned methods/constructors/types/updates/auth states; общий validator проверяет nested requests, а `TdObject` сохраняет неизвестные fields/constructors losslessly ([D-20260715-048](../decisions/decisions.md)).
 - Второй пункт P3 закрыт: одна JSON capability-таблица хранит reviewed risk/account/runtime/retry rows; generated `CAPABILITIES` покрывает каждый method и оставляет отсутствующие rows `DefaultDeny` ([D-20260715-049](../decisions/decisions.md)).
 - Третий пункт P3 закрыт: `raw_api` предоставляет verified version, capabilities, token schema search, symbol/type describe и один validated/lossless `td_call` поверх `CoreRuntime` ([D-20260715-050](../decisions/decisions.md)).
+- Четвёртый пункт P3 закрыт: единственный `td_call` требует `RawPolicy` и отклоняет unreviewed method/account/risk mismatch до transport; runtime requirements остаются честным prerequisite, не guessed proof ([D-20260715-051](../decisions/decisions.md)).
 
 ## Not implemented
 
-- Остаток P3 и P4–P10: policy gate/coverage, workflows, CLI, MCP и packaging.
+- Остаток P3 и P4–P10: generated coverage report, workflows, CLI, MCP и packaging.
 
 ## Active boundary
 
@@ -42,4 +43,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: четвёртый Tasks-пункт P3 — обязательный policy check до raw dispatch.
+- Следующий implementation boundary: пятый Tasks-пункт P3 — coverage report из manifest/generated registry.

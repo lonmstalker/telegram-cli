@@ -11,12 +11,16 @@ registry и daemon-owned `CoreRuntime`.
   name/signature/documentation и type names; результат deterministic sorted.
 - `schema_describe(name)` возвращает exact method/constructor/builtin descriptor либо
   type family со всеми constructors.
-- `td_call(runtime, value, deadline)` рекурсивно валидирует request по registry,
+- `td_call(runtime, policy, value, deadline)` рекурсивно валидирует request по registry,
+  до transport требует reviewed capability row, matching trusted account kind и granted
+  risk class, затем
   использует существующий transport-owned `@extra`, принимает TDLib `error` как raw
   result, проверяет known successful result family и сохраняет неизвестный future
   object losslessly.
 
 Per-method wrappers и application-level literals `@type` не нужны: caller выбирает
-method через discovery, а discriminator строит общий JSON contract. На этом checkpoint
-product binaries ещё не публикуют raw dispatch. Обязательный policy check внутри
-`td_call` добавляет следующий Tasks-пункт P3 до daemon/CLI wiring.
+method через discovery, а discriminator строит общий JSON contract. `RawPolicy`
+создаётся trusted product layer из account/risk grants; agent input ещё не подключён.
+Unreviewed method, wrong account и missing risk возвращают `PolicyError` до send.
+Runtime-requirement expression остаётся discoverable prerequisite и не выдаётся за
+удовлетворённое без будущего live-state consumer.

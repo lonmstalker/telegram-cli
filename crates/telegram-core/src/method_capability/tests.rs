@@ -12,7 +12,7 @@ use super::{
     MAX_PARAMETER_NOTICES_PER_METHOD, MAX_SYNCHRONOUS_VALUES_PER_METHOD, MessageCapability,
     MessageIdRef, MessageIdsRef, MessageSubjectRef, ParameterCapabilityNotice, ParameterGate,
     ParameterStringValue, RequirementAlternatives, ResolvedChatKind, ResolvedGroupCallKind,
-    RuntimeRequirement, SupergroupFullInfoProperty, SynchronousCapability,
+    RuntimeBooleanOption, RuntimeRequirement, SupergroupFullInfoProperty, SynchronousCapability,
 };
 
 #[test]
@@ -240,6 +240,39 @@ fn supergroup_full_info_properties_are_closed_semantic_and_account_neutral() {
     )
     .expect("full-info evidence itself is available to bot-compatible methods");
     assert_eq!(target.kind(), ChatTargetKind::SupergroupId);
+}
+
+#[test]
+fn runtime_boolean_options_are_closed_and_account_neutral() {
+    assert_eq!(
+        RuntimeBooleanOption::ALL.map(RuntimeBooleanOption::as_str),
+        [
+            "can_set_new_chat_privacy_settings",
+            "can_use_text_entities_in_story_caption",
+            "can_withdraw_chat_revenue",
+        ]
+    );
+    for option in RuntimeBooleanOption::ALL {
+        assert_eq!(RuntimeBooleanOption::try_from(option.as_str()), Ok(option));
+    }
+    assert!(RuntimeBooleanOption::try_from("can_enable_paid_messages").is_err());
+
+    let requirement = RuntimeRequirement::BooleanOptionEnabled {
+        option: RuntimeBooleanOption::CanSetNewChatPrivacySettings,
+    };
+    assert!(requirement.argument_refs().is_empty());
+    CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::Bot],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        RequirementAlternatives::try_new(vec![vec![requirement]])
+            .expect("bounded boolean-option requirement"),
+        Vec::new(),
+    )
+    .expect("boolean-option evidence itself is account-neutral");
 }
 
 #[test]
@@ -734,4 +767,5 @@ impl_capability_value!(
     GroupCallMessageCapability,
     ResolvedGroupCallKind,
     SupergroupFullInfoProperty,
+    RuntimeBooleanOption,
 );

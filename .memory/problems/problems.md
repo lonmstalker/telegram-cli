@@ -112,3 +112,11 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Status: open; zero-open gate не достигнут, 138 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
 - Next check: отдельными reviewed tasks закрывать option/admin/object-field source families; runtime evaluator отдельно обязан fail closed на stale/unknown full-info evidence.
 - Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-015](../decisions/decisions.md).
+
+## [2026-07-15] open update | P-20260715-005 | Runtime boolean option family уменьшила open set до 137 methods
+
+- Evidence: [runtime boolean option digest](../raw/2026-07-15-tdlib-runtime-boolean-options.md); exact family разделена на one complete method-level gate и two mixed deferred methods. Один key consumed, семь mixed keys сохранены deferred.
+- Transition: `setNewChatPrivacySettings` получает exact typed option requirement. Supported typed set теперь 53, terminal complete set 56, open-set SHA-256 `c05b282773cfd9ecaa1e8ab0c24a0ad08d7589a1fbf05a08901fe355db6c959e`.
+- Status: open; zero-open gate не достигнут, 137 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
+- Next check: отдельными reviewed tasks закрывать admin/object-field/mixed source families; runtime evaluator отдельно обязан fail closed на wrong-typed, missing или generation-stale option evidence.
+- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-016](../decisions/decisions.md).

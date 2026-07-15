@@ -19,13 +19,14 @@ use telegram_core::method_capability::{
     MAX_CLAUSES_PER_METHOD, MAX_PARAMETER_NOTICES_PER_METHOD, MAX_SYNCHRONOUS_VALUES_PER_METHOD,
     MessageCapability, MessageIdRef, MessageIdsRef, MessageSubjectRef, ParameterCapabilityNotice,
     ParameterGate, ParameterStringValue, RequirementAlternatives, ResolvedChatKind,
-    ResolvedGroupCallKind, RuntimeRequirement, SupergroupFullInfoProperty, SynchronousCapability,
+    ResolvedGroupCallKind, RuntimeBooleanOption, RuntimeRequirement, SupergroupFullInfoProperty,
+    SynchronousCapability,
 };
 use telegram_core::schema::{Definition, DefinitionKind, Parameter, Schema};
 
 use crate::engine;
 
-const FORMAT_VERSION: u32 = 5;
+const FORMAT_VERSION: u32 = 6;
 const MAX_MANIFEST_BYTES: usize = 64 * 1024;
 const MAX_SCHEMA_BYTES: usize = 2 * 1024 * 1024;
 const MAX_OWNER_POLICY_BYTES: usize = 4 * 1024 * 1024;
@@ -89,6 +90,7 @@ pub fn generate(
     validate_message_properties_vocabulary(&schema)?;
     validate_group_call_vocabulary(&schema)?;
     validate_supergroup_full_info_vocabulary(&schema)?;
+    validate_runtime_boolean_option_vocabulary(&schema)?;
 
     let policy: CapabilityPolicyDto =
         serde_json::from_slice(capability_policy_bytes).map_err(|error| {
@@ -554,6 +556,12 @@ fn parse_runtime_requirement(
             property: SupergroupFullInfoProperty::try_from(property.as_str())
                 .map_err(CapabilityGenerationError::from_model_value)?,
         }),
+        RuntimeRequirementDto::BooleanOptionEnabled { option } => {
+            Ok(RuntimeRequirement::BooleanOptionEnabled {
+                option: RuntimeBooleanOption::try_from(option.as_str())
+                    .map_err(CapabilityGenerationError::from_model_value)?,
+            })
+        }
     }
 }
 
@@ -1048,6 +1056,62 @@ fn validate_supergroup_full_info_vocabulary(
     Ok(())
 }
 
+fn validate_runtime_boolean_option_vocabulary(
+    schema: &Schema,
+) -> Result<(), CapabilityGenerationError> {
+    const OPTION_VALUES: [&str; 4] = [
+        "optionValueBoolean value:Bool = OptionValue;",
+        "optionValueEmpty = OptionValue;",
+        "optionValueInteger value:int64 = OptionValue;",
+        "optionValueString value:string = OptionValue;",
+    ];
+    const GET_OPTION: &str = "getOption name:string = OptionValue;";
+    const UPDATE_OPTION: &str = "updateOption name:string value:OptionValue = Update;";
+
+    let actual = schema
+        .definitions()
+        .iter()
+        .filter(|definition| {
+            definition.kind() == DefinitionKind::Constructor
+                && definition.result().name() == "OptionValue"
+        })
+        .map(Definition::canonical_signature)
+        .collect::<BTreeSet<_>>();
+    let expected = OPTION_VALUES.into_iter().collect::<BTreeSet<_>>();
+    if actual != expected {
+        return Err(CapabilityGenerationError::new(
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "schema OptionValue constructors differ from the exact pinned vocabulary",
+        ));
+    }
+
+    let getters = schema
+        .methods()
+        .iter()
+        .filter(|method| method.name() == "getOption")
+        .collect::<Vec<_>>();
+    if !matches!(getters.as_slice(), [getter] if getter.canonical_signature() == GET_OPTION) {
+        return Err(CapabilityGenerationError::new(
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "schema getOption method differs from the exact pinned signature",
+        ));
+    }
+
+    let updates = schema
+        .definitions()
+        .iter()
+        .filter(|definition| definition.name() == "updateOption")
+        .collect::<Vec<_>>();
+    if !matches!(updates.as_slice(), [update] if update.kind() == DefinitionKind::Constructor && update.canonical_signature() == UPDATE_OPTION)
+    {
+        return Err(CapabilityGenerationError::new(
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "schema updateOption differs from the exact pinned signature",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_bool_constructor(
     schema: &Schema,
     constructor_name: &str,
@@ -1229,6 +1293,7 @@ fn validate_documented_method_constraints(
     let runtime_contract = reviewed_runtime_contract(method.name(), &normalized_text(&description));
     let group_call_contract = reviewed_group_call_contract(method)?;
     let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
+    let boolean_option_contract = reviewed_runtime_boolean_option_contract(method)?;
     let ready = descriptor.ready_accounts();
     let entitlements = descriptor.current_account_entitlements();
     let dcs = descriptor.dc_environments();
@@ -1263,7 +1328,8 @@ fn validate_documented_method_constraints(
         runtime_contract,
         Some(ReviewedRuntimeContract::OwnerInKind(_))
     ) || group_call_contract.is_some()
-        || supergroup_full_info_contract.is_some();
+        || supergroup_full_info_contract.is_some()
+        || boolean_option_contract.is_some_and(|contract| contract.regular_user_only);
     let expected_ready = if bot_only || runtime_bot_only {
         vec![AccountKind::Bot]
     } else if regular_only || runtime_regular_only || !expected_entitlements.is_empty() {
@@ -1321,11 +1387,13 @@ fn documented_runtime_requirements(
     let message_contract = reviewed_message_capability_contract(method)?;
     let group_call_contract = reviewed_group_call_contract(method)?;
     let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
+    let boolean_option_contract = reviewed_runtime_boolean_option_contract(method)?;
     let reviewed_family_count = [
         runtime_contract.is_some(),
         message_contract.is_some(),
         group_call_contract.is_some(),
         supergroup_full_info_contract.is_some(),
+        boolean_option_contract.is_some(),
     ]
     .into_iter()
     .filter(|present| *present)
@@ -1377,6 +1445,9 @@ fn documented_runtime_requirements(
     if let Some(contract) = supergroup_full_info_contract {
         expected_consumed.extend(contract.consumed_signal_keys());
     }
+    if let Some(contract) = boolean_option_contract {
+        expected_consumed.extend(contract.consumed_signal_keys());
+    }
     if consumed != expected_consumed {
         return Err(unsupported_runtime_documentation(
             method,
@@ -1389,6 +1460,10 @@ fn documented_runtime_requirements(
         documented_group_call_clauses(method, contract)?
     } else if let Some(contract) = supergroup_full_info_contract {
         documented_supergroup_full_info_clauses(method, contract)?
+    } else if let Some(contract) = boolean_option_contract {
+        vec![vec![RuntimeRequirement::BooleanOptionEnabled {
+            option: contract.option,
+        }]]
     } else {
         let Some(contract) = runtime_contract else {
             return Err(unsupported_runtime_documentation(
@@ -2237,6 +2312,59 @@ fn documented_supergroup_full_info_clauses(
     })
 }
 
+#[derive(Clone, Copy)]
+struct ReviewedRuntimeBooleanOptionContract {
+    source_text: &'static str,
+    canonical_signature: &'static str,
+    option: RuntimeBooleanOption,
+    regular_user_only: bool,
+}
+
+impl ReviewedRuntimeBooleanOptionContract {
+    fn consumed_signal_keys(self) -> BTreeSet<RuntimeSignalKey> {
+        [RuntimeSignalKey {
+            source: RuntimeSignalSource::Description,
+            family: RuntimeSignalFamily::OptionGate,
+        }]
+        .into_iter()
+        .collect()
+    }
+}
+
+fn reviewed_runtime_boolean_option_contract(
+    method: &Definition,
+) -> Result<Option<ReviewedRuntimeBooleanOptionContract>, CapabilityGenerationError> {
+    let Some(contract) = (match method.name() {
+        "setNewChatPrivacySettings" => Some(ReviewedRuntimeBooleanOptionContract {
+            source_text: "changes privacy settings for new chat creation; can be used only if getoption(\"can_set_new_chat_privacy_settings\")",
+            canonical_signature: "setNewChatPrivacySettings settings:newChatPrivacySettings = Ok;",
+            option: RuntimeBooleanOption::CanSetNewChatPrivacySettings,
+            regular_user_only: true,
+        }),
+        _ => None,
+    }) else {
+        return Ok(None);
+    };
+
+    if method.canonical_signature() != contract.canonical_signature {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed boolean-option method signature drifted",
+        ));
+    }
+    if !signal_source_has_exact_text(
+        method,
+        &RuntimeSignalSource::Description,
+        contract.source_text,
+    ) {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed boolean-option source text drifted or disappeared",
+        ));
+    }
+    Ok(Some(contract))
+}
+
 fn documented_group_call_id(
     method: &Definition,
 ) -> Result<GroupCallIdRef, CapabilityGenerationError> {
@@ -2682,6 +2810,9 @@ fn documented_runtime_signal_dispositions(
         consumed.extend(contract.consumed_signal_keys());
     }
     if let Some(contract) = reviewed_supergroup_full_info_contract(method)? {
+        consumed.extend(contract.consumed_signal_keys());
+    }
+    if let Some(contract) = reviewed_runtime_boolean_option_contract(method)? {
         consumed.extend(contract.consumed_signal_keys());
     }
     runtime_signal_dispositions_with_consumed(method, &consumed)
@@ -3333,6 +3464,9 @@ enum RuntimeRequirementDto {
         target_argument: String,
         property: String,
     },
+    BooleanOptionEnabled {
+        option: String,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -3605,6 +3739,9 @@ enum CanonicalRuntimeRequirement {
         target: CanonicalChatTarget,
         property: &'static str,
     },
+    BooleanOptionEnabled {
+        option: &'static str,
+    },
 }
 
 impl CanonicalRuntimeRequirement {
@@ -3676,6 +3813,9 @@ impl CanonicalRuntimeRequirement {
                     property: property.as_str(),
                 }
             }
+            RuntimeRequirement::BooleanOptionEnabled { option } => Self::BooleanOptionEnabled {
+                option: option.as_str(),
+            },
         }
     }
 }

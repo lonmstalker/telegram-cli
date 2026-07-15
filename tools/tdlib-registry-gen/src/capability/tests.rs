@@ -8,8 +8,8 @@ use telegram_core::method_capability::{
     ChatAdministratorRight, ChatKindCondition, ChatMemberRight, ChatTargetKind, ChatTargetRef,
     DcEnvironment, ForumTopicRef, GroupCallMessageCapability, GroupCallMessageSubjectRef,
     GroupCallProperty, MessageCapability, MessageSubjectRef, RequirementAlternatives,
-    ResolvedChatKind, ResolvedGroupCallKind, RuntimeRequirement, SupergroupFullInfoProperty,
-    SynchronousCapability,
+    ResolvedChatKind, ResolvedGroupCallKind, RuntimeBooleanOption, RuntimeRequirement,
+    SupergroupFullInfoProperty, SynchronousCapability,
 };
 use telegram_core::schema::Schema;
 
@@ -24,7 +24,8 @@ use super::{
     serialize_pretty_with_limit, sha256_hex, validate_documented_authorization_states,
     validate_documented_method_constraints, validate_documented_parameter_notices,
     validate_documented_runtime_requirements, validate_group_call_vocabulary,
-    validate_message_properties_vocabulary, validate_supergroup_full_info_vocabulary,
+    validate_message_properties_vocabulary, validate_runtime_boolean_option_vocabulary,
+    validate_supergroup_full_info_vocabulary,
 };
 
 type PolicyMutation = Box<dyn Fn(&mut Value)>;
@@ -35,6 +36,10 @@ int53 = Int53;
 boolFalse = Bool;
 boolTrue = Bool;
 ok = Ok;
+optionValueBoolean value:Bool = OptionValue;
+optionValueEmpty = OptionValue;
+optionValueInteger value:int64 = OptionValue;
+optionValueString value:string = OptionValue;
 
 authorizationStateWaitTdlibParameters = AuthorizationState;
 authorizationStateWaitPhoneNumber = AuthorizationState;
@@ -71,11 +76,13 @@ botCommands = BotCommands;
 botVerification = BotVerification;
 profileTabTest = ProfileTab;
 chatStatisticsTest = ChatStatistics;
+newChatPrivacySettings = NewChatPrivacySettings;
 supergroupFullInfo photo:chatPhoto community_id:int53 description:string member_count:int32 administrator_count:int32 restricted_count:int32 banned_count:int32 linked_chat_id:int53 direct_messages_chat_id:int53 slow_mode_delay:int32 slow_mode_delay_expires_in:double can_enable_paid_messages:Bool can_enable_paid_reaction:Bool can_get_members:Bool has_hidden_members:Bool can_hide_members:Bool can_set_sticker_set:Bool can_set_location:Bool can_get_statistics:Bool can_get_revenue_statistics:Bool can_get_star_revenue_statistics:Bool can_send_gift:Bool can_toggle_aggressive_anti_spam:Bool is_all_history_available:Bool can_have_sponsored_messages:Bool has_aggressive_anti_spam_enabled:Bool has_paid_media_allowed:Bool has_pinned_stories:Bool gift_count:int32 my_boost_count:int32 unrestrict_boost_count:int32 outgoing_paid_message_star_count:int53 sticker_set_id:int64 custom_emoji_sticker_set_id:int64 location:chatLocation invite_link:chatInviteLink guard_bot_user_id:int53 bot_commands:vector<botCommands> bot_verification:botVerification main_profile_tab:ProfileTab upgraded_from_basic_group_id:int53 upgraded_from_max_message_id:int53 = SupergroupFullInfo;
 updateGroupCall group_call:groupCall = Update;
 updateNewGroupCallMessage group_call_id:int32 message:groupCallMessage = Update;
 updateGroupCallMessagesDeleted group_call_id:int32 message_ids:vector<int32> = Update;
 updateSupergroupFullInfo supergroup_id:int53 supergroup_full_info:supergroupFullInfo = Update;
+updateOption name:string value:OptionValue = Update;
 
 ---functions---
 
@@ -141,7 +148,7 @@ configureGatedValues bot_value:string premium_value:string business_value:string
 parseText text:string = Ok;
 
 //@description Returns an option. Can be called before authorization. Can be called synchronously for options "version" and "commit_hash" @name Option name
-getOption name:string = Ok;
+getOption name:string = OptionValue;
 "#;
 
 #[test]
@@ -394,6 +401,93 @@ fn public_generation_enforces_and_serializes_supergroup_full_info_contracts() {
                 "kind": "supergroup_full_info_property",
                 "target": {"kind": "chat_id", "argument": "chat_id"},
                 "property": "can_get_statistics"
+            }]}]
+        })
+    );
+}
+
+#[test]
+fn public_generation_enforces_and_serializes_runtime_boolean_option_contracts() {
+    let marker = "//@description Uses a feature; for Telegram Premium users only";
+    let schema = SCHEMA.replacen(
+        marker,
+        concat!(
+            "//@description Changes privacy settings for new chat creation; can be used only if getOption(\"can_set_new_chat_privacy_settings\")\n",
+            "//@settings New settings\n",
+            "setNewChatPrivacySettings settings:newChatPrivacySettings = Ok;\n\n",
+            "//@description Uses a feature; for Telegram Premium users only"
+        ),
+        1,
+    );
+    assert_ne!(schema, SCHEMA, "boolean-option-gated fixture insertion");
+    let fixture = Fixture::new(&schema);
+    let mut omitted = fixture.capability_value();
+    method_row_mut(&mut omitted, "setNewChatPrivacySettings")["ready_accounts"] =
+        json!(["regular_user"]);
+    assert_eq!(
+        fixture
+            .generate_value(&omitted)
+            .expect_err("public generator must reject omitted boolean-option contract")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let exact_requirement = json!({
+        "kind": "any_of",
+        "clauses": [{"all_of": [{
+            "kind": "boolean_option_enabled",
+            "option": "can_set_new_chat_privacy_settings"
+        }]}]
+    });
+    let mut wrong_option = fixture.capability_value();
+    let row = method_row_mut(&mut wrong_option, "setNewChatPrivacySettings");
+    row["ready_accounts"] = json!(["regular_user"]);
+    row["runtime_requirements"] = json!({
+        "kind": "any_of",
+        "clauses": [{"all_of": [{
+            "kind": "boolean_option_enabled",
+            "option": "can_use_text_entities_in_story_caption"
+        }]}]
+    });
+    assert_eq!(
+        fixture
+            .generate_value(&wrong_option)
+            .expect_err("wrong reviewed option must fail")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let mut bot_policy = fixture.capability_value();
+    let row = method_row_mut(&mut bot_policy, "setNewChatPrivacySettings");
+    row["ready_accounts"] = json!(["bot"]);
+    row["runtime_requirements"] = exact_requirement.clone();
+    assert_eq!(
+        fixture
+            .generate_value(&bot_policy)
+            .expect_err("user-only option method must reject bot policy")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let mut policy = fixture.capability_value();
+    let row = method_row_mut(&mut policy, "setNewChatPrivacySettings");
+    row["ready_accounts"] = json!(["regular_user"]);
+    row["runtime_requirements"] = exact_requirement;
+    let artifact: Value = serde_json::from_slice(
+        &fixture
+            .generate_value(&policy)
+            .expect("public boolean-option capability generation"),
+    )
+    .expect("canonical public artifact");
+    let row = method_row(&artifact, "setNewChatPrivacySettings");
+    assert_eq!(row["ready_accounts"], json!(["regular_user"]));
+    assert_eq!(
+        row["runtime_requirements"],
+        json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": [{
+                "kind": "boolean_option_enabled",
+                "option": "can_set_new_chat_privacy_settings"
             }]}]
         })
     );
@@ -733,8 +827,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            52,
-            "da693e7ee0f44569abeedc82e0c83e0442893b7b70d67687a40c0a48e3062494".to_owned()
+            53,
+            "28c3996aea8c326235460012c8bbadf95aa3ce78d051ab4b0000f6f2a9058dd4".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -750,8 +844,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            55,
-            "95da2d6299f9ca3d9e1b43553f084996bc3106b668ef1385dfc3af20fe3a979f".to_owned()
+            56,
+            "0d6710cf033722a06ecb2509644662db04f7dd4f8609effc56126fa208cbd4ba".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -760,12 +854,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        138,
+        137,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "a2028d7acb1055b4c5fc5a0fda69cf4a8c09200feea2fd3d386596e24fc9aa67",
+        "c05b282773cfd9ecaa1e8ab0c24a0ad08d7589a1fbf05a08901fe355db6c959e",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -842,7 +936,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "f3f2c8c344d4082ac918f4b4a279f3d863db51760dcf1a5074711faef5e25a58"
+        "a6a47059f166850f6dfb6a22e867bd69f7999d4b8d371d67f11115b267495ad9"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -1466,6 +1560,58 @@ fn requires_exact_supergroup_full_info_schema_vocabulary() {
         validate_supergroup_full_info_vocabulary(&moved_to_methods)
             .expect_err("full-info ingress must remain an update constructor")
             .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
+fn requires_exact_runtime_boolean_option_schema_vocabulary() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    validate_runtime_boolean_option_vocabulary(&Schema::parse(pinned).expect("pinned schema"))
+        .expect("exact pinned OptionValue contract");
+
+    for drifted in [
+        pinned.replace(
+            "optionValueBoolean value:Bool = OptionValue;",
+            "optionValueBoolean value:int32 = OptionValue;",
+        ),
+        pinned.replace("optionValueEmpty = OptionValue;", ""),
+        pinned.replace(
+            "optionValueString value:string = OptionValue;",
+            "optionValueString value:string = OptionValue;\noptionValueBytes value:bytes = OptionValue;",
+        ),
+        pinned.replace(
+            "getOption name:string = OptionValue;",
+            "getOption name:bytes = OptionValue;",
+        ),
+        pinned.replace(
+            "updateOption name:string value:OptionValue = Update;",
+            "updateOption name:bytes value:OptionValue = Update;",
+        ),
+    ] {
+        assert_eq!(
+            validate_runtime_boolean_option_vocabulary(
+                &Schema::parse(&drifted).expect("valid drifted option schema")
+            )
+            .expect_err("OptionValue schema drift")
+            .kind(),
+            CapabilityGenerationErrorKind::SchemaDrift
+        );
+    }
+
+    let signature = "updateOption name:string value:OptionValue = Update;";
+    let without_update = pinned.replacen(signature, "", 1);
+    let moved_to_methods = without_update.replacen(
+        "---functions---",
+        &format!("---functions---\n{signature}"),
+        1,
+    );
+    assert_eq!(
+        validate_runtime_boolean_option_vocabulary(
+            &Schema::parse(&moved_to_methods).expect("valid update-to-method drift schema")
+        )
+        .expect_err("option ingress must remain an update constructor")
+        .kind(),
         CapabilityGenerationErrorKind::SchemaDrift
     );
 }
@@ -2163,6 +2309,63 @@ fn parses_schema_bound_supergroup_full_info_property_atom() {
 }
 
 #[test]
+fn parses_closed_runtime_boolean_option_atom() {
+    let schema =
+        Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
+    let parse = |option: &str| {
+        let dto: RuntimeRequirementsDto = serde_json::from_value(json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": [{
+                "kind": "boolean_option_enabled",
+                "option": option
+            }]}]
+        }))
+        .expect("boolean-option requirement DTO");
+        parse_runtime_requirements(dto, find_method(&schema, "setNewChatPrivacySettings"))
+    };
+
+    let requirements =
+        parse("can_set_new_chat_privacy_settings").expect("typed runtime boolean option");
+    assert!(matches!(
+        requirements.clauses(),
+        [clause]
+            if matches!(
+                clause.as_slice(),
+                [RuntimeRequirement::BooleanOptionEnabled { option }]
+                    if *option == RuntimeBooleanOption::CanSetNewChatPrivacySettings
+            )
+    ));
+    assert_eq!(
+        serde_json::to_value(super::CanonicalRuntimeRequirement::from_domain(
+            &requirements.clauses()[0][0]
+        ))
+        .expect("canonical boolean option"),
+        json!({
+            "kind": "boolean_option_enabled",
+            "option": "can_set_new_chat_privacy_settings"
+        })
+    );
+    assert_eq!(
+        parse("can_enable_paid_messages")
+            .expect_err("unknown runtime option must fail")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+    assert!(
+        serde_json::from_value::<RuntimeRequirementsDto>(json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": [{
+                "kind": "boolean_option_enabled",
+                "option": "can_set_new_chat_privacy_settings",
+                "unexpected": true
+            }]}]
+        }))
+        .is_err(),
+        "boolean-option DTO must reject unknown fields"
+    );
+}
+
+#[test]
 fn pinned_supergroup_full_info_capability_contracts_are_exact() {
     let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
     let schema = Schema::parse(pinned).expect("pinned schema");
@@ -2451,6 +2654,198 @@ fn pinned_supergroup_full_info_capability_contracts_are_exact() {
         only_if.1,
         RuntimeSignalDisposition::Deferred(DeferredSignalLane::UnclassifiedDescription),
         "non-gate exception must be exact-source-bound"
+    );
+}
+
+#[test]
+fn pinned_runtime_boolean_option_capability_contracts_are_exact() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    assert_eq!(RuntimeBooleanOption::ALL.len(), 3);
+    let safe = ["setNewChatPrivacySettings"]
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    let deferred = ["getChatRevenueWithdrawalUrl", "postStory"]
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    let hash_rows = |mut rows: Vec<String>| {
+        rows.sort_unstable();
+        let mut payload = rows.join("\n");
+        payload.push('\n');
+        sha256_hex(payload.as_bytes())
+    };
+    assert!(safe.is_disjoint(&deferred));
+    let reviewed = safe
+        .union(&deferred)
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut option_keys = Vec::new();
+    let derived = schema
+        .methods()
+        .iter()
+        .filter_map(|method| {
+            let dispositions = documented_runtime_signal_dispositions(method)
+                .unwrap_or_else(|error| panic!("{}: {error}", method.name()));
+            let has_option = dispositions.iter().any(|(key, _)| {
+                if key.family() != RuntimeSignalFamily::OptionGate {
+                    return false;
+                }
+                let source = match key.source() {
+                    RuntimeSignalSource::Description => "description".to_owned(),
+                    RuntimeSignalSource::Argument(argument) => {
+                        format!("argument:{}", argument.as_str())
+                    }
+                };
+                option_keys.push(format!("{}\t{source}\toption_gate", method.name()));
+                true
+            });
+            has_option.then_some(method.name())
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        reviewed, derived,
+        "option-gate partition must be exhaustive"
+    );
+    assert_eq!(
+        hash_rows(reviewed.iter().map(ToString::to_string).collect()),
+        "337f9b8f67b5f19afbb8b58f88406cb9ee7a338cffc66af621af7d906bac7638"
+    );
+    assert_eq!(
+        hash_rows(option_keys),
+        "763531eb535d67ded79a54aabb58cde299fe09a945d16645b82e7e47751af6b9"
+    );
+    assert_eq!(
+        hash_rows(safe.iter().map(ToString::to_string).collect()),
+        "f78d3c7ea100d2cef7c1cc10b2f8168a8b5ff2517b0fb555060bb392bb3f12cb"
+    );
+    assert_eq!(
+        hash_rows(deferred.iter().map(ToString::to_string).collect()),
+        "0100c0c220a0ac85bb1814964c9d3ed0b7dc28bd1b9dd6d70d81cf6b40619caa"
+    );
+
+    let method = find_method(&schema, "setNewChatPrivacySettings");
+    let dispositions = documented_runtime_signal_dispositions(method)
+        .expect("reviewed boolean-option dispositions");
+    assert!(matches!(
+        dispositions.as_slice(),
+        [(key, RuntimeSignalDisposition::ConsumedByRuntimeRequirements)]
+            if key.source() == &RuntimeSignalSource::Description
+                && key.family() == RuntimeSignalFamily::OptionGate
+    ));
+    assert_eq!(
+        hash_rows(vec![
+            "setNewChatPrivacySettings\tdescription\toption_gate".to_owned()
+        ]),
+        "1483fb444083358b5439743f1af6830437f5796f9675dad37bf76bf9adbe42b6"
+    );
+    let requirements = documented_runtime_requirements(method)
+        .expect("reviewed option documentation")
+        .expect("boolean-option contract");
+    assert!(matches!(
+        requirements.clauses(),
+        [clause]
+            if matches!(
+                clause.as_slice(),
+                [RuntimeRequirement::BooleanOptionEnabled { option }]
+                    if *option == RuntimeBooleanOption::CanSetNewChatPrivacySettings
+            )
+    ));
+
+    let mut pending_rows = Vec::new();
+    for method_name in deferred {
+        let method = find_method(&schema, method_name);
+        assert_eq!(
+            documented_runtime_requirements(method)
+                .expect_err("mixed option method must remain open")
+                .kind(),
+            CapabilityGenerationErrorKind::SchemaDrift
+        );
+        for (key, disposition) in documented_runtime_signal_dispositions(method)
+            .unwrap_or_else(|error| panic!("{method_name}: {error}"))
+        {
+            assert!(matches!(disposition, RuntimeSignalDisposition::Deferred(_)));
+            let source = match key.source() {
+                RuntimeSignalSource::Description => "description".to_owned(),
+                RuntimeSignalSource::Argument(argument) => {
+                    format!("argument:{}", argument.as_str())
+                }
+            };
+            pending_rows.push(format!(
+                "{method_name}\t{source}\t{}",
+                key.family().canonical_name()
+            ));
+        }
+    }
+    assert_eq!(pending_rows.len(), 7);
+    assert_eq!(
+        hash_rows(pending_rows),
+        "c7b18d2efd06804b7bbd1168195df2e6557d0a942c1b49b5a2a9fb215d4355a8"
+    );
+
+    let source = "Changes privacy settings for new chat creation; can be used only if getOption(\"can_set_new_chat_privacy_settings\")";
+    for replacement in [
+        "Changes privacy settings for new chat creation",
+        "Changes privacy settings for new chat creation; can be used only if getOption(\"can_use_text_entities_in_story_caption\")",
+        "Updates privacy settings for new chat creation; can be used only if getOption(\"can_set_new_chat_privacy_settings\")",
+    ] {
+        let mutated = pinned.replacen(source, replacement, 1);
+        assert_ne!(mutated, pinned, "option source mutation fixture");
+        let mutated = Schema::parse(&mutated).expect("valid option source mutation");
+        assert_eq!(
+            documented_runtime_requirements(find_method(&mutated, "setNewChatPrivacySettings"))
+                .expect_err("option source drift must fail closed")
+                .kind(),
+            CapabilityGenerationErrorKind::SchemaDrift
+        );
+    }
+    let duplicate_source = pinned.replacen(
+        source,
+        &format!("{source}\n//@description Duplicate non-gating documentation"),
+        1,
+    );
+    let duplicate_source = Schema::parse(&duplicate_source).expect("duplicate source-tag schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(
+            &duplicate_source,
+            "setNewChatPrivacySettings"
+        ))
+        .expect_err("duplicate reviewed source must fail closed")
+        .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+    let full_documentation = format!("{source} @settings New settings");
+    let additional_signal = pinned.replacen(
+        &full_documentation,
+        &format!(
+            "{source} @settings New settings; valid only if getOption(\"can_use_text_entities_in_story_caption\")"
+        ),
+        1,
+    );
+    assert_ne!(
+        additional_signal, pinned,
+        "additional option signal fixture"
+    );
+    let additional_signal =
+        Schema::parse(&additional_signal).expect("additional option-signal schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(
+            &additional_signal,
+            "setNewChatPrivacySettings"
+        ))
+        .expect_err("unconsumed additional option signal must fail closed")
+        .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+    let wrong_signature = pinned.replace(
+        "setNewChatPrivacySettings settings:newChatPrivacySettings = Ok;",
+        "setNewChatPrivacySettings settings:readDatePrivacySettings = Ok;",
+    );
+    let wrong_signature = Schema::parse(&wrong_signature).expect("valid signature drift schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&wrong_signature, "setNewChatPrivacySettings"))
+            .expect_err("option contract signature drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
     );
 }
 
@@ -3427,6 +3822,7 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
         "unpinChatMessage",
         "reportSupergroupSpam",
         "banGroupCallParticipants",
+        "setNewChatPrivacySettings",
     ] {
         let error =
             validate_documented_runtime_requirements(find_method(&schema, method), &unrestricted)
@@ -3452,7 +3848,6 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
         "toggleSupergroupHasAutomaticTranslation",
         "toggleSupergroupJoinByRequest",
         "reportSupergroupAntiSpamFalsePositive",
-        "setNewChatPrivacySettings",
     ] {
         let error =
             validate_documented_runtime_requirements(find_method(&schema, method), &unrestricted)

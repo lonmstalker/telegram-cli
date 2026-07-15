@@ -33,10 +33,11 @@
 - [TDLib getChatBoostLinkInfo lexical non-gate](../raw/2026-07-15-tdlib-chat-boost-link-non-gate.md) — exact type-name vocabulary exception и 155-method open set.
 - [TDLib GroupCall capability semantics](../raw/2026-07-15-tdlib-group-call-capabilities.md) — exact kind/property/cardinality DNF, setting-value non-gate и 143-method open set.
 - [TDLib SupergroupFullInfo capability semantics](../raw/2026-07-15-tdlib-supergroup-full-info-capabilities.md) — exact property/target DNF, cross-token lexical non-gates и 138-method open set.
+- [TDLib runtime boolean option capability semantics](../raw/2026-07-15-tdlib-runtime-boolean-options.md) — exact option vocabulary, one method-level gate, two deferred mixed methods и 137-method open set.
 
 ## Current records
 
-- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, bounded owner generator, reviewed 1010-method owner corpus, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo semantics и macOS native pin закрыты через `W-20260715-019`; 138 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
+- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, bounded owner generator, reviewed 1010-method owner corpus, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option semantics и macOS native pin закрыты через `W-20260715-020`; 137 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
 - Native pin: [reviewed rebuild correction](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — exact source/schema и crash-safe macOS arm64 artifact закреплены; Linux/reproducibility остаются open.
 - Decision: [D-20260715-001](../decisions/archive/2026-07-15--2026-07-15-001.md) — раздельная memory model, rotation и secret boundary.
 - Decision: [D-20260715-002](../decisions/archive/2026-07-15--2026-07-15-002.md) — публичный GitHub remote принят как canonical `origin`.
@@ -53,9 +54,10 @@
 - Decision: [D-20260715-013](../decisions/decisions.md) — message-property capability требует exact source, identifier space и scalar/universal cardinality; mixed invocation semantics остаются deferred.
 - Decision: [D-20260715-014](../decisions/decisions.md) — group-call capability требует explicit kind/property/cardinality; setting semantics и stale runtime evidence не считаются caller capability.
 - Decision: [D-20260715-015](../decisions/decisions.md) — supergroup full-info property является static typed evidence; stale/missing snapshot остаётся отдельной fail-closed runtime boundary.
+- Decision: [D-20260715-016](../decisions/decisions.md) — runtime boolean option является generation-bound typed evidence, а не Premium entitlement.
 - Open problem: [P-20260715-001](../problems/problems.md) — database key ещё не подключён к штатному gateway.
 - Open problem: [P-20260715-003](../problems/problems.md) — Linux x86_64 native artifact ещё не закреплён.
-- Open problem: [P-20260715-005](../problems/problems.md) — 138 pinned runtime-signal methods ещё не имеют typed disposition.
+- Open problem: [P-20260715-005](../problems/problems.md) — 137 pinned runtime-signal methods ещё не имеют typed disposition.
 
 ## Operating rules
 

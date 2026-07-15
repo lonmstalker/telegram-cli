@@ -331,6 +331,24 @@ string_enum!(
     }
 );
 
+string_enum!(
+    /// Bool option из pinned method documentation, допустимый в closed grammar.
+    ///
+    /// Само наличие в vocabulary не делает method complete: exact reviewed
+    /// contract отдельно выбирает option и source, которые можно потребить.
+    /// Это не произвольное имя из `getOption`.
+    /// Static atom не доказывает текущее значение option: missing, wrong-typed
+    /// или stale evidence обязан отклонять будущий runtime-слой.
+    RuntimeBooleanOption,
+    3,
+    "runtime boolean option",
+    {
+        CanSetNewChatPrivacySettings => "can_set_new_chat_privacy_settings",
+        CanUseTextEntitiesInStoryCaption => "can_use_text_entities_in_story_caption",
+        CanWithdrawChatRevenue => "can_withdraw_chat_revenue",
+    }
+);
+
 /// Ссылка на именованный argument TDLib method.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ArgumentRef(String);
@@ -871,6 +889,9 @@ pub enum RuntimeRequirement {
         target: ChatTargetRef,
         property: SupergroupFullInfoProperty,
     },
+    BooleanOptionEnabled {
+        option: RuntimeBooleanOption,
+    },
 }
 
 impl RuntimeRequirement {
@@ -892,6 +913,7 @@ impl RuntimeRequirement {
                 vec![subject.group_call().argument(), subject.message_argument()]
             }
             Self::SupergroupFullInfoProperty { target, .. } => vec![target.argument()],
+            Self::BooleanOptionEnabled { .. } => Vec::new(),
             Self::TopicCreator { target, topic } => {
                 vec![target.argument(), topic.argument()]
             }

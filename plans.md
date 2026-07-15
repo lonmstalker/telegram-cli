@@ -76,7 +76,7 @@ flowchart LR
 
 | Phase | Результат | Status |
 |---|---|---|
-| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-018 |
+| P0 | Контракт, repository skeleton и pinned schema | in_progress — Codex / W-20260715-020 |
 | P1 | Core transport, authorization и ordered updates | pending |
 | P2 | Singleton daemon и shared session lifecycle | pending |
 | P3 | Полный generated raw API | pending |
@@ -112,9 +112,10 @@ flowchart LR
   - [x] Closed bounded domain model и pure fail-closed generator для schema-bound capability policy.
   - [x] Exact real-schema capability-signal baseline и all-tag authorization evidence.
   - [x] Closed `ChatKind` predicate и exact conditional DNF для первой reviewed source family.
-  - [x] Exact per-signal oracle, quantified `MessageProperties`, typed `GroupCall` и `SupergroupFullInfo` predicates.
-- [ ] Closed typed dispositions для 138 распознанных, но ещё unsupported runtime-signal methods.
+  - [x] Exact per-signal oracle, quantified `MessageProperties`, typed `GroupCall`, `SupergroupFullInfo` и runtime boolean option predicates.
+- [ ] Closed typed dispositions для 137 распознанных, но ещё unsupported runtime-signal methods.
   - [x] Exact `SupergroupFullInfo` schema/property family: 5 complete typed DNF, 7 mixed methods deferred.
+  - [x] Exact `OptionGate` family: `setNewChatPrivacySettings` complete, `postStory` и withdrawal mixed semantics deferred.
   - [ ] Reviewed canonical capability policy/artifact для всех 1010 methods.
 - [ ] Определить supported targets: macOS arm64 и Linux x86_64 минимум.
 - [ ] Перенести только доказанно reusable части `tg-analytics`; не переносить NATS/Postgres/analytics orchestration.
@@ -144,6 +145,7 @@ flowchart LR
 - `W-20260715-017`: exact `getChatBoostLinkInfo` description классифицирована как lexical non-gate: `internalLinkTypeChatBoost` описывает тип входной ссылки, pinned request path не проверяет right/boostability. Unique-tag exact matcher и same-family drift control сохраняют fail-closed semantics. Terminal complete set — 38, open set — 155 с SHA-256 `4ed02d...9c1b`; 74 whole-workspace tests и два independent reviews green. `P-20260715-005` остаётся open.
 - `W-20260715-018`: exact ordered `groupCall`/`groupCallMessage` vocabulary, closed three-kind/seven-property model и schema-bound `group_call_id:int32`/`Each(message_ids:vector<int32>)` закрепляют 12 reviewed DNF; два argument-dependent methods остаются deferred. `toggleVideoChatMuteNewParticipants.only by administrators` корректно отделён как semantics настраиваемого значения, не caller prerequisite. Consumed keys — 38, supported typed set — 47, terminal complete — 50, open set — 143 с SHA-256 `a6e5b3...3a12`. 80 workspace tests, Clippy/fmt/boundary/pin/wiki/diff gates green с `jobs=2`; три final reviews — `Approved`. Решение `D-20260715-014`; runtime lifecycle/freshness и `P-20260715-005` остаются open.
 - `W-20260715-019`: exact ordered 42-field `supergroupFullInfo`, closed eight-property model и semantic `chat_id`/`supergroup_id:int53` закрепляют 5 reviewed DNF; 7 owner/filter/value/password-dependent methods остаются deferred. `setChatPaidMessageStarCount` требует `can_restrict_members AND can_enable_paid_messages`; два cross-token `OnlyIfAdministrator` false positives отделены exact lexical non-gate, а реальная filter-dependent administrator оговорка остаётся open. Consumed keys — 12, supported typed set — 52, terminal complete — 55, open set — 138 с SHA-256 `a2028d7a...c9aa67`. 85 workspace tests, Clippy/fmt/diff/wiki gates green с `jobs=2`; Rust/evidence reviews и independent oracle audit — `Approved`. Решение `D-20260715-015`; runtime freshness/evaluator и `P-20260715-005` остаются open.
+- `W-20260715-020`: exact four-constructor `OptionValue`, `getOption`/`updateOption` ingress и closed three-name `RuntimeBooleanOption` закрепляют method-level gate `setNewChatPrivacySettings`; method regular-user-only, atom account-neutral. `postStory` и `getChatRevenueWithdrawalUrl` остаются deferred из-за caption/account/owner/full-info/input semantics; positive paid-message payload имеет отдельный `can_enable_paid_messages` prerequisite. Capability format — `6`; supported typed set — 53, terminal complete — 56, open set — 137 с SHA-256 `c05b2827...db6c959e`. 90 workspace tests, Clippy/fmt/diff green с `jobs=2`; reviewer P2 exact-string oracle исправлен и Rust/evidence/oracle reviews — `Approved`. Решение `D-20260715-016`; runtime option freshness/evaluator и `P-20260715-005` остаются open.
 
 ## P1 — Core transport, authorization и ordered state
 

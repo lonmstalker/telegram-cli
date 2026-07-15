@@ -733,6 +733,96 @@ fn public_generation_enforces_supergroup_setting_right_contract() {
 }
 
 #[test]
+fn public_generation_enforces_chat_description_right_contract() {
+    let marker = "//@description Uses a feature; for Telegram Premium users only";
+    let schema = SCHEMA.replacen(
+        marker,
+        concat!(
+            "//@description Changes information about a chat. Available for basic groups, supergroups, and channels. Requires can_change_info member right\n",
+            "//@chat_id Chat identifier\n",
+            "//@param_description New chat description; 0-255 characters\n",
+            "setChatDescription chat_id:int53 description:string = Ok;\n\n",
+            "//@description Uses a feature; for Telegram Premium users only"
+        ),
+        1,
+    );
+    assert_ne!(schema, SCHEMA, "chat-setting fixture insertion");
+    let fixture = Fixture::new(&schema);
+    let exact_requirement = json!({
+        "kind": "any_of",
+        "clauses": [
+            {"all_of": [
+                chat_kind("chat_id", "basic_group"),
+                chat_member_right("chat_id", "can_change_info")
+            ]},
+            {"all_of": [
+                chat_kind("chat_id", "supergroup"),
+                chat_member_right("chat_id", "can_change_info")
+            ]},
+            {"all_of": [
+                chat_kind("chat_id", "channel"),
+                chat_member_right("chat_id", "can_change_info")
+            ]}
+        ]
+    });
+    let mut policy = fixture.capability_value();
+    method_row_mut(&mut policy, "setChatDescription")["runtime_requirements"] = exact_requirement;
+
+    let mut missing_basic_group = policy.clone();
+    method_row_mut(&mut missing_basic_group, "setChatDescription")["runtime_requirements"]
+        ["clauses"]
+        .as_array_mut()
+        .expect("chat-setting clauses")
+        .remove(0);
+    assert_policy_error(
+        &fixture,
+        missing_basic_group,
+        CapabilityGenerationErrorKind::InvalidPolicy,
+    );
+
+    let mut administrator_permission = policy.clone();
+    method_row_mut(&mut administrator_permission, "setChatDescription")["runtime_requirements"]["clauses"]
+        [0]["all_of"][1] = chat_administrator_right("chat_id", "can_change_info");
+    assert_policy_error(
+        &fixture,
+        administrator_permission,
+        CapabilityGenerationErrorKind::InvalidPolicy,
+    );
+
+    let artifact: Value = serde_json::from_slice(
+        &fixture
+            .generate_value(&policy)
+            .expect("chat-setting capability generation"),
+    )
+    .expect("canonical artifact");
+    assert_eq!(
+        method_row(&artifact, "setChatDescription")["ready_accounts"],
+        json!(["regular_user", "bot"])
+    );
+    let target = || json!({"kind": "chat_id", "argument": "chat_id"});
+    assert_eq!(
+        method_row(&artifact, "setChatDescription")["runtime_requirements"],
+        json!({
+            "kind": "any_of",
+            "clauses": [
+                {"all_of": [
+                    {"kind": "chat_kind", "target": target(), "value": "basic_group"},
+                    {"kind": "chat_member_right", "target": target(), "right": "can_change_info"}
+                ]},
+                {"all_of": [
+                    {"kind": "chat_kind", "target": target(), "value": "supergroup"},
+                    {"kind": "chat_member_right", "target": target(), "right": "can_change_info"}
+                ]},
+                {"all_of": [
+                    {"kind": "chat_kind", "target": target(), "value": "channel"},
+                    {"kind": "chat_member_right", "target": target(), "right": "can_change_info"}
+                ]}
+            ]
+        })
+    );
+}
+
+#[test]
 fn public_generation_keeps_group_call_message_universal_cardinality() {
     let marker = "//@description Uses a feature; for Telegram Premium users only";
     let schema = SCHEMA.replacen(
@@ -1066,8 +1156,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            63,
-            "f8b3f3dca23edc804aab118ccecfab4e8d8f093f14ea38eff817ec8d7645eabd".to_owned()
+            66,
+            "5fb3e7ba71f07968df7ca1cfdfca57cd4f1a9de2bf0db92b0491f009cd5a35a5".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -1083,8 +1173,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            66,
-            "f9acaf38b390d6698293de72ca67050c3e9dfec46d2e1a3af4754326cd468b0c".to_owned()
+            69,
+            "7d4e40331eb9eee73e899613e280a70f29dfa4dd3b418b9809bb5c836f6a1161".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -1093,12 +1183,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        127,
+        124,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "b872e1f38e72845cd22f4a14460655508775545f5301882b8edbc6189265aa8d",
+        "9286c8f2797606f47f5d136bdfdc0c80d7eb09ab650acaa6676520340880d04c",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -1175,7 +1265,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "84deadee028781d867d5f5f9fde93c5800a56ceae9e8c5edb985864855de16d9"
+        "3df0178c4e3c15b7d19a6189a456f874fdeed802aa118e563e619f8354f5e3e1"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -3666,6 +3756,218 @@ fn pinned_supergroup_setting_right_contracts_are_exact() {
         ))
         .expect_err("unconsumed setting argument signal must fail closed")
         .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
+fn pinned_chat_setting_right_contracts_are_exact() {
+    #[derive(Clone, Copy)]
+    enum ExpectedRight {
+        Administrator(ChatAdministratorRight),
+        Member(ChatMemberRight),
+    }
+
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let contracts = [
+        (
+            "setChatPermissions",
+            "setChatPermissions chat_id:int53 permissions:chatPermissions = Ok;",
+            "changes the chat members permissions. supported only for basic groups and supergroups. requires can_restrict_members administrator right",
+            &[ResolvedChatKind::BasicGroup, ResolvedChatKind::Supergroup][..],
+            ExpectedRight::Administrator(ChatAdministratorRight::CanRestrictMembers),
+            &[AccountKind::RegularUser, AccountKind::Bot][..],
+        ),
+        (
+            "setChatDescription",
+            "setChatDescription chat_id:int53 description:string = Ok;",
+            "changes information about a chat. available for basic groups, supergroups, and channels. requires can_change_info member right",
+            &[
+                ResolvedChatKind::BasicGroup,
+                ResolvedChatKind::Supergroup,
+                ResolvedChatKind::Channel,
+            ][..],
+            ExpectedRight::Member(ChatMemberRight::CanChangeInfo),
+            &[AccountKind::RegularUser, AccountKind::Bot][..],
+        ),
+        (
+            "setChatSlowModeDelay",
+            "setChatSlowModeDelay chat_id:int53 slow_mode_delay:int32 = Ok;",
+            "changes the slow mode delay of a chat. available only for supergroups; requires can_restrict_members administrator right",
+            &[ResolvedChatKind::Supergroup][..],
+            ExpectedRight::Administrator(ChatAdministratorRight::CanRestrictMembers),
+            &[AccountKind::RegularUser][..],
+        ),
+    ];
+    let safe = contracts
+        .iter()
+        .map(|(method, ..)| *method)
+        .collect::<std::collections::BTreeSet<_>>();
+    let prior = ["setChatPaidMessageStarCount"]
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    let deferred = [
+        "setChatAccentColor",
+        "setChatAvailableReactions",
+        "setChatBackground",
+        "setChatDiscussionGroup",
+        "setChatEmojiStatus",
+        "setChatMemberStatus",
+        "setChatMemberTag",
+        "setChatMessageAutoDeleteTime",
+        "setChatPinnedStories",
+        "setChatProfileAccentColor",
+        "setChatPhoto",
+        "setChatTitle",
+    ]
+    .into_iter()
+    .collect::<std::collections::BTreeSet<_>>();
+    assert!(safe.is_disjoint(&prior));
+    assert!(safe.is_disjoint(&deferred));
+    assert!(prior.is_disjoint(&deferred));
+
+    let derived = schema
+        .methods()
+        .iter()
+        .filter_map(|method| {
+            let families = documented_runtime_signal_dispositions(method)
+                .unwrap_or_else(|error| panic!("{}: {error}", method.name()))
+                .into_iter()
+                .map(|(key, _)| key.family())
+                .collect::<std::collections::BTreeSet<_>>();
+            method
+                .name()
+                .starts_with("setChat")
+                .then_some(())
+                .filter(|_| {
+                    families.contains(&RuntimeSignalFamily::AdministratorRightPhrase)
+                        || families.contains(&RuntimeSignalFamily::MemberRightPhrase)
+                })
+                .map(|_| method.name())
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut expected_family = safe.clone();
+    expected_family.extend(prior.iter().copied());
+    expected_family.extend(deferred.iter().copied());
+    assert_eq!(
+        expected_family, derived,
+        "chat setting-right family must be exhaustive"
+    );
+
+    let target = ChatTargetRef::try_from("chat_id").expect("chat target");
+    for (method_name, signature, source, kinds, right, accounts) in contracts {
+        let method = find_method(&schema, method_name);
+        assert_eq!(method.canonical_signature(), signature, "{method_name}");
+        assert_eq!(
+            normalized_text(&super::method_description(method)),
+            source,
+            "{method_name} source"
+        );
+        let clauses = kinds
+            .iter()
+            .copied()
+            .map(|kind| {
+                let right = match right {
+                    ExpectedRight::Administrator(right) => {
+                        RuntimeRequirement::ChatAdministratorRight {
+                            target: target.clone(),
+                            right,
+                        }
+                    }
+                    ExpectedRight::Member(right) => RuntimeRequirement::ChatMemberRight {
+                        target: target.clone(),
+                        right,
+                    },
+                };
+                vec![
+                    RuntimeRequirement::ChatKind(
+                        ChatKindCondition::try_new(target.clone(), kind)
+                            .expect("setting chat kind"),
+                    ),
+                    right,
+                ]
+            })
+            .collect();
+        let expected = RequirementAlternatives::try_new(clauses).expect("setting alternatives");
+        assert_eq!(
+            documented_runtime_requirements(method)
+                .expect("reviewed setting documentation")
+                .expect("setting contract"),
+            expected,
+            "{method_name}"
+        );
+        let descriptor = CapabilityDescriptor::try_new(
+            SynchronousCapability::Never,
+            accounts.to_vec(),
+            vec![AuthorizationState::Ready],
+            Vec::new(),
+            ApplicationRequirement::Any,
+            vec![DcEnvironment::Production, DcEnvironment::Test],
+            expected,
+            Vec::new(),
+        )
+        .expect("setting descriptor");
+        validate_documented_method_constraints(method, &descriptor)
+            .unwrap_or_else(|error| panic!("{method_name} account contract: {error}"));
+        validate_documented_runtime_requirements(method, &descriptor)
+            .unwrap_or_else(|error| panic!("{method_name} runtime contract: {error}"));
+        let dispositions =
+            documented_runtime_signal_dispositions(method).expect("setting dispositions");
+        assert_eq!(dispositions.len(), 2, "{method_name} consumed signal count");
+        assert!(dispositions.iter().all(|(_, disposition)| {
+            *disposition == RuntimeSignalDisposition::ConsumedByRuntimeRequirements
+        }));
+    }
+
+    for method_name in deferred {
+        assert_eq!(
+            documented_runtime_requirements(find_method(&schema, method_name))
+                .expect_err("mixed chat setting must remain open")
+                .kind(),
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "{method_name}"
+        );
+    }
+
+    let source = "Changes information about a chat. Available for basic groups, supergroups, and channels. Requires can_change_info member right";
+    let source_drift = pinned.replacen(
+        source,
+        "Changes information about a chat. Available for basic groups, supergroups, and channels. Requires exact can_change_info member right",
+        1,
+    );
+    let source_drift = Schema::parse(&source_drift).expect("valid setting source drift schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&source_drift, "setChatDescription"))
+            .expect_err("setting source drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let signature_drift = pinned.replacen(
+        "setChatPermissions chat_id:int53 permissions:chatPermissions = Ok;",
+        "setChatPermissions chat_id:int32 permissions:chatPermissions = Ok;",
+        1,
+    );
+    let signature_drift = Schema::parse(&signature_drift).expect("valid setting signature drift");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&signature_drift, "setChatPermissions"))
+            .expect_err("setting signature drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let additional_signal = pinned.replacen(
+        "@param_description New chat description; 0-255 characters",
+        "@param_description New chat description; requires can_change_info member right",
+        1,
+    );
+    let additional_signal =
+        Schema::parse(&additional_signal).expect("valid additional setting signal schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&additional_signal, "setChatDescription"))
+            .expect_err("unconsumed setting argument signal must fail closed")
+            .kind(),
         CapabilityGenerationErrorKind::SchemaDrift
     );
 }

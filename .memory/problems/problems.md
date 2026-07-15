@@ -2,29 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] resolved | P-20260715-004 | Native build crash recovery доказан negative controls
-
-- Evidence: [reviewed rebuild correction digest](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md), `scripts/test-tdlib-native-parent-death-guard.py`, `scripts/test-tdlib-native-stale-work-recovery.py`, `scripts/test-tdlib-native-inspection-parent-death.py` и green post-build review.
-- Resolution: inherited global lease удерживает single-owner boundary до cleanup всех cooperative watchdogs; gated target handshake, recursive guard-state validation и proof-backed reap finalization закрывают найденные crash windows. Malformed/symlink/ambiguous state остаётся fail closed.
-- Status: resolved для implemented macOS builder; после rebuild scratch/process leftovers `0`, content cache `1`, total `target` 42 MiB.
-- Remaining boundary: sampled resource thresholds не являются kernel isolation; Linux artifact остаётся [P-20260715-003](problems.md), bit-for-bit reproducibility не доказана.
-- Related decisions: [D-20260715-005](../decisions/decisions.md).
-
-## [2026-07-15] resolved correction | P-20260715-004 | Archive snapshot и OpenSSL hash validation разделены
-
-- Corrects: evidence wording `archive/OpenSSL input snapshots` в open entry не означало две private copies.
-- Exact evidence: source archive имеет private immutable snapshot; exact resolved OpenSSL Cellar archives остаются на canonical path и проходят pre/post bytes/SHA-256 validation.
-- Status: `P-20260715-004` остаётся resolved; correction сужает durable claim и не меняет crash-recovery result.
-- Related decisions: [D-20260715-005](../decisions/decisions.md).
-
-## [2026-07-15] open | P-20260715-005 | 188 pinned runtime-signal methods не имеют typed disposition
-
-- Evidence: [capability evidence baseline](../raw/2026-07-15-tdlib-capability-evidence-baseline.md); exact 193-method signal set SHA-256 `cbe074...8706`, exact 188-method open set SHA-256 `c9e513...0a34`; corpus test требует `SchemaDrift` для каждой open row.
-- Impact: canonical 1010-method capability artifact и P0 capability checkbox заблокированы. Замена unsupported contracts на permissive `always` дала бы ложное расширение API.
-- Status: open; baseline измерен, typed source families ещё не реализованы.
-- Next check: добавить exact per-signal disposition oracle и bounded `ChatKind` atom для conditional chat rights, затем closed `MessageProperties` facts; после каждого reviewed task пересчитать exact open set. Закрытие требует zero-open gate и independent semantic review.
-- Related decisions: [D-20260715-009](../decisions/decisions.md), [D-20260715-010](../decisions/decisions.md).
-
 ## [2026-07-15] open update | P-20260715-005 | Exact open set уменьшен до 187 methods
 
 - Evidence: [ChatKind capability digest](../raw/2026-07-15-tdlib-chat-kind-capability.md); exact 193-method signal set не изменился, supported set вырос до 6 с SHA-256 `ea3222...99a9`, open set теперь 187 с SHA-256 `beea6c...3c03`.
@@ -142,3 +119,27 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Transition: supported typed set 63, terminal complete 66, open-set SHA-256 `b872e1f38e72845cd22f4a14460655508775545f5301882b8edbc6189265aa8d`.
 - Status: open; zero-open gate не достигнут, 127 methods дают `SchemaDrift` и не считаются capability coverage.
 - Related decisions: corrected [D-20260715-020](../decisions/decisions.md).
+
+## [2026-07-15] open | P-20260715-008 | Member-only DNF теряла bot/basic-group administrator guard
+
+- Evidence: independent review и pinned `DialogManager.cpp`: `setChatTitle`/`setChatPhoto` требуют `is_appointed_chat_administrator()` для bot в basic group сверх effective `can_change_info`.
+- Impact: bot-member с разрешённым default `can_change_info` мог получить ложный supported verdict, хотя TDLib вернул бы `Not enough rights`.
+- Status: open at review discovery; current grammar не выражает account-conditioned basic-group implication.
+- Next check: удалить оба complete contracts или добавить closed account-sensitive requirement с runtime evidence до commit.
+- Related decisions: [D-20260715-021](../decisions/decisions.md).
+
+## [2026-07-15] resolved | P-20260715-008 | Account-conditioned title/photo methods возвращены в deferred
+
+- Evidence: [chat setting-right digest](../raw/2026-07-15-tdlib-chat-setting-right-capabilities.md), оба rows отсутствуют в `chat_settings::CONTRACTS`, exhaustive test включает их в deferred; post-fix reviewer verdict `APPROVED`.
+- Resolution: member-only false positive удалён; safe set сокращён до permissions/description/slow mode, oracles дают supported 66, terminal 69, open 124.
+- Status: resolved for current implementation. Будущий complete contract требует account/kind-conditioned prerequisite и current appointed-admin evidence.
+- Related decisions: [D-20260715-021](../decisions/decisions.md).
+
+## [2026-07-15] open update | P-20260715-005 | Chat setting rights уменьшили open set до 124 methods
+
+- Evidence: [chat setting-right digest](../raw/2026-07-15-tdlib-chat-setting-right-capabilities.md); exact family разделена на 3 new complete, 1 prior complete и 12 deferred methods.
+- Transition: permissions, description и slow mode получают exact kind/right/account contracts. Supported typed set 66, terminal complete 69, open-set SHA-256 `9286c8f2797606f47f5d136bdfdc0c80d7eb09ab650acaa6676520340880d04c`.
+- Status: open; zero-open gate не достигнут, 124 methods дают `SchemaDrift` и не считаются capability coverage.
+- Next check: отдельными reviewed tasks закрывать следующие exact semantic families; runtime evaluator обязан fail closed на stale/unknown/account-mismatched right evidence.
+- Archive link map после ротации: [P-20260715-004 resolved и correction](archive/2026-07-15--2026-07-15-004.md).
+- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-021](../decisions/decisions.md).

@@ -107,7 +107,7 @@ flowchart LR
 | P1 | Core transport, authorization и ordered updates | accepted |
 | P2 | Singleton daemon и shared session lifecycle | accepted |
 | P3 | Полный generated raw API и capability-таблица | accepted |
-| P4 | Stateful request-chain engine | pending |
+| P4 | Stateful request-chain engine | accepted |
 | P5 | Reliability, policy, limits и observability | pending |
 | P6 | Полный CLI и компактный agent skill | pending |
 | P7 | Domain workflows по F007–F020 | pending |
@@ -196,16 +196,16 @@ flowchart LR
 - [x] History/search: pagination по returned cursor до count/date/no-progress boundary.
 - [x] Members/statistics: capability fields, async graph tokens, freshness rules.
 - [x] File/sticker/bot/Web App workflows с ожиданием terminal updates.
-- [ ] Gap marker и обязательный resync после update lag.
+- [x] Gap marker и обязательный resync после update lag.
 
 Каждый workflow возвращает envelope: `status`, `complete`, `source`, `observed_at`, freshness, cursor/next_action, warnings, reconciliation state.
 
 ### Acceptance
 
-- [ ] `Chat not found` сначала запускает разрешённый prerequisite resolver — зачем: это pain №1 из product.md; агент не должен получать false not_found.
-- [ ] Empty/short response не превращается в terminal proof без method-specific правила — зачем: короткая страница пагинации — норма TDLib, а не конец данных.
-- [ ] `openChat`/`closeChat` lifecycle выполняется в finally — зачем: незакрытые чаты копят server-side подписки и искажают updates.
-- [ ] Send ждёт `updateMessageSendSucceeded`/`Failed` — зачем: ответ на sendMessage — не доказательство доставки; без ожидания невозможен честный idempotency.
+- [x] `Chat not found` сначала запускает разрешённый prerequisite resolver — зачем: это pain №1 из product.md; агент не должен получать false not_found.
+- [x] Empty/short response не превращается в terminal proof без method-specific правила — зачем: короткая страница пагинации — норма TDLib, а не конец данных.
+- [x] `openChat`/`closeChat` lifecycle выполняется в finally — зачем: незакрытые чаты копят server-side подписки и искажают updates.
+- [x] Send ждёт `updateMessageSendSucceeded`/`Failed` — зачем: ответ на sendMessage — не доказательство доставки; без ожидания невозможен честный idempotency.
 
 ## P5 — Reliability, policy, limits и observability
 

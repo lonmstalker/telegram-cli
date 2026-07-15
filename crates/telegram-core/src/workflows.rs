@@ -162,6 +162,17 @@ pub struct StatisticsSnapshot {
     pub freshness: Freshness,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResyncReceipt {
+    pub gap_after_sequence: Option<u64>,
+    pub snapshot_updates: usize,
+    pub sequence: Option<u64>,
+    pub source: TerminalSource,
+    pub complete: bool,
+    pub observed_at: SystemTime,
+    pub freshness: Freshness,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TerminalSource {
     Response,
@@ -277,6 +288,7 @@ pub fn ensure_membership(
     target: MembershipTarget<'_>,
     deadline: Instant,
 ) -> Result<MembershipResult, ChatWorkflowError> {
+    require_resynced(runtime)?;
     ensure_membership_with(target, |request| {
         td_call(runtime, policy, request, deadline)
     })
@@ -289,6 +301,7 @@ pub fn load_chat_list(
     limit: i32,
     deadline: Instant,
 ) -> Result<ChatListSnapshot, ChatWorkflowError> {
+    require_resynced(runtime)?;
     if limit <= 0 {
         return Err(ChatWorkflowError::InvalidLimit);
     }
@@ -317,6 +330,7 @@ pub fn inspect_chat(
     open: bool,
     deadline: Instant,
 ) -> Result<ChatInspection, ChatWorkflowError> {
+    require_resynced(runtime)?;
     let (method, request) = resolution_request(target)?;
     let (raw, boundary) = td_call_with_boundary(runtime, policy, request, deadline)
         .map_err(ChatWorkflowError::Call)?;
@@ -388,6 +402,7 @@ pub fn supergroup_members(
     query: MembersQuery,
     deadline: Instant,
 ) -> Result<MembersSnapshot, ChatWorkflowError> {
+    require_resynced(runtime)?;
     let capability = runtime
         .state()
         .supergroup_full_info(query.supergroup_id)
@@ -413,6 +428,7 @@ pub fn chat_statistics(
     is_dark: bool,
     deadline: Instant,
 ) -> Result<StatisticsSnapshot, ChatWorkflowError> {
+    require_resynced(runtime)?;
     let chat = runtime
         .state()
         .chat(chat_id)
@@ -447,12 +463,62 @@ pub fn chat_statistics(
     )
 }
 
+pub fn resync_after_gap(
+    runtime: &mut CoreRuntime,
+    policy: &RawPolicy,
+    deadline: Instant,
+) -> Result<ResyncReceipt, ChatWorkflowError> {
+    let gap = runtime
+        .state()
+        .gap()
+        .ok_or(ChatWorkflowError::NoResyncRequired)?;
+    let (response, boundary) = td_call_with_boundary(
+        runtime,
+        policy,
+        json!({"@type":"getCurrentState"}),
+        deadline,
+    )
+    .map_err(ChatWorkflowError::Call)?;
+    runtime
+        .apply_through_boundary(boundary, deadline)
+        .map_err(ChatWorkflowError::Runtime)?;
+    let response = checked_response("getCurrentState", response)?;
+    if response.as_value()["@type"] != "updates" {
+        return Err(ChatWorkflowError::UnexpectedResult {
+            method: "getCurrentState",
+        });
+    }
+    let updates =
+        response.as_value()["updates"]
+            .as_array()
+            .ok_or(ChatWorkflowError::InvalidResult {
+                method: "getCurrentState",
+                field: "updates",
+            })?;
+    runtime
+        .replace_state_from_snapshot(updates)
+        .map_err(ChatWorkflowError::Runtime)?;
+    Ok(ResyncReceipt {
+        gap_after_sequence: gap.after_sequence.map(|sequence| sequence.get()),
+        snapshot_updates: updates.len(),
+        sequence: runtime
+            .state()
+            .last_sequence()
+            .map(|sequence| sequence.get()),
+        source: TerminalSource::Response,
+        complete: true,
+        observed_at: SystemTime::now(),
+        freshness: Freshness::ServerSnapshot,
+    })
+}
+
 pub fn download_file(
     runtime: &mut CoreRuntime,
     policy: &RawPolicy,
     query: DownloadQuery,
     deadline: Instant,
 ) -> Result<FileTransferReceipt, ChatWorkflowError> {
+    require_resynced(runtime)?;
     if !(1..=32).contains(&query.priority) || query.offset < 0 || query.limit < 0 {
         return Err(ChatWorkflowError::InvalidFileTransfer);
     }
@@ -492,6 +558,7 @@ pub fn upload_sticker_file(
     source: InputFileSource<'_>,
     deadline: Instant,
 ) -> Result<FileTransferReceipt, ChatWorkflowError> {
+    require_resynced(runtime)?;
     let baseline_sequence = last_sequence(runtime);
     let (response, boundary) = td_call_with_boundary(
         runtime,
@@ -526,6 +593,7 @@ pub fn start_bot(
     parameter: &str,
     deadline: Instant,
 ) -> Result<BotStartReceipt, ChatWorkflowError> {
+    require_resynced(runtime)?;
     let (response, boundary) = td_call_with_boundary(
         runtime,
         policy,
@@ -560,6 +628,7 @@ pub fn open_web_app<'runtime>(
     request: WebAppRequest<'_>,
     deadline: Instant,
 ) -> Result<WebAppLease<'runtime>, ChatWorkflowError> {
+    require_resynced(runtime)?;
     let baseline_sequence = last_sequence(runtime);
     let (response, boundary) = td_call_with_boundary(
         runtime,
@@ -729,6 +798,15 @@ fn last_sequence(runtime: &CoreRuntime) -> u64 {
         .last_sequence()
         .map(|sequence| sequence.get())
         .unwrap_or(0)
+}
+
+fn require_resynced(runtime: &CoreRuntime) -> Result<(), ChatWorkflowError> {
+    match runtime.state().gap() {
+        Some(gap) => Err(ChatWorkflowError::ResyncRequired {
+            gap_after_sequence: gap.after_sequence.map(|sequence| sequence.get()),
+        }),
+        None => Ok(()),
+    }
 }
 
 fn wait_file_terminal(
@@ -1673,6 +1751,10 @@ pub enum ChatWorkflowError {
     InvalidLimit,
     InvalidPageOptions,
     InvalidFileTransfer,
+    ResyncRequired {
+        gap_after_sequence: Option<u64>,
+    },
+    NoResyncRequired,
 }
 
 impl fmt::Display for ChatWorkflowError {
@@ -1704,6 +1786,11 @@ impl fmt::Display for ChatWorkflowError {
             Self::InvalidFileTransfer => {
                 formatter.write_str("file transfer input is outside TDLib bounds")
             }
+            Self::ResyncRequired { gap_after_sequence } => write!(
+                formatter,
+                "update state is gapped after sequence {gap_after_sequence:?}; resync is required"
+            ),
+            Self::NoResyncRequired => formatter.write_str("update state isn't gapped"),
         }
     }
 }
@@ -1722,7 +1809,9 @@ impl Error for ChatWorkflowError {
             | Self::InvalidTarget
             | Self::InvalidLimit
             | Self::InvalidPageOptions
-            | Self::InvalidFileTransfer => None,
+            | Self::InvalidFileTransfer
+            | Self::ResyncRequired { .. }
+            | Self::NoResyncRequired => None,
         }
     }
 }
@@ -2162,6 +2251,7 @@ mod tests {
     struct TerminalWorkflowBackend {
         incoming: VecDeque<String>,
         methods: Arc<Mutex<Vec<String>>>,
+        snapshot_calls: usize,
     }
 
     impl TerminalWorkflowBackend {
@@ -2171,6 +2261,7 @@ mod tests {
                 Self {
                     incoming: VecDeque::new(),
                     methods: Arc::clone(&methods),
+                    snapshot_calls: 0,
                 },
                 methods,
             )
@@ -2200,7 +2291,16 @@ mod tests {
                     self.push(json!({"@type":"optionValueString","value":value,"@extra":extra}));
                 }
                 "getCurrentState" => {
-                    self.push(json!({"@type":"updates","updates":[],"@extra":extra}));
+                    self.snapshot_calls += 1;
+                    let updates = if self.snapshot_calls == 1 {
+                        Vec::new()
+                    } else {
+                        vec![json!({
+                            "@type":"updateNewChat",
+                            "chat":{"@type":"chat","id":44,"positions":[],"chat_lists":[],"reply_markup_message_id":0}
+                        })]
+                    };
+                    self.push(json!({"@type":"updates","updates":updates,"@extra":extra}));
                 }
                 "downloadFile" => {
                     self.push(json!({"@type":"file","id":5,"local":{"@type":"localFile","is_downloading_completed":false},"remote":{"@type":"remoteFile","is_uploading_completed":true},"@extra":extra}));
@@ -2313,6 +2413,43 @@ mod tests {
                 "closeWebApp"
             ]
         );
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn gapped_state_blocks_workflow_until_snapshot_resync() {
+        let (backend, methods) = TerminalWorkflowBackend::new();
+        let mut runtime = CoreRuntime::start(backend, test_deadline()).unwrap();
+        let policy = RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![RiskClass::Read, RiskClass::Send],
+        );
+
+        let gap = runtime.mark_update_gap();
+        let blocked = start_bot(&mut runtime, &policy, 8, 9, "", test_deadline()).unwrap_err();
+        assert!(matches!(
+            blocked,
+            ChatWorkflowError::ResyncRequired {
+                gap_after_sequence: None
+            }
+        ));
+        assert!(
+            !methods
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|method| method == "sendBotStartMessage")
+        );
+
+        let receipt = resync_after_gap(&mut runtime, &policy, test_deadline()).unwrap();
+        assert_eq!(
+            receipt.gap_after_sequence,
+            gap.after_sequence.map(|value| value.get())
+        );
+        assert_eq!(receipt.snapshot_updates, 1);
+        assert!(receipt.complete);
+        assert!(runtime.state().gap().is_none());
+        assert!(runtime.state().chat(44).is_some());
         runtime.shutdown().unwrap();
     }
 }

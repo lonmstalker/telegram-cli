@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use serde_json::{Value, json};
 
-use crate::reducer::{AppliedUpdate, ReducerError, StateReducer};
+use crate::reducer::{AppliedUpdate, ReducerError, StateReducer, UpdateGap};
 use crate::transport::{TdJsonBackend, TdJsonEvent, TdJsonTransport, TransportError};
 
 const PINNED_MANIFEST: &str = include_str!("../../../vendor/tdlib/manifest.json");
@@ -87,6 +87,10 @@ impl CoreRuntime {
         &self.reducer
     }
 
+    pub fn mark_update_gap(&mut self) -> UpdateGap {
+        self.reducer.mark_update_gap()
+    }
+
     pub fn transport(&self) -> &TdJsonTransport {
         &self.transport
     }
@@ -146,6 +150,15 @@ impl CoreRuntime {
                 }
             }
         }
+    }
+
+    pub(crate) fn replace_state_from_snapshot(
+        &mut self,
+        updates: &[Value],
+    ) -> Result<(), RuntimeError> {
+        self.reducer
+            .replace_from_snapshot(updates)
+            .map_err(RuntimeError::Reducer)
     }
 
     pub fn shutdown(self) -> Result<(), RuntimeError> {

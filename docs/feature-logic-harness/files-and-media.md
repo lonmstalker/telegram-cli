@@ -45,7 +45,9 @@ Upload/download completes only from terminal file state plus expected size/check
 
 ## Cache and Update Semantics
 
-File reducer tracks local/remote/progress states from ordered `updateFile`; gap requires `getFile`/workflow resync.
+File reducer tracks local/remote/progress states from ordered `updateFile`; global gap
+blocks transfer workflow until snapshot resync, then a missing file is refreshed by its
+normal response/update chain.
 
 ## Retry and Reconciliation
 
@@ -153,8 +155,8 @@ Synthetic runtime test proves async `downloadFile` remains pending until matchin
 
 ## Coverage Notes
 
-- Kernel coverage: typed async download and ordered terminal update implemented;
-  path/resume/gap behavior remains modeled.
+- Kernel coverage: typed async download, ordered terminal update and global gap/resync
+  blocking implemented; path/resume behavior remains modeled.
 - Modeled: file lifecycle and cross-surface semantics.
 - Partial: upload families beyond sticker prerequisite, artifact backend, resume/gap and live transfer.
 - Unknown: server quota defaults.

@@ -45,7 +45,8 @@ Telegram-side completion and browser-side completion are separate. UI pass requi
 
 ## Cache and Update Semantics
 
-Bot/user/chat prerequisites use shared cache; launch lifecycle records update/gap state. Browser events are separate ordered artifacts.
+Bot/user/chat prerequisites use shared cache; gap blocks launch until atomic snapshot
+resync. Browser events remain separate ordered artifacts.
 
 ## Retry and Reconciliation
 

@@ -3533,7 +3533,7 @@ pub static CAPABILITIES: &[CapabilityDescriptor] = &[
     CapabilityDescriptor { method: "getCountryCode", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "getCountryFlagEmoji", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "getCreatedPublicChats", disposition: CapabilityDisposition::DefaultDeny },
-    CapabilityDescriptor { method: "getCurrentState", disposition: CapabilityDisposition::DefaultDeny },
+    CapabilityDescriptor { method: "getCurrentState", disposition: CapabilityDisposition::Reviewed { risk: RiskClass::Read, accounts: &[AccountKind::RegularUser,], runtime_requirements: "AuthorizationState { state: Ready }", retry: RetryClass::SafeRead } },
     CapabilityDescriptor { method: "getCurrentWeather", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "getCustomEmojiReactionAnimations", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "getCustomEmojiStickers", disposition: CapabilityDisposition::DefaultDeny },

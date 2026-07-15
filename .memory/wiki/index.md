@@ -46,7 +46,7 @@
 
 ## Current records
 
-- Implementation: P0–P3 accepted; первые шесть пунктов P4 закрыты, следующий — gap marker/resync; см. [project-state.md](project-state.md).
+- Implementation: P0–P4 accepted; следующий — P5 queue/rate budgets и flood-aware backoff; см. [project-state.md](project-state.md).
 - Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -73,6 +73,7 @@
 - Message pagination: [D-20260715-056](../decisions/decisions.md), [W-20260715-061](../logs/work.md), [`docs/message-pagination.md`](../../docs/message-pagination.md).
 - Members/statistics workflows: [D-20260715-057](../decisions/decisions.md), [W-20260715-062](../logs/work.md), [`docs/members-statistics-workflow.md`](../../docs/members-statistics-workflow.md).
 - File/sticker/bot/Web App terminal workflows: [D-20260715-058](../decisions/decisions.md), [W-20260715-063](../logs/work.md), [`docs/terminal-domain-workflows.md`](../../docs/terminal-domain-workflows.md).
+- Update gap/resync и P4 Acceptance: [D-20260715-059](../decisions/decisions.md), [W-20260715-064](../logs/work.md), [`docs/update-gap-resync.md`](../../docs/update-gap-resync.md).
 
 ## Operating rules
 

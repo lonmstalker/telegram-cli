@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: complete/partial rule; limits: none.
 - SRC002: HARNESS.md; type: file; supports: update/cache invariants; limits: none.
-- SRC003: `plans.md` P1/P4 и `telegram-core::reducer`; type: file/code; supports: ordered transport-to-cache reducer, versioned core caches and lossless raw unknown queue; limits: durable journal, gap/resync and workflow engine absent.
+- SRC003: `plans.md` P1/P4 и `telegram-core::reducer`; type: file/code; supports: ordered transport-to-cache reducer, versioned core caches, lossless raw unknown queue and explicit gap/resync; limits: durable journal absent.
 - SRC004: official TDLib getting-started/schema; type: supplied; supports: ordered updates/loadChats/history semantics; limits: product envelope is local design.
 
 ## TDLib API Coverage
@@ -45,7 +45,7 @@ Each workflow declares method-specific terminal conditions. Short page, cached f
 
 ## Cache and Update Semantics
 
-One receiver applies updates in order to versioned User/Chat/Group/File/Message/Auth/Connection caches. Реализованный reducer выдаёт monotonic sequence в transport order; unknown constructors сохраняются целиком в ordered raw queue, а lag/gap handling остаётся дальнейшей boundary.
+One receiver applies updates in order to versioned User/Chat/Group/File/Message/Auth/Connection caches. Reducer выдаёт monotonic sequence в transport order; unknown constructors сохраняются целиком в ordered raw queue. Positive lag/loss evidence устанавливает persistent gap marker; только atomic `getCurrentState` snapshot replacement очищает его.
 
 ## Retry and Reconciliation
 
@@ -61,7 +61,7 @@ Graph checks rights/capability fields before protected steps and returns forbidd
 
 ## Live Verification Boundary
 
-Pure core tests подтверждают transport-order sequence, representative caches, exact unknown payload/order, terminal message-send state, startup snapshot boundary, history/search/member pagination, async statistics graphs и synthetic file/sticker/bot/Web App terminal chains. Pinned native runtime применяет `getCurrentState` к reducer до дальнейших events. Durable raw journal, gap/resync и остальные domain completion proofs ещё не реализованы.
+Pure core tests подтверждают transport-order sequence, representative caches, exact unknown payload/order, terminal message-send state, startup snapshot boundary, history/search/member pagination, async statistics graphs, synthetic terminal chains и fail-closed gap с atomic resync. Pinned native runtime применяет `getCurrentState` к reducer до дальнейших events. Durable raw journal и остальные domain completion proofs ещё не реализованы.
 
 ## Scope
 
@@ -155,5 +155,5 @@ Pure core tests подтверждают transport-order sequence, representativ
 
 - Kernel coverage: state/paging/gap/concurrency modeled.
 - Modeled: generic engine and result semantics.
-- Partial: ordered/lossless caches, startup snapshot, history/search/member paging, statistics graph traversal и representative terminal-update chains реализованы; durable journal, gap/resync и остальные domain completion rules остаются дальнейшими slices.
+- Partial: ordered/lossless caches, startup/resync snapshots, gap blocking, pagination, statistics graphs и representative terminal-update chains реализованы; durable journal и остальные domain completion rules остаются дальнейшими slices.
 - Not applicable: account secret entry.

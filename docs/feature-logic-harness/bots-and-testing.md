@@ -45,7 +45,8 @@ Send uses terminal send state; bot response uses scenario correlation/deadline. 
 
 ## Cache and Update Semantics
 
-Bot/user/chat/message updates flow through shared reducers; test run records starting sequence and gap invalidates assertions.
+Bot/user/chat/message updates flow through shared reducers; explicit gap marker blocks
+new state-dependent actions until atomic snapshot resync and invalidates assertions.
 
 ## Retry and Reconciliation
 

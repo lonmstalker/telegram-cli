@@ -21,6 +21,11 @@ pub struct VersionedValue {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UpdateGap {
+    pub after_sequence: Option<UpdateSequence>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CachedUpdateKind {
     Authorization,
     User,
@@ -91,6 +96,7 @@ pub struct VersionedMessageSendState {
 #[derive(Debug, Default)]
 pub struct StateReducer {
     sequence: u64,
+    gap: Option<UpdateGap>,
     authorization: Option<VersionedValue>,
     users: BTreeMap<i64, VersionedValue>,
     user_full_info: BTreeMap<i64, VersionedValue>,
@@ -110,6 +116,28 @@ pub struct StateReducer {
 impl StateReducer {
     pub fn last_sequence(&self) -> Option<UpdateSequence> {
         (self.sequence != 0).then_some(UpdateSequence(self.sequence))
+    }
+
+    pub fn gap(&self) -> Option<UpdateGap> {
+        self.gap
+    }
+
+    pub fn mark_update_gap(&mut self) -> UpdateGap {
+        *self.gap.get_or_insert(UpdateGap {
+            after_sequence: self.last_sequence(),
+        })
+    }
+
+    pub(crate) fn replace_from_snapshot(&mut self, updates: &[Value]) -> Result<(), ReducerError> {
+        let mut replacement = Self {
+            sequence: self.sequence,
+            ..Self::default()
+        };
+        for update in updates {
+            replacement.apply(update)?;
+        }
+        *self = replacement;
+        Ok(())
     }
 
     pub fn authorization(&self) -> Option<&VersionedValue> {
@@ -887,6 +915,44 @@ mod tests {
             reducer.web_app_message_sent(9_007_199_254_740_993).unwrap(),
             applied.sequence
         );
+    }
+
+    #[test]
+    fn gap_persists_until_atomic_snapshot_replacement() {
+        let mut reducer = StateReducer::default();
+        reducer
+            .apply(&json!({
+                "@type":"updateNewChat",
+                "chat":{"@type":"chat","id":1,"positions":[],"chat_lists":[],"reply_markup_message_id":0}
+            }))
+            .unwrap();
+        let gap = reducer.mark_update_gap();
+        assert_eq!(gap.after_sequence.unwrap().get(), 1);
+
+        reducer
+            .apply(&json!({"@type":"updateChatTitle","chat_id":1,"title":"gapped"}))
+            .unwrap();
+        assert_eq!(reducer.gap(), Some(gap));
+        assert!(
+            reducer
+                .replace_from_snapshot(&[
+                    json!({"@type":"updateChatTitle","chat_id":2,"title":"invalid"})
+                ])
+                .is_err()
+        );
+        assert_eq!(reducer.gap(), Some(gap));
+        assert_eq!(reducer.chat(1).unwrap().value["title"], "gapped");
+
+        reducer
+            .replace_from_snapshot(&[json!({
+                "@type":"updateNewChat",
+                "chat":{"@type":"chat","id":2,"positions":[],"chat_lists":[],"reply_markup_message_id":0}
+            })])
+            .unwrap();
+        assert!(reducer.gap().is_none());
+        assert!(reducer.chat(1).is_none());
+        assert!(reducer.chat(2).is_some());
+        assert_eq!(reducer.last_sequence().unwrap().get(), 3);
     }
 
     #[test]

@@ -310,6 +310,27 @@ string_enum!(
     }
 );
 
+string_enum!(
+    /// `supergroupFullInfo` Bool-поле, на которое ссылается pinned method documentation.
+    ///
+    /// Это vocabulary method-level source family, а не все `can_*` поля
+    /// constructor. Static atom не доказывает freshness snapshot: её обязан
+    /// fail-closed проверять будущий runtime-слой.
+    SupergroupFullInfoProperty,
+    8,
+    "supergroup full-info property",
+    {
+        CanEnablePaidMessages => "can_enable_paid_messages",
+        CanGetMembers => "can_get_members",
+        CanGetRevenueStatistics => "can_get_revenue_statistics",
+        CanGetStarRevenueStatistics => "can_get_star_revenue_statistics",
+        CanGetStatistics => "can_get_statistics",
+        CanHideMembers => "can_hide_members",
+        CanSetLocation => "can_set_location",
+        CanToggleAggressiveAntiSpam => "can_toggle_aggressive_anti_spam",
+    }
+);
+
 /// Ссылка на именованный argument TDLib method.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ArgumentRef(String);
@@ -846,6 +867,10 @@ pub enum RuntimeRequirement {
         subject: GroupCallMessageSubjectRef,
         capability: GroupCallMessageCapability,
     },
+    SupergroupFullInfoProperty {
+        target: ChatTargetRef,
+        property: SupergroupFullInfoProperty,
+    },
 }
 
 impl RuntimeRequirement {
@@ -866,6 +891,7 @@ impl RuntimeRequirement {
             Self::GroupCallMessageCapability { subject, .. } => {
                 vec![subject.group_call().argument(), subject.message_argument()]
             }
+            Self::SupergroupFullInfoProperty { target, .. } => vec![target.argument()],
             Self::TopicCreator { target, topic } => {
                 vec![target.argument(), topic.argument()]
             }

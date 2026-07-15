@@ -112,8 +112,9 @@ flowchart LR
   - [x] Closed bounded domain model и pure fail-closed generator для schema-bound capability policy.
   - [x] Exact real-schema capability-signal baseline и all-tag authorization evidence.
   - [x] Closed `ChatKind` predicate и exact conditional DNF для первой reviewed source family.
-  - [x] Exact per-signal oracle, quantified `MessageProperties` и typed `GroupCall` predicates.
-- [ ] Closed typed dispositions для 143 распознанных, но ещё unsupported runtime-signal methods.
+  - [x] Exact per-signal oracle, quantified `MessageProperties`, typed `GroupCall` и `SupergroupFullInfo` predicates.
+- [ ] Closed typed dispositions для 138 распознанных, но ещё unsupported runtime-signal methods.
+  - [x] Exact `SupergroupFullInfo` schema/property family: 5 complete typed DNF, 7 mixed methods deferred.
   - [ ] Reviewed canonical capability policy/artifact для всех 1010 methods.
 - [ ] Определить supported targets: macOS arm64 и Linux x86_64 минимум.
 - [ ] Перенести только доказанно reusable части `tg-analytics`; не переносить NATS/Postgres/analytics orchestration.
@@ -142,6 +143,7 @@ flowchart LR
 - `W-20260715-016`: exact ordered `messageProperties` vocabulary закрепляет 36 action capabilities и typed `One/Each` message subjects. Schema-derived 33-method family разделена exhaustive на 29 complete contracts и 4 deferred mixed methods; `addOffer` имеет две OR-ветки, `reportSupergroupSpam` — `supergroup + administrator + all(message_ids)`. Consumed-key set — 59, terminal complete set — 37, open set — 156 с SHA-256 `e3ce3e...54`. 52 generator и 22 core tests, 74 whole-workspace tests, Clippy/fmt/diff/boundary/pin gates green с `jobs=2`; три final reviews — `Approved`. Решение `D-20260715-013`; `P-20260715-005` остаётся open до zero-open gate.
 - `W-20260715-017`: exact `getChatBoostLinkInfo` description классифицирована как lexical non-gate: `internalLinkTypeChatBoost` описывает тип входной ссылки, pinned request path не проверяет right/boostability. Unique-tag exact matcher и same-family drift control сохраняют fail-closed semantics. Terminal complete set — 38, open set — 155 с SHA-256 `4ed02d...9c1b`; 74 whole-workspace tests и два independent reviews green. `P-20260715-005` остаётся open.
 - `W-20260715-018`: exact ordered `groupCall`/`groupCallMessage` vocabulary, closed three-kind/seven-property model и schema-bound `group_call_id:int32`/`Each(message_ids:vector<int32>)` закрепляют 12 reviewed DNF; два argument-dependent methods остаются deferred. `toggleVideoChatMuteNewParticipants.only by administrators` корректно отделён как semantics настраиваемого значения, не caller prerequisite. Consumed keys — 38, supported typed set — 47, terminal complete — 50, open set — 143 с SHA-256 `a6e5b3...3a12`. 80 workspace tests, Clippy/fmt/boundary/pin/wiki/diff gates green с `jobs=2`; три final reviews — `Approved`. Решение `D-20260715-014`; runtime lifecycle/freshness и `P-20260715-005` остаются open.
+- `W-20260715-019`: exact ordered 42-field `supergroupFullInfo`, closed eight-property model и semantic `chat_id`/`supergroup_id:int53` закрепляют 5 reviewed DNF; 7 owner/filter/value/password-dependent methods остаются deferred. `setChatPaidMessageStarCount` требует `can_restrict_members AND can_enable_paid_messages`; два cross-token `OnlyIfAdministrator` false positives отделены exact lexical non-gate, а реальная filter-dependent administrator оговорка остаётся open. Consumed keys — 12, supported typed set — 52, terminal complete — 55, open set — 138 с SHA-256 `a2028d7a...c9aa67`. 85 workspace tests, Clippy/fmt/diff/wiki gates green с `jobs=2`; Rust/evidence reviews и independent oracle audit — `Approved`. Решение `D-20260715-015`; runtime freshness/evaluator и `P-20260715-005` остаются open.
 
 ## P1 — Core transport, authorization и ordered state
 

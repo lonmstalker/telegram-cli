@@ -5,13 +5,14 @@ use crate::schema::{DefinitionKind, Parameter, Schema};
 use super::{
     AccountKind, ApplicationRequirement, ArgumentRef, AuthorizationState, BusinessBotRight,
     BusinessConnectionRef, CapabilityDescriptor, CapabilityModelErrorKind, ChatAdministratorRight,
-    ChatKindCondition, ChatMemberRight, ChatTargetRef, CurrentAccountEntitlement, DcEnvironment,
-    ForumTopicRef, GroupCallIdRef, GroupCallKindCondition, GroupCallMessageCapability,
-    GroupCallMessageIdsRef, GroupCallMessageSubjectRef, GroupCallProperty, MAX_ATOMS_PER_METHOD,
-    MAX_CLAUSES_PER_METHOD, MAX_PARAMETER_NOTICES_PER_METHOD, MAX_SYNCHRONOUS_VALUES_PER_METHOD,
-    MessageCapability, MessageIdRef, MessageIdsRef, MessageSubjectRef, ParameterCapabilityNotice,
-    ParameterGate, ParameterStringValue, RequirementAlternatives, ResolvedChatKind,
-    ResolvedGroupCallKind, RuntimeRequirement, SynchronousCapability,
+    ChatKindCondition, ChatMemberRight, ChatTargetKind, ChatTargetRef, CurrentAccountEntitlement,
+    DcEnvironment, ForumTopicRef, GroupCallIdRef, GroupCallKindCondition,
+    GroupCallMessageCapability, GroupCallMessageIdsRef, GroupCallMessageSubjectRef,
+    GroupCallProperty, MAX_ATOMS_PER_METHOD, MAX_CLAUSES_PER_METHOD,
+    MAX_PARAMETER_NOTICES_PER_METHOD, MAX_SYNCHRONOUS_VALUES_PER_METHOD, MessageCapability,
+    MessageIdRef, MessageIdsRef, MessageSubjectRef, ParameterCapabilityNotice, ParameterGate,
+    ParameterStringValue, RequirementAlternatives, ResolvedChatKind, ResolvedGroupCallKind,
+    RuntimeRequirement, SupergroupFullInfoProperty, SynchronousCapability,
 };
 
 #[test]
@@ -199,6 +200,46 @@ fn group_call_properties_and_message_cardinality_are_closed_and_semantic() {
         .kind(),
         CapabilityModelErrorKind::IncompatibleRuntimeRequirement
     );
+}
+
+#[test]
+fn supergroup_full_info_properties_are_closed_semantic_and_account_neutral() {
+    assert_eq!(SupergroupFullInfoProperty::ALL.len(), 8);
+    for property in SupergroupFullInfoProperty::ALL {
+        assert_eq!(
+            SupergroupFullInfoProperty::try_from(property.as_str()),
+            Ok(property)
+        );
+    }
+    assert!(SupergroupFullInfoProperty::try_from("can_send_gift").is_err());
+
+    let target = ChatTargetRef::try_from("supergroup_id").expect("supergroup target");
+    let requirement = RuntimeRequirement::SupergroupFullInfoProperty {
+        target: target.clone(),
+        property: SupergroupFullInfoProperty::CanGetMembers,
+    };
+    assert_eq!(
+        requirement
+            .argument_refs()
+            .into_iter()
+            .map(ArgumentRef::as_str)
+            .collect::<Vec<_>>(),
+        ["supergroup_id"]
+    );
+
+    CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::Bot],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        RequirementAlternatives::try_new(vec![vec![requirement]])
+            .expect("bounded full-info requirement"),
+        Vec::new(),
+    )
+    .expect("full-info evidence itself is available to bot-compatible methods");
+    assert_eq!(target.kind(), ChatTargetKind::SupergroupId);
 }
 
 #[test]
@@ -691,5 +732,6 @@ impl_capability_value!(
     MessageCapability,
     GroupCallProperty,
     GroupCallMessageCapability,
-    ResolvedGroupCallKind
+    ResolvedGroupCallKind,
+    SupergroupFullInfoProperty,
 );

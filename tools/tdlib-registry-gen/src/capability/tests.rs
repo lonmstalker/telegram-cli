@@ -5,10 +5,11 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use telegram_core::method_capability::{
     AccountKind, ApplicationRequirement, AuthorizationState, CapabilityDescriptor,
-    ChatAdministratorRight, ChatKindCondition, ChatMemberRight, ChatTargetRef, DcEnvironment,
-    ForumTopicRef, GroupCallMessageCapability, GroupCallMessageSubjectRef, GroupCallProperty,
-    MessageCapability, MessageSubjectRef, RequirementAlternatives, ResolvedChatKind,
-    ResolvedGroupCallKind, RuntimeRequirement, SynchronousCapability,
+    ChatAdministratorRight, ChatKindCondition, ChatMemberRight, ChatTargetKind, ChatTargetRef,
+    DcEnvironment, ForumTopicRef, GroupCallMessageCapability, GroupCallMessageSubjectRef,
+    GroupCallProperty, MessageCapability, MessageSubjectRef, RequirementAlternatives,
+    ResolvedChatKind, ResolvedGroupCallKind, RuntimeRequirement, SupergroupFullInfoProperty,
+    SynchronousCapability,
 };
 use telegram_core::schema::Schema;
 
@@ -23,7 +24,7 @@ use super::{
     serialize_pretty_with_limit, sha256_hex, validate_documented_authorization_states,
     validate_documented_method_constraints, validate_documented_parameter_notices,
     validate_documented_runtime_requirements, validate_group_call_vocabulary,
-    validate_message_properties_vocabulary,
+    validate_message_properties_vocabulary, validate_supergroup_full_info_vocabulary,
 };
 
 type PolicyMutation = Box<dyn Fn(&mut Value)>;
@@ -63,9 +64,18 @@ formattedText text:string = FormattedText;
 groupCallRecentSpeaker participant_id:MessageSender is_speaking:Bool = GroupCallRecentSpeaker;
 groupCall id:int32 unique_id:int64 title:string invite_link:string paid_message_star_count:int53 scheduled_start_date:int32 enabled_start_notification:Bool is_active:Bool is_video_chat:Bool is_live_story:Bool is_rtmp_stream:Bool is_joined:Bool need_rejoin:Bool is_owned:Bool can_be_managed:Bool participant_count:int32 has_hidden_listeners:Bool loaded_all_participants:Bool message_sender_id:MessageSender recent_speakers:vector<groupCallRecentSpeaker> is_my_video_enabled:Bool is_my_video_paused:Bool can_enable_video:Bool mute_new_participants:Bool can_toggle_mute_new_participants:Bool can_send_messages:Bool are_messages_allowed:Bool can_toggle_are_messages_allowed:Bool can_delete_messages:Bool record_duration:int32 is_video_recorded:Bool duration:int32 = GroupCall;
 groupCallMessage message_id:int32 sender_id:MessageSender date:int32 text:formattedText paid_message_star_count:int53 is_from_owner:Bool can_be_deleted:Bool = GroupCallMessage;
+chatPhoto = ChatPhoto;
+chatLocation = ChatLocation;
+chatInviteLink = ChatInviteLink;
+botCommands = BotCommands;
+botVerification = BotVerification;
+profileTabTest = ProfileTab;
+chatStatisticsTest = ChatStatistics;
+supergroupFullInfo photo:chatPhoto community_id:int53 description:string member_count:int32 administrator_count:int32 restricted_count:int32 banned_count:int32 linked_chat_id:int53 direct_messages_chat_id:int53 slow_mode_delay:int32 slow_mode_delay_expires_in:double can_enable_paid_messages:Bool can_enable_paid_reaction:Bool can_get_members:Bool has_hidden_members:Bool can_hide_members:Bool can_set_sticker_set:Bool can_set_location:Bool can_get_statistics:Bool can_get_revenue_statistics:Bool can_get_star_revenue_statistics:Bool can_send_gift:Bool can_toggle_aggressive_anti_spam:Bool is_all_history_available:Bool can_have_sponsored_messages:Bool has_aggressive_anti_spam_enabled:Bool has_paid_media_allowed:Bool has_pinned_stories:Bool gift_count:int32 my_boost_count:int32 unrestrict_boost_count:int32 outgoing_paid_message_star_count:int53 sticker_set_id:int64 custom_emoji_sticker_set_id:int64 location:chatLocation invite_link:chatInviteLink guard_bot_user_id:int53 bot_commands:vector<botCommands> bot_verification:botVerification main_profile_tab:ProfileTab upgraded_from_basic_group_id:int53 upgraded_from_max_message_id:int53 = SupergroupFullInfo;
 updateGroupCall group_call:groupCall = Update;
 updateNewGroupCallMessage group_call_id:int32 message:groupCallMessage = Update;
 updateGroupCallMessagesDeleted group_call_id:int32 message_ids:vector<int32> = Update;
+updateSupergroupFullInfo supergroup_id:int53 supergroup_full_info:supergroupFullInfo = Update;
 
 ---functions---
 
@@ -83,6 +93,9 @@ getGroupCall group_call_id:int32 = GroupCall;
 
 //@description Returns properties of a message. This is an offline method @chat_id Chat identifier @message_id Identifier of the message
 getMessageProperties chat_id:int53 message_id:int53 = MessageProperties;
+
+//@description Returns full information about a supergroup or channel by its identifier @supergroup_id Identifier of the supergroup or channel
+getSupergroupFullInfo supergroup_id:int53 = SupergroupFullInfo;
 
 //@description Uses a feature; for Telegram Premium users only
 usePremiumFeature = Ok;
@@ -149,8 +162,8 @@ fn canonical_generation_is_pure_and_independent_of_policy_order() {
     assert_eq!(first.last(), Some(&b'\n'));
     let artifact: Value = serde_json::from_slice(&first).expect("artifact JSON");
     assert_eq!(artifact["format_version"], super::FORMAT_VERSION);
-    assert_eq!(artifact["counts"]["schema_methods"], 18);
-    assert_eq!(artifact["counts"]["capability_methods"], 18);
+    assert_eq!(artifact["counts"]["schema_methods"], 19);
+    assert_eq!(artifact["counts"]["capability_methods"], 19);
     let methods = artifact["methods"].as_array().expect("method rows");
     assert!(
         methods
@@ -324,6 +337,64 @@ fn public_generation_enforces_and_serializes_group_call_contracts() {
                     "property": "can_be_managed"
                 }
             ]}]
+        })
+    );
+}
+
+#[test]
+fn public_generation_enforces_and_serializes_supergroup_full_info_contracts() {
+    let marker = "//@description Uses a feature; for Telegram Premium users only";
+    let schema = SCHEMA.replacen(
+        marker,
+        concat!(
+            "//@description Returns detailed statistics about a chat. Currently, this method can be used only for supergroups and channels. Can be used only if supergroupFullInfo.can_get_statistics == true\n",
+            "//@chat_id Chat identifier\n",
+            "//@is_dark Pass true if a dark theme is used by the application\n",
+            "getChatStatistics chat_id:int53 is_dark:Bool = ChatStatistics;\n\n",
+            "//@description Uses a feature; for Telegram Premium users only"
+        ),
+        1,
+    );
+    assert_ne!(schema, SCHEMA, "full-info-gated fixture insertion");
+    let fixture = Fixture::new(&schema);
+    let mut omitted = fixture.capability_value();
+    method_row_mut(&mut omitted, "getChatStatistics")["ready_accounts"] = json!(["regular_user"]);
+    assert_eq!(
+        fixture
+            .generate_value(&omitted)
+            .expect_err("public generator must reject omitted full-info contract")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let mut policy = fixture.capability_value();
+    let row = method_row_mut(&mut policy, "getChatStatistics");
+    row["ready_accounts"] = json!(["regular_user"]);
+    row["runtime_requirements"] = json!({
+        "kind": "any_of",
+        "clauses": [{"all_of": [{
+            "kind": "supergroup_full_info_property",
+            "target_argument": "chat_id",
+            "property": "can_get_statistics"
+        }]}]
+    });
+    let artifact: Value = serde_json::from_slice(
+        &fixture
+            .generate_value(&policy)
+            .expect("public full-info capability generation"),
+    )
+    .expect("canonical public artifact");
+    let row = method_row(&artifact, "getChatStatistics");
+    assert_eq!(row["ready_accounts"], json!(["regular_user"]));
+    assert_eq!(
+        row["runtime_requirements"],
+        json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": [{
+                "kind": "supergroup_full_info_property",
+                "target": {"kind": "chat_id", "argument": "chat_id"},
+                "property": "can_get_statistics"
+            }]}]
         })
     );
 }
@@ -662,8 +733,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            47,
-            "952b7a34cad37987b3a0914e451c79111042a819dcb9df84594d91c410297979".to_owned()
+            52,
+            "da693e7ee0f44569abeedc82e0c83e0442893b7b70d67687a40c0a48e3062494".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -679,8 +750,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            50,
-            "f08a00cc6fc7377504637ef3fb84b75b52455cd2397fa1dd669bf2ef41f16175".to_owned()
+            55,
+            "95da2d6299f9ca3d9e1b43553f084996bc3106b668ef1385dfc3af20fe3a979f".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -689,12 +760,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        143,
+        138,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "a6e5b3c9d53a657e7ee3f9f4f5ed4bad7043292418b08849273d406f513b3a12",
+        "a2028d7acb1055b4c5fc5a0fda69cf4a8c09200feea2fd3d386596e24fc9aa67",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -771,7 +842,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "97dd27f0432fe34a6a1c0af4e8cfc2cec955067a735971205341bf99a7c81859"
+        "f3f2c8c344d4082ac918f4b4a279f3d863db51760dcf1a5074711faef5e25a58"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -1342,6 +1413,61 @@ fn requires_exact_group_call_schema_vocabulary() {
             "{signature}"
         );
     }
+}
+
+#[test]
+fn requires_exact_supergroup_full_info_schema_vocabulary() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    validate_supergroup_full_info_vocabulary(&Schema::parse(pinned).expect("pinned schema"))
+        .expect("exact pinned SupergroupFullInfo contract");
+
+    let drifted = [
+        pinned.replace(
+            "supergroupFullInfo photo:chatPhoto community_id:int53",
+            "supergroupFullInfo community_id:int53 photo:chatPhoto",
+        ),
+        pinned.replace(" can_get_members:Bool", " can_get_members:int32"),
+        pinned.replace(" can_hide_members:Bool", " can_hide_participants:Bool"),
+        pinned.replace(
+            " upgraded_from_max_message_id:int53 = SupergroupFullInfo;",
+            " = SupergroupFullInfo;",
+        ),
+        pinned.replace(
+            " upgraded_from_max_message_id:int53 = SupergroupFullInfo;",
+            " upgraded_from_max_message_id:int53 extra:Bool = SupergroupFullInfo;",
+        ),
+        pinned.replace(
+            "getSupergroupFullInfo supergroup_id:int53 = SupergroupFullInfo;",
+            "getSupergroupFullInfo supergroup_id:int32 = SupergroupFullInfo;",
+        ),
+        pinned.replace(
+            "updateSupergroupFullInfo supergroup_id:int53 supergroup_full_info:supergroupFullInfo = Update;",
+            "updateSupergroupFullInfo supergroup_id:int32 supergroup_full_info:supergroupFullInfo = Update;",
+        ),
+    ];
+    for schema in drifted {
+        let error = validate_supergroup_full_info_vocabulary(
+            &Schema::parse(&schema).expect("valid drifted full-info schema"),
+        )
+        .expect_err("SupergroupFullInfo schema drift");
+        assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
+    }
+
+    let signature = "updateSupergroupFullInfo supergroup_id:int53 supergroup_full_info:supergroupFullInfo = Update;";
+    let without_update = pinned.replacen(signature, "", 1);
+    let moved_to_methods = without_update.replacen(
+        "---functions---",
+        &format!("---functions---\n{signature}"),
+        1,
+    );
+    let moved_to_methods =
+        Schema::parse(&moved_to_methods).expect("valid update-to-method drift schema");
+    assert_eq!(
+        validate_supergroup_full_info_vocabulary(&moved_to_methods)
+            .expect_err("full-info ingress must remain an update constructor")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
 }
 
 #[test]
@@ -1968,6 +2094,364 @@ fn pinned_group_call_capability_contracts_are_exact() {
             CapabilityGenerationErrorKind::SchemaDrift
         );
     }
+}
+
+#[test]
+fn parses_schema_bound_supergroup_full_info_property_atom() {
+    let schema =
+        Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
+    let parse = |target_argument: &str, property: &str| {
+        let dto: RuntimeRequirementsDto = serde_json::from_value(json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": [{
+                "kind": "supergroup_full_info_property",
+                "target_argument": target_argument,
+                "property": property
+            }]}]
+        }))
+        .expect("full-info requirement DTO");
+        parse_runtime_requirements(dto, find_method(&schema, "getChatStatistics"))
+    };
+
+    let requirements =
+        parse("chat_id", "can_get_statistics").expect("typed supergroup-full-info property");
+    let [RuntimeRequirement::SupergroupFullInfoProperty { target, property }] =
+        requirements.clauses()[0].as_slice()
+    else {
+        panic!("unexpected full-info requirement")
+    };
+    assert_eq!(target.kind(), ChatTargetKind::ChatId);
+    assert_eq!(target.argument().as_str(), "chat_id");
+    assert_eq!(*property, SupergroupFullInfoProperty::CanGetStatistics);
+    assert_eq!(
+        serde_json::to_value(super::CanonicalRuntimeRequirement::from_domain(
+            &requirements.clauses()[0][0]
+        ))
+        .expect("canonical full-info property"),
+        json!({
+            "kind": "supergroup_full_info_property",
+            "target": {"kind": "chat_id", "argument": "chat_id"},
+            "property": "can_get_statistics"
+        })
+    );
+
+    for (target_argument, property) in [
+        ("chat_id", "can_send_gift"),
+        ("peer_id", "can_get_statistics"),
+        ("is_dark", "can_get_statistics"),
+    ] {
+        assert_eq!(
+            parse(target_argument, property)
+                .expect_err("unknown property or non-chat target must fail")
+                .kind(),
+            CapabilityGenerationErrorKind::InvalidPolicy
+        );
+    }
+    assert!(
+        serde_json::from_value::<RuntimeRequirementsDto>(json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": [{
+                "kind": "supergroup_full_info_property",
+                "target_argument": "chat_id",
+                "property": "can_get_statistics",
+                "unexpected": true
+            }]}]
+        }))
+        .is_err(),
+        "full-info DTO must reject unknown fields"
+    );
+}
+
+#[test]
+fn pinned_supergroup_full_info_capability_contracts_are_exact() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    assert_eq!(SupergroupFullInfoProperty::ALL.len(), 8);
+    let safe_methods = [
+        "getChatStatistics",
+        "setChatLocation",
+        "setChatPaidMessageStarCount",
+        "toggleSupergroupHasAggressiveAntiSpamEnabled",
+        "toggleSupergroupHasHiddenMembers",
+    ];
+    let deferred_methods = [
+        "getChatRevenueStatistics",
+        "getChatRevenueTransactions",
+        "getChatRevenueWithdrawalUrl",
+        "getStarRevenueStatistics",
+        "getStarTransactions",
+        "getSupergroupMembers",
+        "setChatDirectMessagesGroup",
+    ];
+    let hash_rows = |mut rows: Vec<String>| {
+        rows.sort_unstable();
+        let mut payload = rows.join("\n");
+        payload.push('\n');
+        sha256_hex(payload.as_bytes())
+    };
+    let safe = safe_methods
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    let deferred = deferred_methods
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    assert!(safe.is_disjoint(&deferred));
+    let reviewed = safe
+        .union(&deferred)
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    let derived = schema
+        .methods()
+        .iter()
+        .filter_map(|method| {
+            documented_runtime_signal_dispositions(method)
+                .unwrap_or_else(|error| panic!("{}: {error}", method.name()))
+                .iter()
+                .any(|(key, _)| key.family() == RuntimeSignalFamily::SupergroupFullInfoFact)
+                .then_some(method.name())
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(reviewed, derived, "full-info partition must be exhaustive");
+    assert_eq!(
+        hash_rows(reviewed.iter().map(ToString::to_string).collect()),
+        "009753dda10c34a5efd8a8b210f0c2f7addcb51a66d1a9cbcfae1d89f0b85e77"
+    );
+    assert_eq!(
+        hash_rows(safe.iter().map(ToString::to_string).collect()),
+        "e2f70c9e185de98cd0e9116f9e63713fbb5dfe50b5dd13ca237eb86e315b4910"
+    );
+    assert_eq!(
+        hash_rows(deferred.iter().map(ToString::to_string).collect()),
+        "bf00644532ef19d5546ee88dc805b3c1746867941f7758d613b872e53e63ff47"
+    );
+
+    let expected_formulas = std::collections::BTreeMap::from([
+        ("getChatStatistics", "full_info:chat_id:can_get_statistics"),
+        ("setChatLocation", "full_info:chat_id:can_set_location"),
+        (
+            "setChatPaidMessageStarCount",
+            "administrator_right:chat_id:can_restrict_members&full_info:chat_id:can_enable_paid_messages",
+        ),
+        (
+            "toggleSupergroupHasAggressiveAntiSpamEnabled",
+            "full_info:supergroup_id:can_toggle_aggressive_anti_spam",
+        ),
+        (
+            "toggleSupergroupHasHiddenMembers",
+            "full_info:supergroup_id:can_hide_members",
+        ),
+    ]);
+    let mut consumed_rows = Vec::new();
+    let mut non_gate_rows = Vec::new();
+    for method_name in safe_methods {
+        let method = find_method(&schema, method_name);
+        let dispositions = documented_runtime_signal_dispositions(method)
+            .unwrap_or_else(|error| panic!("{method_name}: {error}"));
+        for (key, disposition) in &dispositions {
+            let source = match key.source() {
+                RuntimeSignalSource::Description => "description".to_owned(),
+                RuntimeSignalSource::Argument(argument) => {
+                    format!("argument:{}", argument.as_str())
+                }
+            };
+            let row = format!("{method_name}\t{source}\t{}", key.family().canonical_name());
+            if method_name == "toggleSupergroupHasHiddenMembers"
+                && key.family() == RuntimeSignalFamily::OnlyIfAdministrator
+            {
+                assert!(matches!(
+                    disposition,
+                    RuntimeSignalDisposition::NotRuntimeGate(
+                        NonGateReason::SupergroupFullInfoCrossTokenWording
+                    )
+                ));
+                non_gate_rows.push(row);
+            } else {
+                assert_eq!(
+                    *disposition,
+                    RuntimeSignalDisposition::ConsumedByRuntimeRequirements,
+                    "{row}"
+                );
+                consumed_rows.push(row);
+            }
+        }
+
+        let requirements = documented_runtime_requirements(method)
+            .unwrap_or_else(|error| panic!("{method_name}: {error}"))
+            .expect("reviewed full-info contract");
+        let mut clauses = requirements
+            .clauses()
+            .iter()
+            .map(|clause| {
+                let mut atoms = clause
+                    .iter()
+                    .map(|requirement| match requirement {
+                        RuntimeRequirement::SupergroupFullInfoProperty { target, property } => {
+                            format!(
+                                "full_info:{}:{}",
+                                target.argument().as_str(),
+                                property.as_str()
+                            )
+                        }
+                        RuntimeRequirement::ChatAdministratorRight { target, right } => {
+                            format!(
+                                "administrator_right:{}:{}",
+                                target.argument().as_str(),
+                                right.as_str()
+                            )
+                        }
+                        other => panic!("{method_name}: unexpected atom {other:?}"),
+                    })
+                    .collect::<Vec<_>>();
+                atoms.sort_unstable();
+                atoms.join("&")
+            })
+            .collect::<Vec<_>>();
+        clauses.sort_unstable();
+        assert_eq!(clauses.join("|"), expected_formulas[method_name]);
+    }
+    assert_eq!(consumed_rows.len(), 12);
+    assert_eq!(
+        hash_rows(consumed_rows),
+        "1d23853fea29ffe0578cbe963615eb3d5a9fb3e39ce1cbf03753bf42ca1f63fd"
+    );
+
+    let mut pending_rows = Vec::new();
+    for method_name in deferred_methods {
+        let method = find_method(&schema, method_name);
+        assert_eq!(
+            documented_runtime_requirements(method)
+                .expect_err("mixed full-info method must remain open")
+                .kind(),
+            CapabilityGenerationErrorKind::SchemaDrift
+        );
+        for (key, disposition) in documented_runtime_signal_dispositions(method)
+            .unwrap_or_else(|error| panic!("{method_name}: {error}"))
+        {
+            let source = match key.source() {
+                RuntimeSignalSource::Description => "description".to_owned(),
+                RuntimeSignalSource::Argument(argument) => {
+                    format!("argument:{}", argument.as_str())
+                }
+            };
+            let row = format!("{method_name}\t{source}\t{}", key.family().canonical_name());
+            if method_name == "getSupergroupMembers"
+                && key.family() == RuntimeSignalFamily::OnlyIfAdministrator
+            {
+                assert!(matches!(
+                    disposition,
+                    RuntimeSignalDisposition::NotRuntimeGate(
+                        NonGateReason::SupergroupFullInfoCrossTokenWording
+                    )
+                ));
+                non_gate_rows.push(row);
+            } else {
+                assert!(matches!(disposition, RuntimeSignalDisposition::Deferred(_)));
+                pending_rows.push(row);
+            }
+        }
+    }
+    assert_eq!(non_gate_rows.len(), 2);
+    assert_eq!(
+        hash_rows(non_gate_rows),
+        "2e071a4014d657bd19c8ac1ee1f2d954eac565fa2214166519d373f92ed948a5"
+    );
+    assert_eq!(pending_rows.len(), 18);
+    assert_eq!(
+        hash_rows(pending_rows),
+        "f49347a937191c446fed02419c401e22b8cafc545abda87d0f1b5fe516de95db"
+    );
+
+    let source = "Returns detailed statistics about a chat. Currently, this method can be used only for supergroups and channels. Can be used only if supergroupFullInfo.can_get_statistics == true";
+    for replacement in [
+        "Returns detailed statistics about a chat",
+        "Returns detailed statistics about a chat. Currently, this method can be used only for supergroups and channels. Can be used only if supergroupFullInfo.can_get_revenue_statistics == true",
+        "Returns detailed chat statistics. Currently, this method can be used only for supergroups and channels. Can be used only if supergroupFullInfo.can_get_statistics == true",
+    ] {
+        let mutated = pinned.replacen(source, replacement, 1);
+        assert_ne!(mutated, pinned, "source mutation fixture");
+        let mutated = Schema::parse(&mutated).expect("valid source mutation");
+        assert_eq!(
+            documented_runtime_requirements(find_method(&mutated, "getChatStatistics"))
+                .expect_err("full-info source drift must fail closed")
+                .kind(),
+            CapabilityGenerationErrorKind::SchemaDrift
+        );
+    }
+    let duplicate_source = pinned.replacen(
+        source,
+        &format!("{source}\n//@description Duplicate non-gating documentation"),
+        1,
+    );
+    let duplicate_source = Schema::parse(&duplicate_source).expect("duplicate source-tag schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&duplicate_source, "getChatStatistics"))
+            .expect_err("duplicate reviewed source must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+    let statistics_documentation = format!(
+        "{source} @chat_id Chat identifier @is_dark Pass true if a dark theme is used by the application"
+    );
+    let additional_signal = pinned.replacen(
+        &statistics_documentation,
+        &format!(
+            "{source} @chat_id Chat identifier @is_dark Pass true if a dark theme is used by the application. Use supergroupFullInfo.can_get_statistics to validate it"
+        ),
+        1,
+    );
+    assert_ne!(additional_signal, pinned, "additional signal fixture");
+    let additional_signal =
+        Schema::parse(&additional_signal).expect("additional argument-signal schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&additional_signal, "getChatStatistics"))
+            .expect_err("unconsumed additional full-info signal must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+    for mutated in [
+        pinned.replace(
+            "getChatStatistics chat_id:int53 is_dark:Bool",
+            "getChatStatistics chat_id:int32 is_dark:Bool",
+        ),
+        pinned.replace(
+            "toggleSupergroupHasHiddenMembers supergroup_id:int53",
+            "toggleSupergroupHasHiddenMembers supergroup_id:int32",
+        ),
+    ] {
+        let mutated = Schema::parse(&mutated).expect("valid target-shape mutation");
+        let method = if field_type(find_method(&mutated, "getChatStatistics"), "chat_id")
+            .is_some_and(|ty| ty.name() == "int32")
+        {
+            "getChatStatistics"
+        } else {
+            "toggleSupergroupHasHiddenMembers"
+        };
+        assert_eq!(
+            documented_runtime_requirements(find_method(&mutated, method))
+                .expect_err("full-info target type drift must fail closed")
+                .kind(),
+            CapabilityGenerationErrorKind::SchemaDrift
+        );
+    }
+
+    let members_source = "Returns information about members or banned users in a supergroup or channel. Can be used only if supergroupFullInfo.can_get_members == true; additionally, administrator privileges may be required for some filters";
+    let lexical_drift = pinned.replacen(
+        members_source,
+        "Returns information about members or banned users in a supergroup or channel. Can be used only if supergroupFullInfo.can_get_members == true; additionally, in practice, administrator privileges may be required for some filters",
+        1,
+    );
+    let lexical_drift = Schema::parse(&lexical_drift).expect("lexical drift schema");
+    let only_if =
+        documented_runtime_signal_dispositions(find_method(&lexical_drift, "getSupergroupMembers"))
+            .expect("drifted dispositions")
+            .into_iter()
+            .find(|(key, _)| key.family() == RuntimeSignalFamily::OnlyIfAdministrator)
+            .expect("cross-token family remains present");
+    assert_eq!(
+        only_if.1,
+        RuntimeSignalDisposition::Deferred(DeferredSignalLane::UnclassifiedDescription),
+        "non-gate exception must be exact-source-bound"
+    );
 }
 
 #[test]

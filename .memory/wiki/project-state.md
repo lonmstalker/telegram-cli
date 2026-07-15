@@ -27,10 +27,11 @@
 - P0.5b3 закрепляет ordered 39-field `messageProperties`, closed 36-value `MessageCapability` и typed `One/Each` subjects. Полные contracts приняты для 29 из 33 schema-derived methods; четыре mixed methods остаются deferred. Open set уменьшен до 156, capability format — `3`; три independent reviews — Approved.
 - P0.5b4 exact-match классифицирует `getChatBoostLinkInfo` как lexical non-gate: `internalLinkTypeChatBoost` является типом входной ссылки, не runtime capability. Open set уменьшен до 155; два independent reviews — Approved.
 - P0.5b5 закрепляет ordered 32-field `groupCall`, 7-field `groupCallMessage`, closed kind/property vocabulary и 12 exact typed DNF. Два argument-dependent methods остаются deferred; `only by administrators` у mute-new-participants классифицировано как setting-value non-gate. Open set уменьшен до 143, capability format — `4`; три independent reviews — Approved.
+- P0.5b6 закрепляет ordered 42-field `supergroupFullInfo`, closed eight-property vocabulary и 5 exact typed DNF. Семь mixed methods остаются deferred; два cross-token `OnlyIfAdministrator` matches классифицированы как exact lexical non-gates. Open set уменьшен до 138, capability format — `5`; Rust/evidence reviews и independent oracle audit — Approved.
 
 ## Not implemented
 
-- Linux x86_64 TDLib artifact, typed dispositions для 143 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
+- Linux x86_64 TDLib artifact, typed dispositions для 138 runtime-signal methods, reviewed 1010-method capability corpus, risk/prerequisite/retry classification, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
 - Stateful request-chain engine, retry/reconciliation, policy, metrics и agent skill остаются планом.
 
 ## Active boundary
@@ -54,12 +55,12 @@
 - [W-20260715-008](../logs/archive/2026-07-15--2026-07-15-006.md)
 - [Strict schema parser/inventory digest](../raw/2026-07-15-tdlib-schema-parser-inventory.md)
 - [D-20260715-006](../decisions/decisions.md)
-- [W-20260715-009](../logs/work.md)
+- [W-20260715-009](../logs/archive/2026-07-15--2026-07-15-008.md)
 - [TDLib owner generator digest](../raw/2026-07-15-tdlib-feature-owner-generator.md)
 - [D-20260715-007](../decisions/decisions.md)
 - [W-20260715-010](../logs/work.md)
 - [TDLib owner corpus digest](../raw/2026-07-15-tdlib-feature-owner-corpus.md)
-- [D-20260715-008](../decisions/decisions.md)
+- [D-20260715-008](../decisions/archive/2026-07-15--2026-07-15-007.md)
 - [W-20260715-011](../logs/work.md)
 - [TDLib capability generator foundation digest](../raw/2026-07-15-tdlib-capability-generator-foundation.md)
 - [TDLib capability evidence baseline](../raw/2026-07-15-tdlib-capability-evidence-baseline.md)
@@ -67,8 +68,9 @@
 - [TDLib per-signal runtime disposition oracle](../raw/2026-07-15-tdlib-runtime-signal-dispositions.md)
 - [TDLib MessageProperties capability digest](../raw/2026-07-15-tdlib-message-properties-capabilities.md)
 - [TDLib GroupCall capability digest](../raw/2026-07-15-tdlib-group-call-capabilities.md)
+- [TDLib SupergroupFullInfo capability digest](../raw/2026-07-15-tdlib-supergroup-full-info-capabilities.md)
 - [TDLib getChatBoostLinkInfo lexical non-gate digest](../raw/2026-07-15-tdlib-chat-boost-link-non-gate.md)
-- [D-20260715-009](../decisions/decisions.md)
+- [D-20260715-009](../decisions/archive/2026-07-15--2026-07-15-008.md)
 - [W-20260715-012](../logs/work.md)
 - [W-20260715-013](../logs/work.md)
 - [D-20260715-011](../decisions/decisions.md)
@@ -79,3 +81,5 @@
 - [W-20260715-016](../logs/work.md)
 - [W-20260715-017](../logs/work.md)
 - [W-20260715-018](../logs/work.md)
+- [D-20260715-015](../decisions/decisions.md)
+- [W-20260715-019](../logs/work.md)

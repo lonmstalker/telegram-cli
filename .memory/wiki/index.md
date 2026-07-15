@@ -32,10 +32,11 @@
 - [TDLib MessageProperties capability semantics](../raw/2026-07-15-tdlib-message-properties-capabilities.md) — exact 39-field vocabulary, 29 typed contracts, four deferred mixed methods и 156-method open set.
 - [TDLib getChatBoostLinkInfo lexical non-gate](../raw/2026-07-15-tdlib-chat-boost-link-non-gate.md) — exact type-name vocabulary exception и 155-method open set.
 - [TDLib GroupCall capability semantics](../raw/2026-07-15-tdlib-group-call-capabilities.md) — exact kind/property/cardinality DNF, setting-value non-gate и 143-method open set.
+- [TDLib SupergroupFullInfo capability semantics](../raw/2026-07-15-tdlib-supergroup-full-info-capabilities.md) — exact property/target DNF, cross-token lexical non-gates и 138-method open set.
 
 ## Current records
 
-- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, bounded owner generator, reviewed 1010-method owner corpus, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall semantics и macOS native pin закрыты через `W-20260715-018`; 143 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
+- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, bounded owner generator, reviewed 1010-method owner corpus, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo semantics и macOS native pin закрыты через `W-20260715-019`; 138 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
 - Native pin: [reviewed rebuild correction](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — exact source/schema и crash-safe macOS arm64 artifact закреплены; Linux/reproducibility остаются open.
 - Decision: [D-20260715-001](../decisions/archive/2026-07-15--2026-07-15-001.md) — раздельная memory model, rotation и secret boundary.
 - Decision: [D-20260715-002](../decisions/archive/2026-07-15--2026-07-15-002.md) — публичный GitHub remote принят как canonical `origin`.
@@ -44,16 +45,17 @@
 - Decision: [D-20260715-005](../decisions/decisions.md) — inherited global lease, gated target и proof-backed recovery определяют crash ownership.
 - Decision: [D-20260715-006](../decisions/decisions.md) — schema parser остаётся pure strict TDLib subset в `telegram-core`, а policy classification отделена от AST.
 - Decision: [D-20260715-007](../decisions/decisions.md) — owner classification живёт в isolated non-default tool; rules строят candidates, exact overrides только разрешают reviewed overlaps.
-- Decision: [D-20260715-008](../decisions/decisions.md) — exact owner mapping принят только с schema-derived oracles и semantic review; owner-only artifact не доказывает runtime parity.
-- Decision: [D-20260715-009](../decisions/decisions.md) — static capability requirements имеют closed bounded model; распознанные unsupported gate signals и лишнее policy-сужение fail closed, runtime truth остаётся отдельным слоем.
+- Decision: [D-20260715-008](../decisions/archive/2026-07-15--2026-07-15-007.md) — exact owner mapping принят только с schema-derived oracles и semantic review; owner-only artifact не доказывает runtime parity.
+- Decision: [D-20260715-009](../decisions/archive/2026-07-15--2026-07-15-008.md) — static capability requirements имеют closed bounded model; распознанные unsupported gate signals и лишнее policy-сужение fail closed, runtime truth остаётся отдельным слоем.
 - Decision: [D-20260715-010](../decisions/decisions.md) — capability grammar закрывается малыми reviewed source-family tasks по exact open set; full artifact требует zero-open gate.
 - Decision: [D-20260715-011](../decisions/decisions.md) — chat kind является closed typed evidence; channel — refinement `chatTypeSupergroup.is_channel`, не отдельный constructor.
 - Decision: [D-20260715-012](../decisions/decisions.md) — method complete только при terminal disposition каждого exact signal key.
 - Decision: [D-20260715-013](../decisions/decisions.md) — message-property capability требует exact source, identifier space и scalar/universal cardinality; mixed invocation semantics остаются deferred.
 - Decision: [D-20260715-014](../decisions/decisions.md) — group-call capability требует explicit kind/property/cardinality; setting semantics и stale runtime evidence не считаются caller capability.
+- Decision: [D-20260715-015](../decisions/decisions.md) — supergroup full-info property является static typed evidence; stale/missing snapshot остаётся отдельной fail-closed runtime boundary.
 - Open problem: [P-20260715-001](../problems/problems.md) — database key ещё не подключён к штатному gateway.
 - Open problem: [P-20260715-003](../problems/problems.md) — Linux x86_64 native artifact ещё не закреплён.
-- Open problem: [P-20260715-005](../problems/problems.md) — 143 pinned runtime-signal methods ещё не имеют typed disposition.
+- Open problem: [P-20260715-005](../problems/problems.md) — 138 pinned runtime-signal methods ещё не имеют typed disposition.
 
 ## Operating rules
 

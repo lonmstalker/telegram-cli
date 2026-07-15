@@ -19,13 +19,13 @@ use telegram_core::method_capability::{
     MAX_CLAUSES_PER_METHOD, MAX_PARAMETER_NOTICES_PER_METHOD, MAX_SYNCHRONOUS_VALUES_PER_METHOD,
     MessageCapability, MessageIdRef, MessageIdsRef, MessageSubjectRef, ParameterCapabilityNotice,
     ParameterGate, ParameterStringValue, RequirementAlternatives, ResolvedChatKind,
-    ResolvedGroupCallKind, RuntimeRequirement, SynchronousCapability,
+    ResolvedGroupCallKind, RuntimeRequirement, SupergroupFullInfoProperty, SynchronousCapability,
 };
 use telegram_core::schema::{Definition, DefinitionKind, Parameter, Schema};
 
 use crate::engine;
 
-const FORMAT_VERSION: u32 = 4;
+const FORMAT_VERSION: u32 = 5;
 const MAX_MANIFEST_BYTES: usize = 64 * 1024;
 const MAX_SCHEMA_BYTES: usize = 2 * 1024 * 1024;
 const MAX_OWNER_POLICY_BYTES: usize = 4 * 1024 * 1024;
@@ -88,6 +88,7 @@ pub fn generate(
     validate_chat_type_vocabulary(&schema)?;
     validate_message_properties_vocabulary(&schema)?;
     validate_group_call_vocabulary(&schema)?;
+    validate_supergroup_full_info_vocabulary(&schema)?;
 
     let policy: CapabilityPolicyDto =
         serde_json::from_slice(capability_policy_bytes).map_err(|error| {
@@ -545,6 +546,14 @@ fn parse_runtime_requirement(
             capability: GroupCallMessageCapability::try_from(capability.as_str())
                 .map_err(CapabilityGenerationError::from_model_value)?,
         }),
+        RuntimeRequirementDto::SupergroupFullInfoProperty {
+            target_argument,
+            property,
+        } => Ok(RuntimeRequirement::SupergroupFullInfoProperty {
+            target: parse_chat_target(method, target_argument)?,
+            property: SupergroupFullInfoProperty::try_from(property.as_str())
+                .map_err(CapabilityGenerationError::from_model_value)?,
+        }),
     }
 }
 
@@ -987,6 +996,58 @@ fn validate_group_call_vocabulary(schema: &Schema) -> Result<(), CapabilityGener
     Ok(())
 }
 
+fn validate_supergroup_full_info_vocabulary(
+    schema: &Schema,
+) -> Result<(), CapabilityGenerationError> {
+    const SUPERGROUP_FULL_INFO: &str = "supergroupFullInfo photo:chatPhoto community_id:int53 description:string member_count:int32 administrator_count:int32 restricted_count:int32 banned_count:int32 linked_chat_id:int53 direct_messages_chat_id:int53 slow_mode_delay:int32 slow_mode_delay_expires_in:double can_enable_paid_messages:Bool can_enable_paid_reaction:Bool can_get_members:Bool has_hidden_members:Bool can_hide_members:Bool can_set_sticker_set:Bool can_set_location:Bool can_get_statistics:Bool can_get_revenue_statistics:Bool can_get_star_revenue_statistics:Bool can_send_gift:Bool can_toggle_aggressive_anti_spam:Bool is_all_history_available:Bool can_have_sponsored_messages:Bool has_aggressive_anti_spam_enabled:Bool has_paid_media_allowed:Bool has_pinned_stories:Bool gift_count:int32 my_boost_count:int32 unrestrict_boost_count:int32 outgoing_paid_message_star_count:int53 sticker_set_id:int64 custom_emoji_sticker_set_id:int64 location:chatLocation invite_link:chatInviteLink guard_bot_user_id:int53 bot_commands:vector<botCommands> bot_verification:botVerification main_profile_tab:ProfileTab upgraded_from_basic_group_id:int53 upgraded_from_max_message_id:int53 = SupergroupFullInfo;";
+    const GET_SUPERGROUP_FULL_INFO: &str =
+        "getSupergroupFullInfo supergroup_id:int53 = SupergroupFullInfo;";
+    const UPDATE_SUPERGROUP_FULL_INFO: &str = "updateSupergroupFullInfo supergroup_id:int53 supergroup_full_info:supergroupFullInfo = Update;";
+
+    let constructors = schema
+        .definitions()
+        .iter()
+        .filter(|definition| {
+            definition.kind() == DefinitionKind::Constructor
+                && definition.result().name() == "SupergroupFullInfo"
+        })
+        .collect::<Vec<_>>();
+    if !matches!(constructors.as_slice(), [constructor] if constructor.canonical_signature() == SUPERGROUP_FULL_INFO)
+    {
+        return Err(CapabilityGenerationError::new(
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "schema SupergroupFullInfo constructor differs from the exact pinned shape",
+        ));
+    }
+
+    let getters = schema
+        .methods()
+        .iter()
+        .filter(|method| method.name() == "getSupergroupFullInfo")
+        .collect::<Vec<_>>();
+    if !matches!(getters.as_slice(), [getter] if getter.canonical_signature() == GET_SUPERGROUP_FULL_INFO)
+    {
+        return Err(CapabilityGenerationError::new(
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "schema getSupergroupFullInfo method differs from the exact pinned signature",
+        ));
+    }
+
+    let updates = schema
+        .definitions()
+        .iter()
+        .filter(|definition| definition.name() == "updateSupergroupFullInfo")
+        .collect::<Vec<_>>();
+    if !matches!(updates.as_slice(), [update] if update.canonical_signature() == UPDATE_SUPERGROUP_FULL_INFO)
+    {
+        return Err(CapabilityGenerationError::new(
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "schema updateSupergroupFullInfo differs from the exact pinned signature",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_bool_constructor(
     schema: &Schema,
     constructor_name: &str,
@@ -1167,6 +1228,7 @@ fn validate_documented_method_constraints(
     let description = method_description(method).to_ascii_lowercase();
     let runtime_contract = reviewed_runtime_contract(method.name(), &normalized_text(&description));
     let group_call_contract = reviewed_group_call_contract(method)?;
+    let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
     let ready = descriptor.ready_accounts();
     let entitlements = descriptor.current_account_entitlements();
     let dcs = descriptor.dc_environments();
@@ -1200,7 +1262,8 @@ fn validate_documented_method_constraints(
     let runtime_regular_only = matches!(
         runtime_contract,
         Some(ReviewedRuntimeContract::OwnerInKind(_))
-    ) || group_call_contract.is_some();
+    ) || group_call_contract.is_some()
+        || supergroup_full_info_contract.is_some();
     let expected_ready = if bot_only || runtime_bot_only {
         vec![AccountKind::Bot]
     } else if regular_only || runtime_regular_only || !expected_entitlements.is_empty() {
@@ -1257,10 +1320,12 @@ fn documented_runtime_requirements(
     let runtime_contract = reviewed_runtime_contract(method.name(), &description);
     let message_contract = reviewed_message_capability_contract(method)?;
     let group_call_contract = reviewed_group_call_contract(method)?;
+    let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
     let reviewed_family_count = [
         runtime_contract.is_some(),
         message_contract.is_some(),
         group_call_contract.is_some(),
+        supergroup_full_info_contract.is_some(),
     ]
     .into_iter()
     .filter(|present| *present)
@@ -1309,6 +1374,9 @@ fn documented_runtime_requirements(
     if let Some(contract) = group_call_contract {
         expected_consumed.extend(contract.consumed_signal_keys());
     }
+    if let Some(contract) = supergroup_full_info_contract {
+        expected_consumed.extend(contract.consumed_signal_keys());
+    }
     if consumed != expected_consumed {
         return Err(unsupported_runtime_documentation(
             method,
@@ -1319,6 +1387,8 @@ fn documented_runtime_requirements(
         documented_message_capability_clauses(method, contract)?
     } else if let Some(contract) = group_call_contract {
         documented_group_call_clauses(method, contract)?
+    } else if let Some(contract) = supergroup_full_info_contract {
+        documented_supergroup_full_info_clauses(method, contract)?
     } else {
         let Some(contract) = runtime_contract else {
             return Err(unsupported_runtime_documentation(
@@ -2043,6 +2113,130 @@ fn documented_group_call_clauses(
     })
 }
 
+#[derive(Clone, Copy)]
+enum ReviewedSupergroupFullInfoFormula {
+    Property(SupergroupFullInfoProperty),
+    AdministratorRightAndProperty {
+        right: ChatAdministratorRight,
+        property: SupergroupFullInfoProperty,
+    },
+}
+
+#[derive(Clone, Copy)]
+struct ReviewedSupergroupFullInfoContract {
+    source_text: &'static str,
+    consumed_families: &'static [RuntimeSignalFamily],
+    formula: ReviewedSupergroupFullInfoFormula,
+}
+
+const TOGGLE_SUPERGROUP_HAS_HIDDEN_MEMBERS_DESCRIPTION: &str = "toggles whether non-administrators can receive only administrators and bots using getsupergroupmembers or searchchatmembers. can be called only if supergroupfullinfo.can_hide_members == true";
+const GET_SUPERGROUP_MEMBERS_DESCRIPTION: &str = "returns information about members or banned users in a supergroup or channel. can be used only if supergroupfullinfo.can_get_members == true; additionally, administrator privileges may be required for some filters";
+
+impl ReviewedSupergroupFullInfoContract {
+    fn consumed_signal_keys(self) -> BTreeSet<RuntimeSignalKey> {
+        self.consumed_families
+            .iter()
+            .copied()
+            .map(|family| RuntimeSignalKey {
+                source: RuntimeSignalSource::Description,
+                family,
+            })
+            .collect()
+    }
+}
+
+fn reviewed_supergroup_full_info_contract(
+    method: &Definition,
+) -> Result<Option<ReviewedSupergroupFullInfoContract>, CapabilityGenerationError> {
+    use ReviewedSupergroupFullInfoFormula as Formula;
+    use SupergroupFullInfoProperty as Property;
+
+    const PROPERTY_FACT: &[RuntimeSignalFamily] = &[
+        RuntimeSignalFamily::SupergroupFullInfoFact,
+        RuntimeSignalFamily::CanFieldReference,
+    ];
+    const ADMINISTRATOR_PROPERTY_FACT: &[RuntimeSignalFamily] = &[
+        RuntimeSignalFamily::AdministratorRightPhrase,
+        RuntimeSignalFamily::RequiresRightPhrase,
+        RuntimeSignalFamily::SupergroupFullInfoFact,
+        RuntimeSignalFamily::CanFieldReference,
+    ];
+
+    let Some(contract) = (match method.name() {
+        "getChatStatistics" => Some(ReviewedSupergroupFullInfoContract {
+            source_text: "returns detailed statistics about a chat. currently, this method can be used only for supergroups and channels. can be used only if supergroupfullinfo.can_get_statistics == true",
+            consumed_families: PROPERTY_FACT,
+            formula: Formula::Property(Property::CanGetStatistics),
+        }),
+        "setChatLocation" => Some(ReviewedSupergroupFullInfoContract {
+            source_text: "changes the location of a chat. available only for some location-based supergroups, use supergroupfullinfo.can_set_location to check whether the method is allowed to use",
+            consumed_families: PROPERTY_FACT,
+            formula: Formula::Property(Property::CanSetLocation),
+        }),
+        "setChatPaidMessageStarCount" => Some(ReviewedSupergroupFullInfoContract {
+            source_text: "changes the telegram star amount that must be paid to send a message to a supergroup chat; requires can_restrict_members administrator right and supergroupfullinfo.can_enable_paid_messages",
+            consumed_families: ADMINISTRATOR_PROPERTY_FACT,
+            formula: Formula::AdministratorRightAndProperty {
+                right: ChatAdministratorRight::CanRestrictMembers,
+                property: Property::CanEnablePaidMessages,
+            },
+        }),
+        "toggleSupergroupHasAggressiveAntiSpamEnabled" => {
+            Some(ReviewedSupergroupFullInfoContract {
+                source_text: "toggles whether aggressive anti-spam checks are enabled in the supergroup. can be called only if supergroupfullinfo.can_toggle_aggressive_anti_spam == true",
+                consumed_families: PROPERTY_FACT,
+                formula: Formula::Property(Property::CanToggleAggressiveAntiSpam),
+            })
+        }
+        "toggleSupergroupHasHiddenMembers" => Some(ReviewedSupergroupFullInfoContract {
+            source_text: TOGGLE_SUPERGROUP_HAS_HIDDEN_MEMBERS_DESCRIPTION,
+            consumed_families: PROPERTY_FACT,
+            formula: Formula::Property(Property::CanHideMembers),
+        }),
+        _ => None,
+    }) else {
+        return Ok(None);
+    };
+
+    if !signal_source_has_exact_text(
+        method,
+        &RuntimeSignalSource::Description,
+        contract.source_text,
+    ) {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed supergroup-full-info source text drifted or disappeared",
+        ));
+    }
+    Ok(Some(contract))
+}
+
+fn documented_supergroup_full_info_clauses(
+    method: &Definition,
+    contract: ReviewedSupergroupFullInfoContract,
+) -> Result<Vec<Vec<RuntimeRequirement>>, CapabilityGenerationError> {
+    use ReviewedSupergroupFullInfoFormula as Formula;
+
+    let target = documented_chat_target(method)?;
+    let property = |property| RuntimeRequirement::SupergroupFullInfoProperty {
+        target: target.clone(),
+        property,
+    };
+    Ok(match contract.formula {
+        Formula::Property(value) => vec![vec![property(value)]],
+        Formula::AdministratorRightAndProperty {
+            right,
+            property: required,
+        } => vec![vec![
+            RuntimeRequirement::ChatAdministratorRight {
+                target: target.clone(),
+                right,
+            },
+            property(required),
+        ]],
+    })
+}
+
 fn documented_group_call_id(
     method: &Definition,
 ) -> Result<GroupCallIdRef, CapabilityGenerationError> {
@@ -2404,6 +2598,7 @@ enum DeferredSignalLane {
 enum NonGateReason {
     ChatBoostVocabulary,
     GroupCallParticipantUnmutePolicy,
+    SupergroupFullInfoCrossTokenWording,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -2428,6 +2623,9 @@ impl RuntimeSignalDisposition {
             }
             Self::NotRuntimeGate(NonGateReason::GroupCallParticipantUnmutePolicy) => {
                 "not_runtime_gate:group_call_participant_unmute_policy"
+            }
+            Self::NotRuntimeGate(NonGateReason::SupergroupFullInfoCrossTokenWording) => {
+                "not_runtime_gate:supergroup_full_info_cross_token_wording"
             }
         }
     }
@@ -2483,6 +2681,9 @@ fn documented_runtime_signal_dispositions(
     if let Some(contract) = reviewed_group_call_contract(method)? {
         consumed.extend(contract.consumed_signal_keys());
     }
+    if let Some(contract) = reviewed_supergroup_full_info_contract(method)? {
+        consumed.extend(contract.consumed_signal_keys());
+    }
     runtime_signal_dispositions_with_consumed(method, &consumed)
 }
 
@@ -2522,6 +2723,26 @@ fn terminal_non_gate_reason(method: &Definition, key: &RuntimeSignalKey) -> Opti
             "toggles whether new participants of a video chat can be unmuted only by administrators of the video chat. requires groupcall.can_toggle_mute_new_participants right",
         )
         .then_some(NonGateReason::GroupCallParticipantUnmutePolicy),
+        (
+            "toggleSupergroupHasHiddenMembers",
+            RuntimeSignalSource::Description,
+            RuntimeSignalFamily::OnlyIfAdministrator,
+        ) => signal_source_has_exact_text(
+            method,
+            key.source(),
+            TOGGLE_SUPERGROUP_HAS_HIDDEN_MEMBERS_DESCRIPTION,
+        )
+        .then_some(NonGateReason::SupergroupFullInfoCrossTokenWording),
+        (
+            "getSupergroupMembers",
+            RuntimeSignalSource::Description,
+            RuntimeSignalFamily::OnlyIfAdministrator,
+        ) => signal_source_has_exact_text(
+            method,
+            key.source(),
+            GET_SUPERGROUP_MEMBERS_DESCRIPTION,
+        )
+        .then_some(NonGateReason::SupergroupFullInfoCrossTokenWording),
         (
             "getChatBoostFeatures",
             RuntimeSignalSource::Description,
@@ -3108,6 +3329,10 @@ enum RuntimeRequirementDto {
         subject: GroupCallMessageSubjectDto,
         capability: String,
     },
+    SupergroupFullInfoProperty {
+        target_argument: String,
+        property: String,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -3376,6 +3601,10 @@ enum CanonicalRuntimeRequirement {
         subject: CanonicalGroupCallMessageSubject,
         capability: &'static str,
     },
+    SupergroupFullInfoProperty {
+        target: CanonicalChatTarget,
+        property: &'static str,
+    },
 }
 
 impl CanonicalRuntimeRequirement {
@@ -3441,6 +3670,12 @@ impl CanonicalRuntimeRequirement {
                 subject: CanonicalGroupCallMessageSubject::from_domain(subject),
                 capability: capability.as_str(),
             },
+            RuntimeRequirement::SupergroupFullInfoProperty { target, property } => {
+                Self::SupergroupFullInfoProperty {
+                    target: CanonicalChatTarget::from_domain(target),
+                    property: property.as_str(),
+                }
+            }
         }
     }
 }

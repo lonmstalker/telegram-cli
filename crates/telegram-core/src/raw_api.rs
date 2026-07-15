@@ -1,5 +1,6 @@
 //! Discovery и universal schema-validated call поверх generated registry.
 
+use serde::Serialize;
 use serde_json::Value;
 use std::error::Error;
 use std::fmt;
@@ -14,7 +15,7 @@ use crate::registry::{
 use crate::runtime::CoreRuntime;
 use crate::transport::TransportError;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct VersionInfo<'runtime> {
     pub tdlib_version: &'runtime str,
     pub tdlib_commit: &'runtime str,

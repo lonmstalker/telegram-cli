@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fmt;
 use std::str::FromStr;
 
@@ -81,6 +82,19 @@ impl LeaseId {
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DaemonRequest {
     SessionStatus,
+    SchemaVersion,
+    SchemaCapabilities,
+    SchemaSearch {
+        query: String,
+    },
+    SchemaDescribe {
+        name: String,
+    },
+    TdCall {
+        lease_id: LeaseId,
+        principal: String,
+        request: Value,
+    },
     LeaseAcquire {
         principal: String,
         scopes: Vec<RiskScope>,
@@ -109,10 +123,31 @@ pub struct LeaseView {
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DaemonResponse {
     SessionStatus { active_leases: usize },
+    SchemaVersion { version: Value },
+    SchemaCapabilities { capabilities: Value },
+    SchemaSearchResults { results: Value },
+    SchemaDescription { description: Value },
+    TdResult { result: Value },
+    CommandError { code: CommandErrorCode },
     LeaseGranted { lease: LeaseView },
     LeaseRenewed { lease: LeaseView },
     LeaseReleased { lease_id: LeaseId },
     Error { code: LeaseErrorCode },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CommandErrorCode {
+    SchemaNotFound,
+    RuntimeUnavailable,
+    InvalidTdjson,
+    MethodDefaultDenied,
+    AccountScopeDenied,
+    RiskScopeDenied,
+    ApprovalRequired,
+    ApprovalDenied,
+    TdlibTransport,
+    UnexpectedTdlibResult,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

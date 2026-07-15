@@ -14,7 +14,7 @@ use std::time::Duration;
 use telegram_protocol::{DaemonRequest, DaemonResponse, LeaseId, RiskScope};
 
 const DEFAULT_TTL_MS: u64 = 60_000;
-const IO_TIMEOUT: Duration = Duration::from_secs(5);
+const IO_TIMEOUT: Duration = Duration::from_secs(35);
 
 fn main() -> ExitCode {
     match run(env::args().skip(1).collect()) {
@@ -33,7 +33,10 @@ fn run(arguments: Vec<String>) -> Result<(), Box<dyn Error>> {
     let response = exchange(&profile, &request)?;
     serde_json::to_writer(io::stdout().lock(), &response)?;
     println!();
-    if matches!(response, DaemonResponse::Error { .. }) {
+    if matches!(
+        response,
+        DaemonResponse::Error { .. } | DaemonResponse::CommandError { .. }
+    ) {
         Err("daemon rejected request".into())
     } else {
         Ok(())
@@ -46,6 +49,31 @@ fn command(arguments: &[String], principal: String) -> Result<DaemonRequest, Box
             Ok(DaemonRequest::SessionStatus)
         }
         [status] if status == "status" => Ok(DaemonRequest::SessionStatus),
+        [schema, version] if schema == "schema" && version == "version" => {
+            Ok(DaemonRequest::SchemaVersion)
+        }
+        [schema, capabilities] if schema == "schema" && capabilities == "capabilities" => {
+            Ok(DaemonRequest::SchemaCapabilities)
+        }
+        [schema, search, query @ ..]
+            if schema == "schema" && search == "search" && !query.is_empty() =>
+        {
+            Ok(DaemonRequest::SchemaSearch {
+                query: query.join(" "),
+            })
+        }
+        [schema, describe, name]
+            if schema == "schema" && describe == "describe" =>
+        {
+            Ok(DaemonRequest::SchemaDescribe { name: name.clone() })
+        }
+        [td, call, lease_id, request] if td == "td" && call == "call" => {
+            Ok(DaemonRequest::TdCall {
+                lease_id: LeaseId::new(lease_id.clone()),
+                principal,
+                request: serde_json::from_str(request)?,
+            })
+        }
         [session, hold] if session == "session" && hold == "hold" => {
             Ok(acquire(principal, "read", DEFAULT_TTL_MS)?)
         }
@@ -61,7 +89,7 @@ fn command(arguments: &[String], principal: String) -> Result<DaemonRequest, Box
                 principal,
             })
         }
-        _ => Err("usage: telegram-cli session status | session hold [scopes] [ttl_ms] | session release <lease_id>".into()),
+        _ => Err("usage: telegram-cli session ... | schema version|capabilities|search|describe ... | td call <lease_id> <json>".into()),
     }
 }
 
@@ -137,7 +165,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn session_commands_build_closed_protocol_requests() {
+    fn commands_build_closed_protocol_requests() {
         assert_eq!(
             command(&["status".to_owned()], "cli".to_owned()).unwrap(),
             DaemonRequest::SessionStatus
@@ -169,6 +197,38 @@ mod tests {
                 "cli".to_owned(),
             )
             .is_err()
+        );
+        assert_eq!(
+            command(
+                &[
+                    "schema".to_owned(),
+                    "search".to_owned(),
+                    "chat".to_owned(),
+                    "statistics".to_owned(),
+                ],
+                "cli".to_owned(),
+            )
+            .unwrap(),
+            DaemonRequest::SchemaSearch {
+                query: "chat statistics".to_owned(),
+            }
+        );
+        assert_eq!(
+            command(
+                &[
+                    "td".to_owned(),
+                    "call".to_owned(),
+                    "lease".to_owned(),
+                    r#"{"@type":"getMe"}"#.to_owned(),
+                ],
+                "cli".to_owned(),
+            )
+            .unwrap(),
+            DaemonRequest::TdCall {
+                lease_id: LeaseId::new("lease".to_owned()),
+                principal: "cli".to_owned(),
+                request: serde_json::json!({"@type": "getMe"}),
+            }
         );
     }
 

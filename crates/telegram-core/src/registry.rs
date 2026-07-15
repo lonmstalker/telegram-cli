@@ -1,6 +1,7 @@
 //! Generated descriptors и общий lossless TDJSON codec закреплённой схемы.
 
 use base64::Engine as _;
+use serde::Serialize;
 use serde_json::{Map, Value};
 use std::error::Error;
 use std::fmt;
@@ -14,33 +15,34 @@ pub use generated::{
 const TYPE_FIELD: &str = "@type";
 const MAX_INT53: i64 = (1_i64 << 53) - 1;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct SchemaDescriptor {
     pub version: &'static str,
     pub commit: &'static str,
     pub sha256: &'static str,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SymbolKind {
     Builtin,
     Constructor,
     Method,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct TypeDescriptor {
     pub name: &'static str,
     pub arguments: &'static [TypeDescriptor],
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct FieldDescriptor {
     pub name: &'static str,
     pub ty: TypeDescriptor,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct SymbolDescriptor {
     pub kind: SymbolKind,
     pub name: &'static str,
@@ -50,13 +52,15 @@ pub struct SymbolDescriptor {
     pub fields: &'static [FieldDescriptor],
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AccountKind {
     RegularUser,
     Bot,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum RiskClass {
     Read,
     Presence,
@@ -68,7 +72,8 @@ pub enum RiskClass {
     AuthSecurity,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum RetryClass {
     SafeRead,
     Convergent,
@@ -76,7 +81,8 @@ pub enum RetryClass {
     Never,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
 pub enum CapabilityDisposition {
     DefaultDeny,
     Reviewed {
@@ -87,7 +93,7 @@ pub enum CapabilityDisposition {
     },
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct CapabilityDescriptor {
     pub method: &'static str,
     pub disposition: CapabilityDisposition,

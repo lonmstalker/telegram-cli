@@ -5,12 +5,19 @@ use std::io::{self, BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::time::{Duration, Instant};
 
-use telegram_protocol::{DaemonRequest, DaemonResponse, LeaseErrorCode};
+use serde_json::{Value, json};
+use telegram_core::raw_api::{
+    self, PolicyError, RawApiError, SchemaDescription, SchemaSearchResult,
+};
+use telegram_core::registry::{AccountKind, SymbolKind};
+use telegram_core::runtime::CoreRuntime;
+use telegram_protocol::{CommandErrorCode, DaemonRequest, DaemonResponse, LeaseErrorCode};
 
 use crate::lease::LeaseManager;
 
 const MAX_REQUEST_BYTES: u64 = 16 * 1024;
 const CLIENT_IO_TIMEOUT: Duration = Duration::from_secs(5);
+const CALL_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct LeaseServer {
     leases: LeaseManager,
@@ -21,10 +28,15 @@ impl LeaseServer {
         Self { leases }
     }
 
-    pub fn poll(&mut self, listener: &UnixListener, now: Instant) -> Result<(), ServerError> {
+    pub fn poll(
+        &mut self,
+        listener: &UnixListener,
+        runtime: &CoreRuntime,
+        now: Instant,
+    ) -> Result<(), ServerError> {
         self.leases.expire(now);
         loop {
-            match self.serve_once(listener) {
+            match self.serve_once(listener, Some(runtime)) {
                 Ok(()) => {}
                 Err(ServerError::Accept(io::ErrorKind::WouldBlock)) => return Ok(()),
                 Err(error @ ServerError::Accept(_)) => return Err(error),
@@ -37,17 +49,25 @@ impl LeaseServer {
         self.leases.active_count()
     }
 
-    fn serve_once(&mut self, listener: &UnixListener) -> Result<(), ServerError> {
+    fn serve_once(
+        &mut self,
+        listener: &UnixListener,
+        runtime: Option<&CoreRuntime>,
+    ) -> Result<(), ServerError> {
         let (stream, _) = listener
             .accept()
             .map_err(|error| ServerError::Accept(error.kind()))?;
         stream
             .set_nonblocking(false)
             .map_err(|error| ServerError::ClientIo(error.kind()))?;
-        self.serve_connection(stream)
+        self.serve_connection(stream, runtime)
     }
 
-    fn serve_connection(&mut self, mut stream: UnixStream) -> Result<(), ServerError> {
+    fn serve_connection(
+        &mut self,
+        mut stream: UnixStream,
+        runtime: Option<&CoreRuntime>,
+    ) -> Result<(), ServerError> {
         stream
             .set_read_timeout(Some(CLIENT_IO_TIMEOUT))
             .map_err(|error| ServerError::ClientIo(error.kind()))?;
@@ -75,7 +95,7 @@ impl LeaseServer {
                 bytes.pop();
             }
             match serde_json::from_slice(&bytes) {
-                Ok(request) => self.handle(request, Instant::now()),
+                Ok(request) => self.handle(request, runtime, Instant::now()),
                 Err(_) => DaemonResponse::Error {
                     code: LeaseErrorCode::InvalidRequest,
                 },
@@ -89,11 +109,69 @@ impl LeaseServer {
             .map_err(|error| ServerError::ClientIo(error.kind()))
     }
 
-    fn handle(&mut self, request: DaemonRequest, now: Instant) -> DaemonResponse {
+    fn handle(
+        &mut self,
+        request: DaemonRequest,
+        runtime: Option<&CoreRuntime>,
+        now: Instant,
+    ) -> DaemonResponse {
         match request {
             DaemonRequest::SessionStatus => DaemonResponse::SessionStatus {
                 active_leases: self.leases.active_count(),
             },
+            DaemonRequest::SchemaVersion => runtime.map_or_else(runtime_unavailable, |runtime| {
+                DaemonResponse::SchemaVersion {
+                    version: serde_json::to_value(raw_api::version(runtime))
+                        .expect("version descriptor is serializable"),
+                }
+            }),
+            DaemonRequest::SchemaCapabilities => DaemonResponse::SchemaCapabilities {
+                capabilities: serde_json::to_value(raw_api::capabilities())
+                    .expect("capability descriptors are serializable"),
+            },
+            DaemonRequest::SchemaSearch { query } => DaemonResponse::SchemaSearchResults {
+                results: Value::Array(
+                    raw_api::schema_search(&query)
+                        .into_iter()
+                        .map(search_result)
+                        .collect(),
+                ),
+            },
+            DaemonRequest::SchemaDescribe { name } => raw_api::schema_describe(&name).map_or_else(
+                || DaemonResponse::CommandError {
+                    code: CommandErrorCode::SchemaNotFound,
+                },
+                |description| DaemonResponse::SchemaDescription {
+                    description: describe(description),
+                },
+            ),
+            DaemonRequest::TdCall {
+                lease_id,
+                principal,
+                request,
+            } => {
+                let policy = match self.leases.raw_policy(
+                    &lease_id,
+                    &principal,
+                    AccountKind::RegularUser,
+                    now,
+                ) {
+                    Ok(policy) => policy,
+                    Err(code) => return DaemonResponse::Error { code },
+                };
+                let Some(runtime) = runtime else {
+                    return runtime_unavailable();
+                };
+                let deadline = now.checked_add(CALL_TIMEOUT).unwrap_or(now);
+                match raw_api::td_call(runtime, &policy, request, deadline) {
+                    Ok(result) => DaemonResponse::TdResult {
+                        result: result.into_value(),
+                    },
+                    Err(error) => DaemonResponse::CommandError {
+                        code: raw_error(error),
+                    },
+                }
+            }
             DaemonRequest::LeaseAcquire {
                 principal,
                 scopes,
@@ -117,6 +195,61 @@ impl LeaseServer {
                 Err(code) => DaemonResponse::Error { code },
             },
         }
+    }
+}
+
+fn runtime_unavailable() -> DaemonResponse {
+    DaemonResponse::CommandError {
+        code: CommandErrorCode::RuntimeUnavailable,
+    }
+}
+
+fn search_result(result: SchemaSearchResult) -> Value {
+    match result {
+        SchemaSearchResult::Symbol(symbol) => json!({
+            "kind": symbol_kind(symbol.kind),
+            "name": symbol.name,
+            "result": symbol.result.name,
+        }),
+        SchemaSearchResult::Type(name) => json!({"kind": "type", "name": name}),
+    }
+}
+
+fn describe(description: SchemaDescription) -> Value {
+    match description {
+        SchemaDescription::Symbol(symbol) => {
+            serde_json::to_value(symbol).expect("symbol descriptor is serializable")
+        }
+        SchemaDescription::Type { name, constructors } => json!({
+            "kind": "type",
+            "name": name,
+            "constructors": constructors,
+        }),
+    }
+}
+
+fn symbol_kind(kind: SymbolKind) -> &'static str {
+    match kind {
+        SymbolKind::Builtin => "builtin",
+        SymbolKind::Constructor => "constructor",
+        SymbolKind::Method => "method",
+    }
+}
+
+fn raw_error(error: RawApiError) -> CommandErrorCode {
+    match error {
+        RawApiError::Validation(_) => CommandErrorCode::InvalidTdjson,
+        RawApiError::Policy(PolicyError::DefaultDeny) => CommandErrorCode::MethodDefaultDenied,
+        RawApiError::Policy(PolicyError::AccountScopeDenied) => {
+            CommandErrorCode::AccountScopeDenied
+        }
+        RawApiError::Policy(PolicyError::RiskDenied { .. }) => CommandErrorCode::RiskScopeDenied,
+        RawApiError::Policy(PolicyError::ApprovalRequired { .. }) => {
+            CommandErrorCode::ApprovalRequired
+        }
+        RawApiError::Policy(PolicyError::ApprovalDenied { .. }) => CommandErrorCode::ApprovalDenied,
+        RawApiError::Transport(_) => CommandErrorCode::TdlibTransport,
+        RawApiError::UnexpectedResult { .. } => CommandErrorCode::UnexpectedTdlibResult,
     }
 }
 
@@ -201,6 +334,24 @@ mod tests {
             exchange(&mut server, &socket, DaemonRequest::SessionStatus),
             DaemonResponse::SessionStatus { active_leases: 0 }
         );
+        let DaemonResponse::SchemaSearchResults { results } = exchange(
+            &mut server,
+            &socket,
+            DaemonRequest::SchemaSearch {
+                query: "chat statistics".to_owned(),
+            },
+        ) else {
+            panic!("expected schema search results")
+        };
+        assert!(results.as_array().unwrap().iter().any(|result| {
+            result.get("name").and_then(Value::as_str) == Some("getChatStatistics")
+        }));
+        assert_eq!(
+            exchange(&mut server, &socket, DaemonRequest::SchemaVersion),
+            DaemonResponse::CommandError {
+                code: CommandErrorCode::RuntimeUnavailable,
+            }
+        );
         assert_eq!(server.leases.active_count(), 0);
 
         drop(socket);
@@ -216,7 +367,7 @@ mod tests {
         let mut client = UnixStream::connect(socket.path()).unwrap();
         serde_json::to_writer(&mut client, &request).unwrap();
         client.write_all(b"\n").unwrap();
-        server.serve_once(socket.listener()).unwrap();
+        server.serve_once(socket.listener(), None).unwrap();
         let mut response = String::new();
         BufReader::new(client).read_line(&mut response).unwrap();
         serde_json::from_str(&response).unwrap()

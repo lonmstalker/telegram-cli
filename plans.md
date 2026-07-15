@@ -230,7 +230,7 @@ flowchart LR
 ### Tasks
 
 - [x] CLI session commands: status, hold и release поверх daemon protocol.
-- [ ] CLI schema search/describe и universal `td call` поверх того же daemon protocol.
+- [x] CLI schema search/describe и universal `td call` поверх того же daemon protocol.
 - [ ] CLI routes для всех реализованных core workflows.
 - [ ] CLI login и events/watch routes поверх authorization/update broker.
 - [ ] Human output и стабильный compact JSON/JSONL; versioned error/exit-code contract.

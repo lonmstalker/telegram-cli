@@ -7,6 +7,7 @@ pub mod authorization;
 #[allow(unsafe_code)]
 pub mod database_key;
 pub mod reducer;
+pub mod registry;
 pub mod runtime;
 pub mod schema;
 pub mod transport;

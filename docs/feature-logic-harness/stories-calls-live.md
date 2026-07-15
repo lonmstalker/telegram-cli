@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: full TDLib and routine operations; limits: none.
 - SRC002: HARNESS.md; type: file; supports: async proof and policy dimensions; limits: none.
-- SRC003: pinned official schema; type: supplied; supports: story/call/group-call families; limits: full generated registry absent.
+- SRC003: pinned official schema; type: supplied; supports: story/call/group-call families; limits: source alone does not prove generated registry.
 - SRC004: plans.md P4/P7/P10; type: file; supports: terminal updates and live gate; limits: implementation absent.
 
 ## TDLib API Coverage

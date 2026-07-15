@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: user jobs and safety boundary; limits: none.
 - SRC002: HARNESS.md; type: file; supports: semantic scope and required dimensions; limits: planning IDs are documentation-only.
-- SRC003: pinned official schema; type: supplied; supports: sticker/emoji/reaction method families; limits: full generated registry absent.
+- SRC003: pinned official schema; type: supplied; supports: sticker/emoji/reaction method families; limits: source alone does not prove generated registry.
 - SRC004: plans.md P3/P4/P7; type: file; supports: raw parity and workflow behavior; limits: implementation absent.
 
 ## TDLib API Coverage

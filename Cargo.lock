@@ -166,6 +166,10 @@ dependencies = [
 [[package]]
 name = "tdlib-registry-gen"
 version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "telegram-core",
+]
 
 [[package]]
 name = "telegram-cli"

@@ -20,6 +20,7 @@
 - [Daemon lease contract](../../docs/daemon-leases.md)
 - [Per-account scheduler contract](../../docs/daemon-scheduler.md)
 - [Daemon shared-session lifecycle contract](../../docs/daemon-session-lifecycle.md)
+- [Generated TDLib registry contract](../../docs/tdlib-generated-registry.md)
 - [Current project state](project-state.md)
 
 ## Memory streams
@@ -40,10 +41,11 @@
 - [TDLib database-key codec](../raw/2026-07-15-tdlib-database-key-codec.md) — Base64, empty-key и wrong-key upstream semantics
 - [P1 runtime acceptance](../raw/2026-07-15-p1-runtime-acceptance.md) — native handshake, wrong/missing-key, secret canary и returning live session
 - [P2 daemon lifecycle acceptance](../raw/2026-07-15-p2-daemon-lifecycle-acceptance.md) — concurrency, TTL, crash recovery и graceful idle restart
+- [P3 Rust bindings evaluation](../raw/2026-07-15-p3-rust-bindings-evaluation.md) — почему exact generated registry не заменён version-mismatched crate
 
 ## Current records
 
-- Implementation: P0–P2 accepted; следующий пункт — P3 generated registry; см. [project-state.md](project-state.md).
+- Implementation: P0–P2 accepted; generated registry P3 закрыт, следующий пункт — capability-таблица; см. [project-state.md](project-state.md).
 - Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -59,6 +61,7 @@
 - Lease protocol: [D-20260715-045](../decisions/decisions.md), [W-20260715-050](../logs/work.md), [`docs/daemon-leases.md`](../../docs/daemon-leases.md).
 - Per-account scheduler: [D-20260715-046](../decisions/decisions.md), [W-20260715-051](../logs/work.md), [`docs/daemon-scheduler.md`](../../docs/daemon-scheduler.md).
 - Shared-session lifecycle и P2 acceptance: [D-20260715-047](../decisions/decisions.md), [W-20260715-052](../logs/work.md), [`docs/daemon-session-lifecycle.md`](../../docs/daemon-session-lifecycle.md).
+- Exact generated registry: [D-20260715-048](../decisions/decisions.md), [W-20260715-053](../logs/work.md), [`docs/tdlib-generated-registry.md`](../../docs/tdlib-generated-registry.md).
 
 ## Operating rules
 

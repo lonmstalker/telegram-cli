@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: primary analytics job and honest freshness; limits: none.
 - SRC002: HARNESS.md; type: file; supports: request-chain/completion dimensions; limits: none.
-- SRC003: pinned official schema; type: supplied; supports: statistics/resource method families; limits: full generated registry absent.
+- SRC003: pinned official schema; type: supplied; supports: statistics/resource method families; limits: source alone does not prove generated registry.
 - SRC004: plans.md P4/P7/P10; type: file; supports: graph tokens, terminal rules and live acceptance; limits: implementation absent.
 
 ## TDLib API Coverage

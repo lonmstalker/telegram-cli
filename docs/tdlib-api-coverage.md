@@ -1,6 +1,6 @@
 # Полнота TDLib API
 
-Статус: exact schema snapshot, strict Rust parser/inventory и native artifacts для macOS arm64 и Linux x86_64 закреплены; low-level TDJSON transport реализован с одним receive loop и `@extra` correlation. Результаты ручного capability-ревью сохранены в [`capability-notes.md`](capability-notes.md). Полная capability/risk/retry таблица, generated raw registry/codec/router и остальной runtime ещё не созданы.
+Статус: exact schema snapshot, strict Rust parser/inventory, generated Rust registry и native artifacts для macOS arm64 и Linux x86_64 закреплены; low-level TDJSON transport реализован с одним receive loop и `@extra` correlation. Registry даёт descriptors, recursive request validation и lossless unknown-object codec. Результаты ручного capability-ревью сохранены в [`capability-notes.md`](capability-notes.md). Capability/risk/retry таблица, universal core call/router и CLI surface ещё не созданы.
 
 ## Проверенный upstream baseline
 
@@ -12,6 +12,7 @@
 - Source: <https://github.com/tdlib/td/tree/07d3a0973f5113b0827a04d54a93aaaa9e288348>.
 - Local manifest: [`vendor/tdlib/manifest.json`](../vendor/tdlib/manifest.json); gate: `python3 scripts/check-tdlib-pin.py`.
 - Strict parser/inventory: [`crates/telegram-core/src/schema.rs`](../crates/telegram-core/src/schema.rs); gate: `cargo test --locked --offline -p telegram-core --lib --jobs 2`.
+- Generated registry/codec: [`crates/telegram-core/src/registry.rs`](../crates/telegram-core/src/registry.rs), contract: [`tdlib-generated-registry.md`](tdlib-generated-registry.md); gate: `python3 scripts/check-tdlib-registry.py`.
 - Reviewed capability contracts: [`capability-notes.md`](capability-notes.md) — вход для будущей capability-таблицы P3.
 - Planning boundary: `python3 scripts/check-planning-boundary.py` запрещает переносить номера из `HARNESS.md` в runtime code и machine-readable contracts.
 - macOS arm64 native provenance: [`vendor/tdlib/native-builds/aarch64-apple-darwin.json`](../vendor/tdlib/native-builds/aarch64-apple-darwin.json).

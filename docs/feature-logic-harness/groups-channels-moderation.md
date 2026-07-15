@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: routine administration; limits: none.
 - SRC002: HARNESS.md; type: file; supports: policy/completion invariants; limits: none.
-- SRC003: pinned official schema; type: supplied; supports: group/channel method/update families; limits: full generated registry absent.
+- SRC003: pinned official schema; type: supplied; supports: group/channel method/update families; limits: source alone does not prove generated registry.
 - SRC004: plans.md P4/P7/P10; type: file; supports: workflow/live gates; limits: implementation absent.
 
 ## TDLib API Coverage

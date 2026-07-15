@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: complete API and self-discovery; limits: none.
 - SRC002: HARNESS.md; type: file; supports: semantic scope/default-deny; limits: planning IDs are documentation-only.
-- SRC003: pinned official schema; type: supplied; supports: platform method/object/update families; limits: generated registry absent.
+- SRC003: pinned official schema; type: supplied; supports: platform method/object/update families; limits: source alone does not prove generated registry.
 - SRC004: docs/tdlib-api-coverage.md; type: file; supports: no-unclassified-method gate; limits: full registry absent.
 
 ## TDLib API Coverage

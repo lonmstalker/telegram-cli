@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: purpose/trust; limits: none.
 - SRC002: HARNESS.md; type: file; supports: full API/update invariants; limits: none.
-- SRC003: pinned official `td_api.tl`; type: supplied; supports: method/type/update families; limits: full generated registry absent.
+- SRC003: pinned official `td_api.tl`; type: supplied; supports: method/type/update families; limits: source alone does not prove generated registry.
 - SRC004: plans.md P7; type: file; supports: delivery gate; limits: implementation absent.
 
 ## TDLib API Coverage

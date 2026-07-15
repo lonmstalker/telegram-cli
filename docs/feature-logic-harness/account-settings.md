@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: owner jobs and default-deny destructive actions; limits: none.
 - SRC002: HARNESS.md; type: file; supports: capability/risk dimensions; limits: none.
-- SRC003: pinned official schema; type: supplied; supports: account/settings/security method families; limits: full generated registry absent.
+- SRC003: pinned official schema; type: supplied; supports: account/settings/security method families; limits: source alone does not prove generated registry.
 - SRC004: plans.md P5/P7; type: file; supports: preview/approval/reconciliation; limits: implementation absent.
 
 ## TDLib API Coverage

@@ -109,7 +109,7 @@ flowchart LR
 | P3 | Полный generated raw API и capability-таблица | accepted |
 | P4 | Stateful request-chain engine | accepted |
 | P5 | Reliability, policy, limits и observability | accepted |
-| P6 | Полный CLI и компактный agent skill | pending |
+| P6 | Полный CLI и компактный agent skill | complete |
 | P7 | Domain workflows по F007–F020 | pending |
 | P8 | Optional MCP | deferred until P0–P7 accepted |
 | P9 | Local/server packaging и upgrade/rollback | pending |
@@ -236,13 +236,13 @@ flowchart LR
 - [x] Human output и стабильный compact JSON/JSONL; versioned error/exit-code contract.
 - [x] Streaming, cancellation, signal-safe lease release.
 - [x] Secure TTY для OTP/2FA; secrets никогда не flags.
-- [ ] Agent skill: acquire -> discover -> workflow/call -> follow next_action -> release; ≤1500 tokens, без каталога API.
+- [x] Agent skill: acquire -> discover -> workflow/call -> follow next_action -> release; ≤1500 tokens, без каталога API.
 
 ### Acceptance
 
-- [ ] Каждый core raw method и workflow доступен из CLI — зачем: CLI — обязательная поверхность; дыра в parity делает «полный API» ложью.
-- [ ] Агент не парсит prose для machine decisions — зачем: prose-parsing ломается при каждой правке текста; JSON contract — нет.
-- [ ] Cold-agent eval проходит history, statistics, sticker, bot и Mini App handoff scenarios — зачем: skill проверяется на агенте без контекста проекта, как в реальности.
+- [x] Каждый core raw method и workflow доступен из CLI — зачем: CLI — обязательная поверхность; дыра в parity делает «полный API» ложью.
+- [x] Агент не парсит prose для machine decisions — зачем: prose-parsing ломается при каждой правке текста; JSON contract — нет.
+- [x] Cold-agent eval проходит history, statistics, sticker, bot и Mini App handoff scenarios — зачем: skill проверяется на агенте без контекста проекта, как в реальности.
 
 ## P7 — Domain workflows F007–F020
 

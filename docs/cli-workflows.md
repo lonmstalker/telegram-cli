@@ -5,6 +5,7 @@
 
 ```text
 telegram-cli workflow list
+telegram-cli workflow describe <workflow>
 telegram-cli workflow run <lease_id> <workflow> '<input-json>'
 ```
 
@@ -21,7 +22,8 @@ terminal updates или retry самостоятельно.
 Основные input shapes следуют core types: chat target — tagged `kind` с `chat_id`,
 `username` или `url`; pagination — nested `page { count, min_date, page_limit }`; file
 source — tagged `id/remote/local/generated`. `workflow list` является runtime discovery,
-поэтому agent skill не хранит копию каталога.
+а `workflow describe` возвращает machine-readable `input_example` только для выбранного
+route, поэтому agent skill не хранит копию каталога.
 
 `open_web_app` выполняет scoped open/wait/close chain. Result содержит только terminal
 receipt и `require_same_origin`; sensitive launch URL не сериализуется и не покидает daemon.

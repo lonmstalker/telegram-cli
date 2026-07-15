@@ -121,6 +121,11 @@ fn command(arguments: &[String], principal: String) -> Result<DaemonRequest, Cli
         [workflow, list] if workflow == "workflow" && list == "list" => {
             Ok(DaemonRequest::WorkflowList)
         }
+        [workflow, describe, name] if workflow == "workflow" && describe == "describe" => {
+            Ok(DaemonRequest::WorkflowDescribe {
+                workflow: name.clone(),
+            })
+        }
         [workflow, run, lease_id, name, input] if workflow == "workflow" && run == "run" => {
             Ok(DaemonRequest::WorkflowRun {
                 lease_id: LeaseId::new(lease_id.clone()),
@@ -709,7 +714,7 @@ impl CliError {
     const fn message(self) -> &'static str {
         match self.code {
             ClientErrorCode::InvalidArguments => {
-                "usage: telegram-cli session ... | login [tty] | schema ... | td call <lease_id> <json> | workflow list|run ... | events watch ..."
+                "usage: telegram-cli session ... | login [tty] | schema ... | td call <lease_id> <json> | workflow list|describe|run ... | events watch ..."
             }
             ClientErrorCode::InvalidJson => "неверный JSON input",
             ClientErrorCode::InvalidOutputFormat => "output должен быть human, json или jsonl",
@@ -825,6 +830,13 @@ fn human_response(writer: &mut impl Write, response: &DaemonResponse) -> io::Res
             }
             Ok(())
         }
+        DaemonResponse::WorkflowDescription {
+            workflow,
+            input_example,
+        } => {
+            writeln!(writer, "Workflow {workflow} input example:")?;
+            pretty(writer, input_example)
+        }
         DaemonResponse::WorkflowResult {
             workflow,
             result,
@@ -905,6 +917,20 @@ mod tests {
             "cli".to_owned(),
         )
         .is_err());
+        assert_eq!(
+            command(
+                &[
+                    "workflow".to_owned(),
+                    "describe".to_owned(),
+                    "chat_history".to_owned(),
+                ],
+                "cli".to_owned(),
+            )
+            .unwrap(),
+            DaemonRequest::WorkflowDescribe {
+                workflow: "chat_history".to_owned(),
+            }
+        );
         assert_eq!(
             command(
                 &[

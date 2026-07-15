@@ -104,6 +104,9 @@ pub enum DaemonRequest {
         request: Value,
     },
     WorkflowList,
+    WorkflowDescribe {
+        workflow: String,
+    },
     WorkflowRun {
         lease_id: LeaseId,
         principal: String,
@@ -169,6 +172,10 @@ pub enum DaemonResponse {
     },
     WorkflowList {
         workflows: Vec<String>,
+    },
+    WorkflowDescription {
+        workflow: String,
+        input_example: Value,
     },
     WorkflowResult {
         workflow: String,

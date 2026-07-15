@@ -37,20 +37,44 @@ const MAX_REQUEST_BYTES: u64 = 16 * 1024;
 const CLIENT_IO_TIMEOUT: Duration = Duration::from_secs(5);
 const CALL_TIMEOUT: Duration = Duration::from_secs(30);
 const EVENT_BUFFER_CAPACITY: usize = 1024;
-const WORKFLOWS: &[&str] = &[
-    "resolve_chat",
-    "ensure_membership",
-    "load_chat_list",
-    "inspect_chat",
-    "chat_history",
-    "search_chat_messages",
-    "supergroup_members",
-    "chat_statistics",
-    "resync_after_gap",
-    "download_file",
-    "upload_sticker_file",
-    "start_bot",
-    "open_web_app",
+const WORKFLOWS: &[(&str, &str)] = &[
+    ("resolve_chat", r#"{"kind":"id","chat_id":0}"#),
+    ("ensure_membership", r#"{"kind":"chat_id","chat_id":0}"#),
+    ("load_chat_list", r#"{"list":{"kind":"main"},"limit":100}"#),
+    (
+        "inspect_chat",
+        r#"{"target":{"kind":"id","chat_id":0},"open":false}"#,
+    ),
+    (
+        "chat_history",
+        r#"{"chat_id":0,"only_local":false,"page":{"count":100,"min_date":null,"page_limit":100}}"#,
+    ),
+    (
+        "search_chat_messages",
+        r#"{"chat_id":0,"query":"","page":{"count":100,"min_date":null,"page_limit":100}}"#,
+    ),
+    (
+        "supergroup_members",
+        r#"{"supergroup_id":0,"count":100,"page_limit":100}"#,
+    ),
+    ("chat_statistics", r#"{"chat_id":0,"is_dark":false}"#),
+    ("resync_after_gap", "{}"),
+    (
+        "download_file",
+        r#"{"file_id":0,"priority":1,"offset":0,"limit":0}"#,
+    ),
+    (
+        "upload_sticker_file",
+        r#"{"user_id":0,"format":"webp","source":{"kind":"id","id":0}}"#,
+    ),
+    (
+        "start_bot",
+        r#"{"bot_user_id":0,"chat_id":0,"parameter":""}"#,
+    ),
+    (
+        "open_web_app",
+        r#"{"chat_id":0,"bot_user_id":0,"button_url":"https://example.invalid","application_name":"main","mode":"compact"}"#,
+    ),
 ];
 
 pub struct LeaseServer {
@@ -304,7 +328,20 @@ impl LeaseServer {
                 }
             }
             DaemonRequest::WorkflowList => DaemonResponse::WorkflowList {
-                workflows: WORKFLOWS.iter().map(|name| (*name).to_owned()).collect(),
+                workflows: WORKFLOWS
+                    .iter()
+                    .map(|(name, _)| (*name).to_owned())
+                    .collect(),
+            },
+            DaemonRequest::WorkflowDescribe { workflow } => match workflow_input_example(&workflow)
+            {
+                Some(input_example) => DaemonResponse::WorkflowDescription {
+                    workflow,
+                    input_example,
+                },
+                None => DaemonResponse::CommandError {
+                    code: CommandErrorCode::WorkflowNotFound,
+                },
             },
             DaemonRequest::WorkflowRun {
                 lease_id,
@@ -385,6 +422,11 @@ impl LeaseServer {
             },
         }
     }
+}
+
+fn workflow_input_example(name: &str) -> Option<Value> {
+    let (_, example) = WORKFLOWS.iter().find(|(candidate, _)| *candidate == name)?;
+    Some(serde_json::from_str(example).expect("workflow input example is valid JSON"))
 }
 
 struct EventBuffer {
@@ -1209,6 +1251,23 @@ mod tests {
         };
         assert!(workflows.iter().any(|name| name == "chat_history"));
         assert!(workflows.iter().any(|name| name == "open_web_app"));
+        assert_eq!(
+            exchange(
+                &mut server,
+                &socket,
+                DaemonRequest::WorkflowDescribe {
+                    workflow: "chat_history".to_owned(),
+                }
+            ),
+            DaemonResponse::WorkflowDescription {
+                workflow: "chat_history".to_owned(),
+                input_example: json!({
+                    "chat_id": 0,
+                    "only_local": false,
+                    "page": {"count": 100, "min_date": null, "page_limit": 100},
+                }),
+            }
+        );
         assert!(parse::<TargetInput>(json!({
             "kind": "id",
             "chat_id": 7,
@@ -1274,6 +1333,30 @@ mod tests {
         assert_eq!(request.request_type(), "setAuthenticationPhoneNumber");
         assert!(!format!("{request:?}").contains(canary));
         broker.machine.submission_failed(challenge).unwrap();
+    }
+
+    #[test]
+    fn every_discoverable_workflow_example_matches_its_input_contract() {
+        for (name, _) in WORKFLOWS {
+            let input = workflow_input_example(name).unwrap();
+            let valid = match *name {
+                "resolve_chat" => parse::<TargetInput>(input).is_ok(),
+                "ensure_membership" => parse::<MembershipInput>(input).is_ok(),
+                "load_chat_list" => parse::<ChatListInput>(input).is_ok(),
+                "inspect_chat" => parse::<InspectInput>(input).is_ok(),
+                "chat_history" => parse::<HistoryInput>(input).is_ok(),
+                "search_chat_messages" => parse::<SearchInput>(input).is_ok(),
+                "supergroup_members" => parse::<MembersInput>(input).is_ok(),
+                "chat_statistics" => parse::<StatisticsInput>(input).is_ok(),
+                "resync_after_gap" => parse::<EmptyInput>(input).is_ok(),
+                "download_file" => parse::<DownloadInput>(input).is_ok(),
+                "upload_sticker_file" => parse::<UploadInput>(input).is_ok(),
+                "start_bot" => parse::<StartBotInput>(input).is_ok(),
+                "open_web_app" => parse::<WebAppInput>(input).is_ok(),
+                _ => false,
+            };
+            assert!(valid, "invalid input example for {name}");
+        }
     }
 
     fn exchange(

@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: CLI-first rule; limits: none.
 - SRC002: HARNESS.md; type: file; supports: full API/parity; limits: none.
-- SRC003: plans.md P6; type: file; supports: commands/acceptance; limits: agent skill/cold eval pending.
+- SRC003: plans.md P6; type: file; supports: commands/acceptance; limits: live scenarios remain P10.
 
 ## TDLib API Coverage
 
@@ -71,6 +71,9 @@ values; one-shot events route переносит только sequence/kind/curs
 `login tty` связывает protected `/dev/tty` input с typed challenge ID; secrets отсутствуют
 в flags/stdin/output, echo восстанавливается после signal, stale/pending input fail closed.
 Live first-login остаётся P10 boundary.
+Compact repo-local skill использует только machine envelope и on-demand
+workflow/schema descriptors; offline cold-context traces закрывают representative history,
+statistics, sticker, bot и Mini App handoff paths без prose parsing.
 
 ## Scope
 

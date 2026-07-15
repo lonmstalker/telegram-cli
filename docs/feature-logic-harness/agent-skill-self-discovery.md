@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: agent workflow; limits: none.
 - SRC002: HARNESS.md; type: file; supports: invariants; limits: none.
-- SRC003: plans.md P6; type: file; supports: skill budget/evals; limits: implementation absent.
+- SRC003: plans.md P6 и `.agents/skills/telegram-cli`; type: file; supports: compact skill budget/on-demand flow; limits: live model variance не измерялась.
 - SRC004: user request; type: supplied; supports: concise but precise skill requirement; limits: exact tokenizer unspecified.
 
 ## TDLib API Coverage
@@ -61,7 +61,9 @@ Skill never self-approves or asks model to reveal OTP/key; it requests operator 
 
 ## Live Verification Boundary
 
-Current tg-analytics skill is a reference but tied to subprocess usage; new skill/evals do not exist.
+Repo-local skill использует только stable CLI machine envelope и on-demand
+`workflow list/describe`/schema discovery. Offline cold-context traces закрывают history,
+statistics, sticker, bot и Mini App handoff; live Telegram side effects остаются P10.
 
 ## Scope
 
@@ -154,6 +156,6 @@ Current tg-analytics skill is a reference but tied to subprocess usage; new skil
 
 - Kernel coverage: agent flow/safety/context modeled.
 - Modeled: intended minimal skill behavior.
-- Partial: eval corpus/token gate absent.
+- Partial: live model variance и live Telegram scenario fixtures остаются P10.
 - Unknown: exact tokenizer.
 - Not applicable: TDLib domain implementation details.

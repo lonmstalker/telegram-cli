@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: purpose/users/rules; limits: none.
 - SRC002: HARNESS.md; type: file; supports: feature boundary/invariants; limits: none.
-- SRC003: plans.md; type: file; supports: lifecycle architecture and gates; limits: implementation absent.
+- SRC003: plans.md и `telegramd::ownership`; type: file/code; supports: lifecycle architecture, canonical DB identity и exclusive OS owner lock; limits: socket/election/leases/lifecycle runtime отсутствуют.
 - SRC004: official TDLib `close`/`authorizationStateClosed`; type: supplied; supports: C002/I002; limits: daemon protocol is local design.
 
 ## TDLib API Coverage
@@ -62,7 +62,7 @@ Any authenticated principal may hold a scoped lease; force-stop, logout and dest
 
 ## Live Verification Boundary
 
-Account/session model принят до runtime в `D-20260715-036`. Свежий protected P1 live gate proves encrypted returning session can reach Ready, `getMe` and Closed без нового login input. Это доказывает core restart boundary, но не daemon lifecycle: singleton election, lock, socket, leases и idle restart остаются P2.
+Account/session model принят до runtime в `D-20260715-036`. Свежий protected P1 live gate proves encrypted returning session can reach Ready, `getMe` and Closed без нового login input. P2 process gate теперь доказывает exclusive canonical DB lock, denial второго owner и reacquire после process exit на synthetic directory. Socket election, leases, runtime wiring и idle restart остаются недоказанными.
 
 ## Scope
 
@@ -157,6 +157,6 @@ Account/session model принят до runtime в `D-20260715-036`. Свежи�
 
 - Kernel coverage: lifecycle/concurrency/recovery modeled.
 - Modeled: intended session semantics.
-- Partial: platform-specific lock/socket details.
+- Partial: macOS/Linux canonical owner lock реализован; socket/election, leases и lifecycle runtime отсутствуют.
 - Unknown: default timeout.
 - Not applicable: Telegram domain data operations.

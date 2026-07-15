@@ -108,6 +108,8 @@ def main() -> int:
     environment = os.environ.copy()
     environment["CARGO_BUILD_JOBS"] = "2"
     environment["CARGO_INCREMENTAL"] = "0"
+    environment.pop("TELEGRAM_PROFILE", None)
+    environment.pop("TDLIB_DATABASE_DIR", None)
     errors: list[str] = []
 
     for package, expected_message in BINARY_MESSAGES.items():

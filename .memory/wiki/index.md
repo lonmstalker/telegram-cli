@@ -15,6 +15,7 @@
 - [Database encryption key contract](../../docs/database-encryption-key.md)
 - [Ordered state reducer contract](../../docs/ordered-state-reducer.md)
 - [Core runtime startup contract](../../docs/core-runtime-startup.md)
+- [Daemon profile ownership contract](../../docs/daemon-profile-ownership.md)
 - [Current project state](project-state.md)
 
 ## Memory streams
@@ -37,7 +38,7 @@
 
 ## Current records
 
-- Implementation: P1 accepted; следующий пункт — singleton lock P2; см. [project-state.md](project-state.md).
+- Implementation: P1 accepted, P2 canonical owner lock готов; следующий пункт — socket/election; см. [project-state.md](project-state.md).
 - Открытые проблемы: [P-20260715-001](../problems/problems.md) (gateway key wiring). Linux artifact закрыт в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -48,6 +49,7 @@
 - Ordered reducer: [D-20260715-040](../decisions/decisions.md), [W-20260715-045](../logs/work.md), [`docs/ordered-state-reducer.md`](../../docs/ordered-state-reducer.md).
 - Lossless unknown updates: [D-20260715-041](../decisions/decisions.md), [W-20260715-046](../logs/work.md), [`docs/ordered-state-reducer.md`](../../docs/ordered-state-reducer.md).
 - Bounded startup runtime и P1 acceptance: [D-20260715-042](../decisions/decisions.md), [W-20260715-047](../logs/work.md), [`docs/core-runtime-startup.md`](../../docs/core-runtime-startup.md).
+- Canonical DB owner lock: [D-20260715-043](../decisions/decisions.md), [W-20260715-048](../logs/work.md), [`docs/daemon-profile-ownership.md`](../../docs/daemon-profile-ownership.md).
 
 ## Operating rules
 

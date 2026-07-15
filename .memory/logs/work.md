@@ -86,3 +86,12 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Все P1 Acceptance-критерии закрыты: correlation, receive ordering, returning restart, wrong/missing-key fail-closed и отсутствие secret canary в captured output. Durable contract: [D-20260715-042](../decisions/decisions.md).
 - Verification перед коммитом: обязательные workspace tests, Clippy, все `scripts/check-*.py` и wiki rotation gate.
 - Следующий Tasks-пункт: P2 singleton `telegramd` и exclusive lock по canonical DB path.
+
+## [2026-07-15] completed | W-20260715-048 | Реализован canonical DB owner lock для telegramd
+
+- Закрыт первый Tasks-пункт P2: configured `telegramd` получает profile/environment config, canonicalize-ит DB directory и удерживает `ProfileDatabaseLock` на постоянном safe owner file до process exit.
+- Kernel negative control подтвердил, что real path и symlink alias одной DB не получают два lock; relative/non-directory inputs fail closed. Production/test Rust additions остаются пропорциональными (171/61 lines).
+- Process-level synthetic gate: первый daemon удержал temporary DB, второй завершился с `AlreadyOwned`, replacement после exit первого успешно занял lock. Реальная TDLib DB и `.env.local` не использовались.
+- Main остаётся честно partial: без config fail-closed, с lock сообщает об отсутствующем service transport и не открывает TDLib до следующих P2 пунктов. Contract: [D-20260715-043](../decisions/decisions.md), synthesis: [`docs/daemon-profile-ownership.md`](../../docs/daemon-profile-ownership.md).
+- Verification перед коммитом: обязательные workspace tests, Clippy, все `scripts/check-*.py` и wiki rotation gate.
+- Следующий Tasks-пункт P2: Unix socket `0600`, atomic startup election, stale-socket recovery.

@@ -9,5 +9,6 @@ publish = false
 workspace = true
 
 [dependencies]
+libc = "0.2.174"
 telegram-core = { path = "../../crates/telegram-core" }
 telegram-protocol = { path = "../../crates/telegram-protocol" }

@@ -140,6 +140,7 @@ dependencies = [
 name = "telegramd"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "telegram-core",
  "telegram-protocol",
 ]

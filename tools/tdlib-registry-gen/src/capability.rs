@@ -7,7 +7,7 @@ mod chat_event_logs;
 mod chat_invite_links;
 mod chat_settings;
 mod supergroup_usernames;
-mod video_chat_streaming;
+mod video_chats;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
@@ -1264,7 +1264,7 @@ fn validate_documented_method_constraints(
     let chat_invite_link_contract = reviewed_chat_invite_link_contract(method)?;
     let chat_setting_contract = reviewed_chat_setting_contract(method)?;
     let supergroup_username_contract = reviewed_supergroup_username_contract(method)?;
-    let video_chat_streaming_contract = reviewed_video_chat_streaming_contract(method)?;
+    let video_chat_contract = reviewed_video_chat_contract(method)?;
     let ready = descriptor.ready_accounts();
     let entitlements = descriptor.current_account_entitlements();
     let dcs = descriptor.dc_environments();
@@ -1305,7 +1305,7 @@ fn validate_documented_method_constraints(
         || chat_invite_link_contract.is_some_and(|contract| contract.regular_user_only())
         || chat_setting_contract.is_some_and(|contract| contract.regular_user_only())
         || supergroup_username_contract.is_some()
-        || video_chat_streaming_contract.is_some();
+        || video_chat_contract.is_some();
     let expected_ready = if bot_only || runtime_bot_only {
         vec![AccountKind::Bot]
     } else if regular_only || runtime_regular_only || !expected_entitlements.is_empty() {
@@ -1368,7 +1368,7 @@ fn documented_runtime_requirements(
     let chat_invite_link_contract = reviewed_chat_invite_link_contract(method)?;
     let chat_setting_contract = reviewed_chat_setting_contract(method)?;
     let supergroup_username_contract = reviewed_supergroup_username_contract(method)?;
-    let video_chat_streaming_contract = reviewed_video_chat_streaming_contract(method)?;
+    let video_chat_contract = reviewed_video_chat_contract(method)?;
     let reviewed_family_count = [
         runtime_contract.is_some(),
         message_contract.is_some(),
@@ -1379,7 +1379,7 @@ fn documented_runtime_requirements(
         chat_invite_link_contract.is_some(),
         chat_setting_contract.is_some(),
         supergroup_username_contract.is_some(),
-        video_chat_streaming_contract.is_some(),
+        video_chat_contract.is_some(),
     ]
     .into_iter()
     .filter(|present| *present)
@@ -1446,8 +1446,8 @@ fn documented_runtime_requirements(
     if supergroup_username_contract.is_some() {
         expected_consumed.extend(supergroup_username_consumed_signal_keys());
     }
-    if let Some(contract) = video_chat_streaming_contract {
-        expected_consumed.extend(video_chat_streaming_consumed_signal_keys(contract));
+    if let Some(contract) = video_chat_contract {
+        expected_consumed.extend(video_chat_consumed_signal_keys(contract));
     }
     if consumed != expected_consumed {
         return Err(unsupported_runtime_documentation(
@@ -1500,19 +1500,19 @@ fn documented_runtime_requirements(
         }
     } else if let Some(contract) = chat_setting_contract {
         documented_chat_setting_clauses(method, contract)?
-    } else if let Some(contract) = video_chat_streaming_contract {
+    } else if let Some(contract) = video_chat_contract {
         let target = documented_chat_target(method)?;
         chat_kind_clauses(
             &target,
             contract.supported_chat_kinds(),
             |target| match contract.required_access() {
-                video_chat_streaming::RequiredAccess::AdministratorRight(right) => {
+                video_chats::RequiredAccess::AdministratorRight(right) => {
                     RuntimeRequirement::ChatAdministratorRight {
                         target: target.clone(),
                         right,
                     }
                 }
-                video_chat_streaming::RequiredAccess::Owner => RuntimeRequirement::ChatOwner {
+                video_chats::RequiredAccess::Owner => RuntimeRequirement::ChatOwner {
                     target: target.clone(),
                 },
             },
@@ -1689,19 +1689,16 @@ fn reviewed_chat_event_log_contract(
     Ok(Some(contract))
 }
 
-fn reviewed_video_chat_streaming_contract(
+fn reviewed_video_chat_contract(
     method: &Definition,
-) -> Result<
-    Option<&'static video_chat_streaming::VideoChatStreamingContract>,
-    CapabilityGenerationError,
-> {
-    let Some(contract) = video_chat_streaming::reviewed_contract(method.name()) else {
+) -> Result<Option<&'static video_chats::VideoChatContract>, CapabilityGenerationError> {
+    let Some(contract) = video_chats::reviewed_contract(method.name()) else {
         return Ok(None);
     };
     if method.canonical_signature() != contract.canonical_signature() {
         return Err(unsupported_runtime_documentation(
             method,
-            "reviewed video-chat-streaming signature drifted",
+            "reviewed video-chat signature drifted",
         ));
     }
     if !signal_source_has_exact_text(
@@ -1711,7 +1708,7 @@ fn reviewed_video_chat_streaming_contract(
     ) {
         return Err(unsupported_runtime_documentation(
             method,
-            "reviewed video-chat-streaming source text drifted or disappeared",
+            "reviewed video-chat source text drifted or disappeared",
         ));
     }
     Ok(Some(contract))
@@ -1849,15 +1846,15 @@ fn chat_event_log_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
     .collect()
 }
 
-fn video_chat_streaming_consumed_signal_keys(
-    contract: &video_chat_streaming::VideoChatStreamingContract,
+fn video_chat_consumed_signal_keys(
+    contract: &video_chats::VideoChatContract,
 ) -> BTreeSet<RuntimeSignalKey> {
     let families = match contract.required_access() {
-        video_chat_streaming::RequiredAccess::AdministratorRight(_) => vec![
+        video_chats::RequiredAccess::AdministratorRight(_) => vec![
             RuntimeSignalFamily::AdministratorRightPhrase,
             RuntimeSignalFamily::RequiresRightPhrase,
         ],
-        video_chat_streaming::RequiredAccess::Owner => {
+        video_chats::RequiredAccess::Owner => {
             vec![RuntimeSignalFamily::RequiresOwnerPrivileges]
         }
     };
@@ -3120,8 +3117,8 @@ fn documented_runtime_signal_dispositions(
     if let Some(contract) = reviewed_chat_setting_contract(method)? {
         consumed.extend(chat_setting_consumed_signal_keys(contract));
     }
-    if let Some(contract) = reviewed_video_chat_streaming_contract(method)? {
-        consumed.extend(video_chat_streaming_consumed_signal_keys(contract));
+    if let Some(contract) = reviewed_video_chat_contract(method)? {
+        consumed.extend(video_chat_consumed_signal_keys(contract));
     }
     runtime_signal_dispositions_with_consumed(method, &consumed)
 }
@@ -3643,8 +3640,8 @@ fn engine_source_sha256() -> String {
             include_bytes!("capability/supergroup_usernames.rs").as_slice(),
         ),
         (
-            "capability/video_chat_streaming.rs",
-            include_bytes!("capability/video_chat_streaming.rs").as_slice(),
+            "capability/video_chats.rs",
+            include_bytes!("capability/video_chats.rs").as_slice(),
         ),
         (
             "telegram-core/method_capability.rs",

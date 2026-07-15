@@ -1163,8 +1163,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            69,
-            "1e5cb8b56a2295d98918f81ae5006f7452fe0deff5d332cef459080ce3a0e92c".to_owned()
+            70,
+            "96d4b3382adf63541c60b2ca84b55d7995617213fb6b928bf64f6dd666b65fd5".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -1180,8 +1180,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            72,
-            "2ee3321d89f3463b8ce90c123b9beaff6e22e9282a3ff90dbca59abd29f1b5fe".to_owned()
+            73,
+            "317e5524313cf2740c9732e94d4d9c9a5fe04f22c066057f0c16fced1b421aaa".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -1190,12 +1190,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        121,
+        120,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "f12c4e511942b14979dc26a17bc4797ff05bbcaceda7f45625829960222faf0c",
+        "c525212cc279557aae39bd821e2c74d8912c01f0595e9f35f19f1259e7e4922d",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -1272,7 +1272,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "4cf97a1d10c9c5bb3845aaf17ca2509016cad03eb3188dda679f5cd1116c40d3"
+        "d050be73e8e9211e624719be10050ca2829891befdadd02ad7f6e975442d370e"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -4514,6 +4514,141 @@ fn pinned_video_chat_rtmp_replacement_contract_is_exact() {
         )
         .expect_err("unconsumed RTMP replacement argument signal must fail closed")
         .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
+fn pinned_video_chat_creation_contract_is_exact() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let method = find_method(&schema, "createVideoChat");
+    assert_eq!(
+        method.canonical_signature(),
+        "createVideoChat chat_id:int53 title:string start_date:int32 is_rtmp_stream:Bool = GroupCallId;"
+    );
+    assert_eq!(
+        normalized_text(&super::method_description(method)),
+        "creates a video chat (a group call bound to a chat); for basic groups, supergroups and channels only; requires can_manage_video_chats administrator right"
+    );
+
+    let target = ChatTargetRef::try_from("chat_id").expect("chat target");
+    let expected = RequirementAlternatives::try_new(
+        [
+            ResolvedChatKind::BasicGroup,
+            ResolvedChatKind::Supergroup,
+            ResolvedChatKind::Channel,
+        ]
+        .into_iter()
+        .map(|kind| {
+            vec![
+                RuntimeRequirement::ChatKind(
+                    ChatKindCondition::try_new(target.clone(), kind).expect("video-chat kind"),
+                ),
+                RuntimeRequirement::ChatAdministratorRight {
+                    target: target.clone(),
+                    right: ChatAdministratorRight::CanManageVideoChats,
+                },
+            ]
+        })
+        .collect(),
+    )
+    .expect("video-chat creation alternatives");
+    assert_eq!(
+        documented_runtime_requirements(method)
+            .expect("reviewed video-chat creation documentation")
+            .expect("video-chat creation contract"),
+        expected
+    );
+
+    let descriptor = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        expected.clone(),
+        Vec::new(),
+    )
+    .expect("video-chat creation descriptor");
+    validate_documented_method_constraints(method, &descriptor).expect("regular-user contract");
+    validate_documented_runtime_requirements(method, &descriptor).expect("runtime contract");
+    assert_eq!(
+        documented_runtime_signal_dispositions(method).expect("video-chat creation signals"),
+        [
+            RuntimeSignalFamily::AdministratorRightPhrase,
+            RuntimeSignalFamily::RequiresRightPhrase,
+        ]
+        .into_iter()
+        .map(|family| {
+            (
+                RuntimeSignalKey {
+                    source: RuntimeSignalSource::Description,
+                    family,
+                },
+                RuntimeSignalDisposition::ConsumedByRuntimeRequirements,
+            )
+        })
+        .collect::<Vec<_>>()
+    );
+
+    let bot_enabled = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser, AccountKind::Bot],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        expected,
+        Vec::new(),
+    )
+    .expect("structurally valid bot-enabled video-chat descriptor");
+    assert_eq!(
+        validate_documented_method_constraints(method, &bot_enabled)
+            .expect_err("video-chat creation must remain regular-user-only")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let source_drift = pinned.replacen(
+        "Creates a video chat (a group call bound to a chat); for basic groups, supergroups and channels only; requires can_manage_video_chats administrator right",
+        "Creates a new video chat (a group call bound to a chat); for basic groups, supergroups and channels only; requires can_manage_video_chats administrator right",
+        1,
+    );
+    let source_drift = Schema::parse(&source_drift).expect("valid video-chat source drift");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&source_drift, "createVideoChat"))
+            .expect_err("video-chat source drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let signature_drift = pinned.replacen(
+        "createVideoChat chat_id:int53 title:string start_date:int32 is_rtmp_stream:Bool = GroupCallId;",
+        "createVideoChat chat_id:int32 title:string start_date:int32 is_rtmp_stream:Bool = GroupCallId;",
+        1,
+    );
+    let signature_drift =
+        Schema::parse(&signature_drift).expect("valid video-chat signature drift");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&signature_drift, "createVideoChat"))
+            .expect_err("video-chat signature drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let additional_signal = pinned.replacen(
+        "@chat_id Identifier of a chat in which the video chat will be created",
+        "@chat_id Identifier of a chat in which the video chat will be created; requires can_manage_video_chats administrator right",
+        1,
+    );
+    let additional_signal =
+        Schema::parse(&additional_signal).expect("valid additional video-chat signal");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&additional_signal, "createVideoChat"))
+            .expect_err("unconsumed video-chat argument signal must fail closed")
+            .kind(),
         CapabilityGenerationErrorKind::SchemaDrift
     );
 }

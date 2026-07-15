@@ -2,14 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] open correction | P-20260715-005 | Supergroup setting rights уменьшают open set до 127 methods
-
-- Corrects: preceding 126-method transition, основанный на broad ordinary-supergroup claim.
-- Evidence: [ordinary-supergroup correction digest](../raw/2026-07-15-tdlib-supergroup-setting-ordinary-kind-correction.md); current family 4 new complete, 1 prior complete, 4 deferred.
-- Transition: supported typed set 63, terminal complete 66, open-set SHA-256 `b872e1f38e72845cd22f4a14460655508775545f5301882b8edbc6189265aa8d`.
-- Status: open; zero-open gate не достигнут, 127 methods дают `SchemaDrift` и не считаются capability coverage.
-- Related decisions: corrected [D-20260715-020](../decisions/decisions.md).
-
 ## [2026-07-15] open | P-20260715-008 | Member-only DNF теряла bot/basic-group administrator guard
 
 - Evidence: independent review и pinned `DialogManager.cpp`: `setChatTitle`/`setChatPhoto` требуют `is_appointed_chat_administrator()` для bot в basic group сверх effective `can_change_info`.
@@ -161,3 +153,15 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Transition: exact regular-user, three-kind owner revoke contract; supported 69, terminal 72, format `8`.
 - Status/next: open at 121; продолжать exact handler tasks, runtime owner/read evidence fail closed на stale/gap.
 - Decision: [D-20260715-028](../decisions/decisions.md).
+
+## [2026-07-15] open update | P-20260715-005 | Video-chat creation уменьшил open set до 120
+
+- Evidence: [creation digest](../raw/2026-07-15-tdlib-video-chat-creation-capability.md); open SHA-256 `c525212cc279557aae39bd821e2c74d8912c01f0595e9f35f19f1259e7e4922d`.
+- Transition: exact regular-user, three-kind `can_manage_video_chats` creation contract; supported 70, terminal 73, format `8`.
+- Status/next: open at 120; продолжать exact handler tasks, runtime right/read evidence fail closed на stale/gap.
+- Decision: [D-20260715-029](../decisions/decisions.md).
+
+## [2026-07-15] archive link map | P-20260715-005 | Rotated ordinary-setting correction
+
+- [Problem shard 015](archive/2026-07-15--2026-07-15-015.md) ссылается на D020; canonical resolve: [base](../decisions/archive/2026-07-15--2026-07-15-022.md) + [accepted correction](../decisions/archive/2026-07-15--2026-07-15-023.md).
+- Status не изменён: latest open boundary — 120 methods.

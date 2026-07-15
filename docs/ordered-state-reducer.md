@@ -8,7 +8,7 @@ Unmatched responses и fatal transport events не являются updates и s
 
 - Authorization хранит последний validated raw `AuthorizationState`.
 - User/Chat/BasicGroup/Supergroup/File хранят full raw TDJSON objects с sequence. User/group full-info updates имеют отдельные caches.
-- `updateUserStatus` и field-level `updateChat*` изменяют canonical full object только после base update. TDLib guarantee `updateNewChat` используется буквально; partial update без base entity отклоняется.
+- `updateUserStatus` и field-level `updateChat*` изменяют canonical full object только после base update. TDLib guarantee `updateNewChat` используется буквально; partial update без base entity отклоняется. Если nullable TDJSON object field (`last_message`, photo/draft/status/background и аналоги) отсутствует в update, reducer удаляет его из raw cache; отсутствие required field остаётся malformed update.
 - Chat positions и membership in chat lists обновляются по exact list discriminator; `order == 0` удаляет position. Reply-markup message сводится к canonical `reply_markup_message_id`; online member count хранится отдельно как transient derived field.
 - Connection хранит последний raw `ConnectionState`.
 - Message send state индексируется по `(chat_id, old_message_id)` и проходит `Acknowledged -> Succeeded|Failed`; terminal state не может регрессировать.

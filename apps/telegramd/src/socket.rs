@@ -1,17 +1,15 @@
 //! Private Unix socket namespace для выбранного profile owner.
 
 use std::fmt;
-use std::fs::{self, Permissions};
+use std::fs::{self, DirBuilder, Permissions};
 use std::io;
-use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
+use std::os::unix::fs::{DirBuilderExt, FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
 
 use crate::ownership::ProfileDatabaseLock;
 
 const DAEMON_SOCKET_SUFFIX: &str = ".sock";
-static UMASK_LOCK: Mutex<()> = Mutex::new(());
 
 pub struct DaemonSocket {
     listener: UnixListener,
@@ -22,13 +20,12 @@ pub struct DaemonSocket {
 
 impl DaemonSocket {
     pub fn bind(ownership: &ProfileDatabaseLock) -> Result<Self, SocketError> {
+        prepare_socket_directory()?;
         let path = socket_path(ownership.profile());
         recover_stale_socket(&path)?;
 
-        let restrictive_umask = RestrictiveUmask::enter();
         let listener =
             UnixListener::bind(&path).map_err(|error| SocketError::Bind(error.kind()))?;
-        drop(restrictive_umask);
         fs::set_permissions(&path, Permissions::from_mode(0o600))
             .map_err(|error| SocketError::Permissions(error.kind()))?;
         let metadata =
@@ -53,11 +50,32 @@ impl DaemonSocket {
 }
 
 fn socket_path(profile: &str) -> PathBuf {
+    socket_directory().join(format!("{profile}{DAEMON_SOCKET_SUFFIX}"))
+}
+
+fn socket_directory() -> PathBuf {
     // SAFETY: geteuid has no preconditions and does not access memory.
     let user = unsafe { libc::geteuid() };
-    PathBuf::from(format!(
-        "/tmp/telegramd-{user}-{profile}{DAEMON_SOCKET_SUFFIX}"
-    ))
+    PathBuf::from(format!("/tmp/telegramd-{user}"))
+}
+
+fn prepare_socket_directory() -> Result<(), SocketError> {
+    let path = socket_directory();
+    match DirBuilder::new().mode(0o700).create(&path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(SocketError::Directory(error.kind())),
+    }
+    let metadata =
+        fs::symlink_metadata(path).map_err(|error| SocketError::Directory(error.kind()))?;
+    // SAFETY: geteuid has no preconditions and does not access memory.
+    if !metadata.is_dir()
+        || metadata.uid() != unsafe { libc::geteuid() }
+        || metadata.mode() & 0o777 != 0o700
+    {
+        return Err(SocketError::UnsafeSocketDirectory);
+    }
+    Ok(())
 }
 
 impl Drop for DaemonSocket {
@@ -114,35 +132,10 @@ fn validate_socket_metadata(metadata: &fs::Metadata) -> Result<(), SocketError> 
     Ok(())
 }
 
-struct RestrictiveUmask {
-    previous: libc::mode_t,
-    _lock: MutexGuard<'static, ()>,
-}
-
-impl RestrictiveUmask {
-    fn enter() -> Self {
-        let lock = UMASK_LOCK
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        // SAFETY: daemon startup is single-threaded; the process-global change is
-        // serialized here and restored by Drop before the listener is exposed.
-        let previous = unsafe { libc::umask(0o177) };
-        Self {
-            previous,
-            _lock: lock,
-        }
-    }
-}
-
-impl Drop for RestrictiveUmask {
-    fn drop(&mut self) {
-        // SAFETY: previous came from umask and restoring it has no pointer arguments.
-        unsafe { libc::umask(self.previous) };
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SocketError {
+    Directory(io::ErrorKind),
+    UnsafeSocketDirectory,
     Inspect(io::ErrorKind),
     UnsafeSocketEntry,
     AlreadyServing,
@@ -157,6 +150,15 @@ pub enum SocketError {
 impl fmt::Display for SocketError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Directory(kind) => {
+                write!(
+                    formatter,
+                    "can't prepare private socket directory: {kind:?}"
+                )
+            }
+            Self::UnsafeSocketDirectory => {
+                formatter.write_str("private socket directory is unsafe")
+            }
             Self::Inspect(kind) => write!(formatter, "can't inspect profile socket: {kind:?}"),
             Self::UnsafeSocketEntry => {
                 formatter.write_str("profile socket path contains an unsafe entry")
@@ -193,6 +195,8 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         let ownership = ProfileDatabaseLock::acquire(profile, &root).unwrap();
         let socket = DaemonSocket::bind(&ownership).unwrap();
+        let directory = fs::symlink_metadata(socket.path().parent().unwrap()).unwrap();
+        assert_eq!(directory.mode() & 0o777, 0o700);
         let metadata = fs::symlink_metadata(socket.path()).unwrap();
         assert_eq!(metadata.mode() & 0o777, 0o600);
         assert!(UnixStream::connect(socket.path()).is_ok());
@@ -211,6 +215,7 @@ mod tests {
         let (root, profile) = temporary_scope("stale-socket");
         fs::create_dir_all(&root).unwrap();
         let ownership = ProfileDatabaseLock::acquire(profile, &root).unwrap();
+        prepare_socket_directory().unwrap();
         let path = socket_path(ownership.profile());
         drop(UnixListener::bind(&path).unwrap());
 

@@ -167,7 +167,7 @@ impl StateReducer {
                 self.apply_entity(object, "user", "id", sequence, CachedUpdateKind::User)?
             }
             "updateUserStatus" => {
-                self.patch_entity("user", object, "user_id", sequence, &["status"])?;
+                self.patch_entity("user", object, "user_id", sequence, &["status"], &[])?;
                 CachedUpdateKind::User
             }
             "updateUserFullInfo" => self.apply_keyed_value(
@@ -193,12 +193,14 @@ impl StateReducer {
                 CachedUpdateKind::Chat
             }
             update_type if chat_direct_fields(update_type).is_some() => {
+                let patch = chat_direct_fields(update_type).unwrap_or_default();
                 self.patch_entity(
                     "chat",
                     object,
                     "chat_id",
                     sequence,
-                    chat_direct_fields(update_type).unwrap_or_default(),
+                    patch.fields,
+                    patch.nullable_fields,
                 )?;
                 CachedUpdateKind::Chat
             }
@@ -344,8 +346,17 @@ impl StateReducer {
         id_field: &'static str,
         sequence: UpdateSequence,
         fields: &[&'static str],
+        nullable_fields: &[&'static str],
     ) -> Result<(), ReducerError> {
         let id = integer(update, id_field)?;
+        let patches = fields
+            .iter()
+            .map(|field| match update.get(*field) {
+                Some(value) => Ok((*field, Some(value.clone()))),
+                None if nullable_fields.contains(field) => Ok((*field, None)),
+                None => Err(ReducerError::MissingField(field)),
+            })
+            .collect::<Result<Vec<_>, ReducerError>>()?;
         let cached = match entity {
             "user" => self.users.get_mut(&id),
             "chat" => self.chats.get_mut(&id),
@@ -356,12 +367,15 @@ impl StateReducer {
             .value
             .as_object_mut()
             .ok_or(ReducerError::InvalidField(entity))?;
-        let patches = fields
-            .iter()
-            .map(|field| Ok((*field, required_value(update, field)?.clone())))
-            .collect::<Result<Vec<_>, ReducerError>>()?;
         for (field, value) in patches {
-            target.insert(field.to_owned(), value);
+            match value {
+                Some(value) => {
+                    target.insert(field.to_owned(), value);
+                }
+                None => {
+                    target.remove(field);
+                }
+            }
         }
         cached.sequence = sequence;
         Ok(())
@@ -533,8 +547,14 @@ impl StateReducer {
     }
 }
 
-fn chat_direct_fields(update_type: &str) -> Option<&'static [&'static str]> {
-    Some(match update_type {
+#[derive(Default)]
+struct ChatPatch {
+    fields: &'static [&'static str],
+    nullable_fields: &'static [&'static str],
+}
+
+fn chat_direct_fields(update_type: &str) -> Option<ChatPatch> {
+    let fields: &'static [&'static str] = match update_type {
         "updateChatTitle" => &["title"],
         "updateChatPhoto" => &["photo"],
         "updateChatAccentColors" => &[
@@ -571,6 +591,25 @@ fn chat_direct_fields(update_type: &str) -> Option<&'static [&'static str]> {
         "updateChatBlockList" => &["block_list"],
         "updateChatHasScheduledMessages" => &["has_scheduled_messages"],
         _ => return None,
+    };
+    let nullable_fields: &'static [&'static str] = match update_type {
+        "updateChatPhoto" => &["photo"],
+        "updateChatAccentColors" => &["upgraded_gift_colors"],
+        "updateChatLastMessage" => &["last_message"],
+        "updateChatActionBar" => &["action_bar"],
+        "updateChatBusinessBotManageBar" => &["business_bot_manage_bar"],
+        "updateChatDraftMessage" => &["draft_message"],
+        "updateChatEmojiStatus" => &["emoji_status"],
+        "updateChatMessageSender" => &["message_sender_id"],
+        "updateChatPendingJoinRequests" => &["pending_join_requests"],
+        "updateChatBackground" => &["background"],
+        "updateChatTheme" => &["theme"],
+        "updateChatBlockList" => &["block_list"],
+        _ => &[],
+    };
+    Some(ChatPatch {
+        fields,
+        nullable_fields,
     })
 }
 
@@ -761,6 +800,32 @@ mod tests {
             reducer.message_send(failed_key).unwrap().state,
             MessageSendState::Failed { .. }
         ));
+    }
+
+    #[test]
+    fn nullable_chat_patch_removes_an_absent_json_field() {
+        let mut reducer = StateReducer::default();
+        reducer
+            .apply(&json!({
+                "@type":"updateNewChat",
+                "chat":{
+                    "@type":"chat",
+                    "id":"2",
+                    "last_message":{"@type":"message","id":"3","chat_id":"2"},
+                    "positions":[],
+                    "chat_lists":[]
+                }
+            }))
+            .unwrap();
+        reducer
+            .apply(&json!({
+                "@type":"updateChatLastMessage",
+                "chat_id":"2",
+                "positions":[]
+            }))
+            .unwrap();
+
+        assert!(reducer.chat(2).unwrap().value.get("last_message").is_none());
     }
 
     #[test]

@@ -21,20 +21,29 @@ impl LeaseServer {
         Self { leases }
     }
 
-    pub fn run(&mut self, listener: &UnixListener) -> Result<(), ServerError> {
+    pub fn poll(&mut self, listener: &UnixListener, now: Instant) -> Result<(), ServerError> {
+        self.leases.expire(now);
         loop {
             match self.serve_once(listener) {
                 Ok(()) => {}
+                Err(ServerError::Accept(io::ErrorKind::WouldBlock)) => return Ok(()),
                 Err(error @ ServerError::Accept(_)) => return Err(error),
                 Err(ServerError::ClientIo(_) | ServerError::SerializeResponse) => {}
             }
         }
     }
 
+    pub fn active_leases(&self) -> usize {
+        self.leases.active_count()
+    }
+
     fn serve_once(&mut self, listener: &UnixListener) -> Result<(), ServerError> {
         let (stream, _) = listener
             .accept()
             .map_err(|error| ServerError::Accept(error.kind()))?;
+        stream
+            .set_nonblocking(false)
+            .map_err(|error| ServerError::ClientIo(error.kind()))?;
         self.serve_connection(stream)
     }
 
@@ -145,6 +154,7 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         let ownership = ProfileDatabaseLock::acquire(profile, &root).unwrap();
         let socket = DaemonSocket::bind(&ownership).unwrap();
+        socket.listener().set_nonblocking(true).unwrap();
         let mut server = LeaseServer::new(LeaseManager::new());
 
         let granted = exchange(

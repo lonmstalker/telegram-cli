@@ -30,3 +30,8 @@ Active append-only problem lifecycle. Status changes добавляются но
 
 - P1 `CoreRuntime` и protected loader свежо доказали returning `Ready`, `getMe` и normal Closed без нового login; wrong/missing-key native boundary также green.
 - Проблема остаётся открытой уже только на product boundary P2: `telegramd` пока не выбирает profile key reference, не владеет runtime/DB и не предоставляет lifecycle через protocol.
+
+## [2026-07-15] resolved | P-20260715-001 | Protected key подключён к singleton daemon
+
+- `telegramd` выбирает Base64 file secret reference из protected process configuration после canonical DB lock, передаёт key только в redacted/zeroizing core provider и достигает returning `Ready/getMe` без login input.
+- Missing/wrong key остаётся fail closed; normal idle path завершает `close -> authorizationStateClosed`. Protected live P2 gate не вывел key, API credentials, DB paths или Telegram identity.

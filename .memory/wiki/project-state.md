@@ -5,7 +5,7 @@
 ## Verified
 
 - Документационный bootstrap: `product.md`, `plans.md`, `HARNESS.md` (F001–F022), harness-файлы, `docs/tdlib-api-coverage.md`.
-- Cargo workspace из шести пакетов; границы под gate `scripts/check-workspace-boundaries.py`; product binaries — fail-closed заглушки.
+- Cargo workspace из шести пакетов; границы под gate `scripts/check-workspace-boundaries.py`; `telegramd` — working shared-session owner, остальные product binaries пока fail-closed.
 - Pinned schema: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`; 1010 functions, 2168 definitions, 184 updates, 13 auth states; gate `scripts/check-tdlib-pin.py`.
 - Strict schema parser в `telegram-core::schema` (12 тестов, без внешних dependencies).
 - macOS arm64 и Linux x86_64 `tdjson` с provenance в content-addressed cache; общий gate `scripts/check-tdlib-native-pin.py`, локальная проверка обоих artifacts — с `--require-local-artifact`.
@@ -22,19 +22,21 @@
 - P1 runtime [D-20260715-042](../decisions/decisions.md): один абсолютный deadline, cancellable pending responses, log disable before secret-shaped calls, pinned version/commit handshake и `getCurrentState` snapshot boundary. Native wrong/missing-key, secret canary и returning-session gates green.
 - P1 accepted: transport correlation, authorization, protected key, ordered/lossless state и bounded startup runtime закрывают все Acceptance-критерии фазы.
 - P2 ownership [D-20260715-043](../decisions/decisions.md): configured `telegramd` canonicalize-ит absolute DB directory и удерживает safe `0600` non-blocking OS lock; symlink aliases/второй process отклоняются, после exit lock reacquire-ится.
-- P2 socket [D-20260715-044](../decisions/decisions.md): owner-lock winner bind-ит `/tmp/telegramd-<uid>-<profile>.sock` exact mode `0600`; live/unsafe entries fail closed, current-user refused socket восстанавливается как stale.
+- P2 socket [D-20260715-044](../decisions/decisions.md): owner-lock winner использует private `/tmp/telegramd-<uid>` `0700` и bind-ит `<profile>.sock` exact mode `0600`; live/unsafe entries fail closed, current-user refused socket восстанавливается как stale.
 - P2 leases [D-20260715-045](../decisions/decisions.md): bounded JSONL socket protocol выдаёт boot-unique lease ID, хранит principal/opaque scopes и TTL, поддерживает matching-principal heartbeat/release и fail-closed expiry.
 - P2 scheduler [D-20260715-046](../decisions/decisions.md): per-profile FIFO tickets допускают bounded contiguous read prefix, mutation только при zero active и не позволяют late read обогнать queued mutation.
+- P2 lifecycle [D-20260715-047](../decisions/decisions.md): daemon проверяет pinned native artifact, загружает protected key, требует returning `Ready/getMe` с stable owner-only identity binding и закрывается по zero lease/workflow activity только через `close -> authorizationStateClosed`.
+- P2 accepted: concurrent process/client gate, client-crash TTL, daemon-crash returning restart и normal idle restart закрывают все Acceptance-критерии фазы. Live evidence: [P2 daemon lifecycle acceptance](../raw/2026-07-15-p2-daemon-lifecycle-acceptance.md).
 
 ## Not implemented
 
-- Остальной P2–P10 runtime: lifecycle/TDLib wiring, generated registry, capability-таблица, workflows, policy, CLI, MCP и packaging.
+- P3–P10 runtime: generated registry, capability-таблица, workflows, policy, CLI, MCP и packaging.
 
 ## Active boundary
 
 - Full API означает L0–L2 для всей pinned schema; curated workflows и live proofs учитываются отдельно.
 - Секреты — вне model-visible interfaces.
-- Core key provider готов; wiring в штатный daemon всё ещё открыт как [P-20260715-001](../problems/problems.md).
+- Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: пятый Tasks-пункт P2 — lifecycle `Stopped -> Starting -> Ready -> Draining -> Closed`, idle eligibility и graceful `close`.
+- Следующий implementation boundary: первый Tasks-пункт P3 — generated registry из pinned schema с validation, descriptors и forward-compatible unknown fields.

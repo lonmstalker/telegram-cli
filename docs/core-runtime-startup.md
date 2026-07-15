@@ -1,6 +1,6 @@
 # Core runtime startup contract
 
-`telegram-core::runtime::CoreRuntime` завершает P1 boundary между прямым TDJSON transport и будущим daemon-owner. Runtime не открывает profile/DB сам и не подменяет P2 lifecycle.
+`telegram-core::runtime::CoreRuntime` завершает P1 boundary между прямым TDJSON transport и daemon-owner. Runtime не открывает profile/DB сам и не подменяет P2 lifecycle; его единственный production consumer теперь [`telegramd` session lifecycle](daemon-session-lifecycle.md).
 
 ## Startup order
 

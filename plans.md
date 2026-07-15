@@ -105,7 +105,7 @@ flowchart LR
 |---|---|---|
 | P0 | Контракт, repository skeleton и pinned schema | accepted |
 | P1 | Core transport, authorization и ordered updates | accepted |
-| P2 | Singleton daemon и shared session lifecycle | in_progress — ownership/socket/leases/queue готовы, далее lifecycle |
+| P2 | Singleton daemon и shared session lifecycle | accepted |
 | P3 | Полный generated raw API и capability-таблица | pending |
 | P4 | Stateful request-chain engine | pending |
 | P5 | Reliability, policy, limits и observability | pending |
@@ -160,14 +160,14 @@ flowchart LR
 - [x] Unix socket `0600`, atomic startup election, stale-socket recovery.
 - [x] Lease: ID, principal/scopes, TTL, heartbeat, explicit release.
 - [x] Fair per-account queue; bounded concurrent reads, serialized mutations в MVP.
-- [ ] Lifecycle `Stopped -> Starting -> Ready -> Draining -> Closed`; idle shutdown только без активных leases/workflows; `close` с ожиданием `authorizationStateClosed`.
+- [x] Lifecycle `Stopped -> Starting -> Ready -> Draining -> Closed`; idle shutdown только без активных leases/workflows; `close` с ожиданием `authorizationStateClosed`.
 
 ### Acceptance
 
-- [ ] Несколько одновременно стартующих агентов сходятся на одном daemon — зачем: гонка стартов — главный сценарий реальной эксплуатации несколькими агентами.
-- [ ] Второй владелец никогда не открывает ту же DB — зачем: двойное владение необратимо повреждает TDLib DB.
-- [ ] Crash клиента освобождает lease по TTL; crash daemon не требует нового login — зачем: без этого любой сбой блокирует всех или жжёт авторизацию.
-- [ ] Idle restart сохраняет ту же Telegram authorization — зачем: подтверждает, что lifecycle не деградирует сессию.
+- [x] Несколько одновременно стартующих агентов сходятся на одном daemon — зачем: гонка стартов — главный сценарий реальной эксплуатации несколькими агентами.
+- [x] Второй владелец никогда не открывает ту же DB — зачем: двойное владение необратимо повреждает TDLib DB.
+- [x] Crash клиента освобождает lease по TTL; crash daemon не требует нового login — зачем: без этого любой сбой блокирует всех или жжёт авторизацию.
+- [x] Idle restart сохраняет ту же Telegram authorization — зачем: подтверждает, что lifecycle не деградирует сессию.
 
 ## P3 — Полный generated raw API и capability-таблица
 

@@ -19,7 +19,7 @@ Frame ограничен 16 KiB и 5-second client IO timeout, потому чт
 - Principal обязан быть non-empty и без control characters. Heartbeat/release другого principal возвращает `principal_mismatch`.
 - Scopes — non-empty opaque labels: daemon сортирует и дедуплицирует их, но не кодирует risk taxonomy. Risk scopes и policy остаются P5 data contract.
 - Requested TTL должен быть `1..=60000` ms. Heartbeat до expiry продлевает lease на исходный TTL; explicit release удаляет его немедленно.
-- Expired lease удаляется при следующей lease operation и возвращает `lease_expired`; `LeaseManager::expire(now)` предоставлен будущему lifecycle loop. Idle close/timer consumer принадлежит последнему Tasks-пункту P2 и пока не заявлен.
+- Expired lease удаляется при lease operation и возвращает `lease_expired`; [lifecycle loop](daemon-session-lifecycle.md) также вызывает background expiry перед каждой idle eligibility check. Поэтому disconnect клиента не удерживает session дольше TTL.
 
 Local socket `0600` ограничивает callers effective user, но principal пока self-asserted. Authenticated remote identity принадлежит optional MCP/server boundary P8; текущий principal match предотвращает accidental cross-client renew/release, а не изображает remote authentication.
 
@@ -28,3 +28,4 @@ Local socket `0600` ограничивает callers effective user, но princi
 - Deterministic manager tests подтверждают unique ID, sorted/deduplicated scopes, principal match, heartbeat extension, explicit release и expiry.
 - Real Unix socket test выполняет acquire -> heartbeat -> release через serialized protocol types.
 - Process-level synthetic daemon gate подтвердил acquire/normalized scopes, heartbeat, release и `lease_expired` без TDLib или `.env.local`.
+- Protected live gate подтвердил, что client disconnect без release удерживает daemon до TTL, после чего zero-activity idle close доходит до `authorizationStateClosed`.

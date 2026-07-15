@@ -17,6 +17,6 @@ Pinned `td_api.tl` объявляет `database_encryption_key:bytes`; pinned `C
 
 Пустая строка не отправляется: pinned TDLib подменяет её internal default key, что несовместимо с C002. Ошибка TDLib `401` (`Wrong database encryption key`) переводит authorization machine в latched fail-closed state. Пока оператор явно не повторит parameters challenge с новым protected key, machine не принимает `WaitPhoneNumber` и не создаёт phone/QR request.
 
-Core не выбирает default provider и не открывает TDLib DB: выбор reference принадлежит profile/deployment, а единственным DB owner остаётся будущий `telegramd`.
+Core не выбирает default provider и не открывает TDLib DB: выбор reference принадлежит profile/deployment. Штатный `telegramd` теперь выбирает `TDLIB_DATABASE_KEY_FILE` как Base64 file secret только после canonical owner lock и один передаёт key в core; см. [session lifecycle contract](daemon-session-lifecycle.md).
 
 Evidence для exact upstream codec/error semantics: [pinned source digest](../.memory/raw/2026-07-15-tdlib-database-key-codec.md).

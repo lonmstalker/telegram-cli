@@ -63,7 +63,7 @@ Only account owner/operator may submit auth secrets. Agent may wait/poll status 
 
 ## Live Verification Boundary
 
-Свежий P1 live gate через protected `.env.local` loader подтвердил returning regular-user session: `WaitTdlibParameters -> Ready -> getMe(user) -> close -> Closed` без phone/OTP/2FA input и без вывода identity/secret. Pure core machine обрабатывает все pinned states и exact auth requests. Отдельный pinned-native synthetic test-DC probe подтвердил wrong-key 401, отсутствие перехода к phone authorization, неизменность DB bytes и preflight reject missing key. Штатный daemon/profile wiring остаётся P2.
+P1 protected live gate подтвердил returning regular-user session: `WaitTdlibParameters -> Ready -> getMe(user) -> close -> Closed` без phone/OTP/2FA input и без вывода identity/secret. Pure core machine обрабатывает все pinned states и exact auth requests. Отдельный pinned-native synthetic test-DC probe подтвердил wrong-key 401, отсутствие перехода к phone authorization, неизменность DB bytes и preflight reject missing key. P2 штатно подключил тот же path к singleton daemon, stable profile identity и idle/crash restart.
 
 ## Scope
 

@@ -1163,8 +1163,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            71,
-            "f592b6e3b87a9fa978247d9c44a1088a777030ba40c65bd8468409eb1da45f85".to_owned()
+            72,
+            "6075cb099bb5bd91e3e58108b85c855c423c8b1a725bf99a5579b4ae28f3bd7e".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -1180,8 +1180,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            74,
-            "88e23c78cc5f54ceae5e5ec920b93055737454bed41b2d5bed79c7beee38242b".to_owned()
+            75,
+            "b0313021036610a5f6d9412e2ea99361681f59b983d8a6a14d6a6e9598c5d69a".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -1190,12 +1190,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        119,
+        118,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "27dd1e3d3014e2d30880e69b8adf865969c4ec9a536fbf46c167835c5b1c6ca2",
+        "090cf24de23ace4b7bc1a9b9115181afacdca75b23eff0d8506fc0efc5a6c29a",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -1272,7 +1272,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "44c17d11ba3079bfed67b3b8d91e73dc728368a5479354eeff508b6ff2ccd4b1"
+        "f6d0258163531e781ef5911161fe9d5f9cf2671010bb4167c71aa6c0e1742b7f"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -4861,6 +4861,137 @@ fn pinned_chat_setting_right_contracts_are_exact() {
         documented_runtime_requirements(find_method(&additional_signal, "setChatDescription"))
             .expect_err("unconsumed setting argument signal must fail closed")
             .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
+fn pinned_chat_gift_notification_contract_is_exact() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let method = find_method(&schema, "toggleChatGiftNotifications");
+    assert_eq!(
+        method.canonical_signature(),
+        "toggleChatGiftNotifications chat_id:int53 are_enabled:Bool = Ok;"
+    );
+    assert_eq!(
+        normalized_text(&super::method_description(method)),
+        "toggles whether notifications for new gifts received by a channel chat are sent to the current user; requires can_post_messages administrator right in the chat"
+    );
+
+    let target = ChatTargetRef::try_from("chat_id").expect("chat target");
+    let expected = RequirementAlternatives::try_new(vec![vec![
+        RuntimeRequirement::ChatKind(
+            ChatKindCondition::try_new(target.clone(), ResolvedChatKind::Channel)
+                .expect("channel kind"),
+        ),
+        RuntimeRequirement::ChatAdministratorRight {
+            target,
+            right: ChatAdministratorRight::CanPostMessages,
+        },
+    ]])
+    .expect("gift-notification requirements");
+    assert_eq!(
+        documented_runtime_requirements(method)
+            .expect("reviewed gift-notification documentation")
+            .expect("gift-notification contract"),
+        expected.clone()
+    );
+    assert_eq!(
+        documented_runtime_signal_dispositions(method).expect("gift-notification signals"),
+        [
+            RuntimeSignalFamily::AdministratorRightPhrase,
+            RuntimeSignalFamily::RequiresRightPhrase,
+        ]
+        .into_iter()
+        .map(|family| {
+            (
+                RuntimeSignalKey {
+                    source: RuntimeSignalSource::Description,
+                    family,
+                },
+                RuntimeSignalDisposition::ConsumedByRuntimeRequirements,
+            )
+        })
+        .collect::<Vec<_>>()
+    );
+
+    let regular_user = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        expected.clone(),
+        Vec::new(),
+    )
+    .expect("gift-notification descriptor");
+    validate_documented_method_constraints(method, &regular_user)
+        .expect("gift-notification account contract");
+    validate_documented_runtime_requirements(method, &regular_user)
+        .expect("gift-notification runtime contract");
+
+    let bot_enabled = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser, AccountKind::Bot],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        expected,
+        Vec::new(),
+    )
+    .expect("structurally valid bot-enabled descriptor");
+    assert_eq!(
+        validate_documented_method_constraints(method, &bot_enabled)
+            .expect_err("pinned CHECK_IS_USER must reject bot-enabled policy")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let source_drift = pinned.replacen(
+        "Toggles whether notifications for new gifts received by a channel chat are sent to the current user; requires can_post_messages administrator right in the chat",
+        "Toggles whether notifications for gifts received by a channel chat are sent to the current user; requires can_post_messages administrator right in the chat",
+        1,
+    );
+    let source_drift = Schema::parse(&source_drift).expect("valid source drift");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&source_drift, "toggleChatGiftNotifications"))
+            .expect_err("gift-notification source drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let signature_drift = pinned.replacen(
+        "toggleChatGiftNotifications chat_id:int53 are_enabled:Bool = Ok;",
+        "toggleChatGiftNotifications chat_id:int32 are_enabled:Bool = Ok;",
+        1,
+    );
+    let signature_drift = Schema::parse(&signature_drift).expect("valid signature drift");
+    assert_eq!(
+        documented_runtime_requirements(find_method(
+            &signature_drift,
+            "toggleChatGiftNotifications",
+        ))
+        .expect_err("gift-notification signature drift must fail closed")
+        .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let additional_signal = pinned.replacen(
+        "@are_enabled Pass true to enable notifications about new gifts owned by the channel chat; pass false to disable the notifications",
+        "@are_enabled Pass true to enable notifications about new gifts owned by the channel chat; requires can_post_messages administrator right",
+        1,
+    );
+    let additional_signal = Schema::parse(&additional_signal).expect("valid additional signal");
+    assert_eq!(
+        documented_runtime_requirements(find_method(
+            &additional_signal,
+            "toggleChatGiftNotifications",
+        ))
+        .expect_err("unconsumed gift-notification argument signal must fail closed")
+        .kind(),
         CapabilityGenerationErrorKind::SchemaDrift
     );
 }

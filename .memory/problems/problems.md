@@ -2,21 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] open | P-20260715-009 | addChatMember contract терял account и direct-messages-group gates
-
-- Evidence: [addChatMember correction digest](../raw/2026-07-15-tdlib-add-chat-member-overclaim-correction.md); pinned `Requests.cpp` выполняет `CHECK_IS_USER`, а channel participant path отклоняет `is_monoforum`, отражённый как `supergroup.is_direct_messages_group`.
-- Impact: bot account или direct-messages supergroup могли получить ложный supported verdict по broad kind/member-right DNF.
-- Status: open at discovery; current model не содержит required subtype condition.
-- Next check: удалить incomplete contract до commit либо добавить exact closed subtype evidence и account constraint.
-- Related decisions: [D-20260715-022](../decisions/decisions.md).
-
-## [2026-07-15] resolved | P-20260715-009 | addChatMember возвращён в deferred
-
-- Evidence: `MemberRightInKinds` и единственный contract удалены; exact regression требует `SchemaDrift`, signal dispositions deferred, independent reviewer дал `APPROVED`.
-- Resolution: false-positive path закрыт без speculative subtype abstraction.
-- Status: resolved for current implementation; future complete contract требует regular-user и direct-messages-group evidence.
-- Related decisions: [D-20260715-022](../decisions/decisions.md).
-
 ## [2026-07-15] open correction | P-20260715-005 | addChatMember correction увеличила open set до 125 methods
 
 - Corrects: preceding 124-method current state, где incomplete `addChatMember` считался complete.
@@ -171,3 +156,21 @@ Active append-only problem lifecycle. Status changes добавляются но
 
 - [Problem shard 017](archive/2026-07-15--2026-07-15-017.md) contains historical 124-method setting update; canonical [D010](../decisions/archive/2026-07-15--2026-07-15-009.md), [D012](../decisions/archive/2026-07-15--2026-07-15-011.md), [D021](../decisions/archive/2026-07-15--2026-07-15-023.md).
 - Active P009 links and W026 shard resolve D022 at [decision shard 024](../decisions/archive/2026-07-15--2026-07-15-024.md). Latest P005 boundary remains 119.
+
+## [2026-07-15] open update | P-20260715-005 | Channel gift notifications reduce open set to 118
+
+- Evidence: [capability digest](../raw/2026-07-15-tdlib-chat-gift-notification-capability.md); open SHA-256 `090cf24de23ace4b7bc1a9b9115181afacdca75b23eff0d8506fc0efc5a6c29a`.
+- Transition: exact regular-user, channel `can_post_messages` contract; supported 72, terminal 75, format `8`.
+- Status/next: open at 118; continue exact handler tasks, runtime read/kind/right evidence fails closed on stale/gap.
+- Decision: [D-20260715-032](../decisions/decisions.md).
+
+## [2026-07-15] archive link map | P-20260715-009 | Rotated discovery and D023
+
+- [Problem shard 018](archive/2026-07-15--2026-07-15-018.md) contains the P009 discovery entry; the resolved correction/update remain active above.
+- P009 and ordinary-supergroup P005 links resolve accepted D023 at [decision shard 025](../decisions/archive/2026-07-15--2026-07-15-025.md); latest P005 boundary remains 118.
+
+## [2026-07-15] archive link correction | P-20260715-009 | Discovery decision target
+
+- Immutable problem shard 018 historical D022 link resolves to [decision shard 024](../decisions/archive/2026-07-15--2026-07-15-024.md); P009 status remains resolved.
+- Immutable problem shard 019 resolved-entry D022 link resolves to the same decision shard 024; lifecycle remains resolved.
+- Exact lifecycle correction: discovery is shard 018, first resolution is shard 019, and the later reviewer-confirmed resolved update remains active above.

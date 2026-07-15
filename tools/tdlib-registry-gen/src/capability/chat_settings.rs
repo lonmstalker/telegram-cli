@@ -49,6 +49,16 @@ const CONTRACTS: &[ChatSettingContract] = &[
         target_source_text: None,
     },
     ChatSettingContract {
+        method: "toggleChatGiftNotifications",
+        canonical_signature: "toggleChatGiftNotifications chat_id:int53 are_enabled:Bool = Ok;",
+        source_text: "toggles whether notifications for new gifts received by a channel chat are sent to the current user; requires can_post_messages administrator right in the chat",
+        supported_chat_kinds: CHANNEL,
+        required_right: RequiredRight::Administrator(ChatAdministratorRight::CanPostMessages),
+        regular_user_only: true,
+        required_supergroup_flags: NO_FLAGS,
+        target_source_text: None,
+    },
+    ChatSettingContract {
         method: "setSupergroupMainProfileTab",
         canonical_signature: "setSupergroupMainProfileTab supergroup_id:int53 main_profile_tab:ProfileTab = Ok;",
         source_text: "changes the main profile tab of the channel; requires can_change_info administrator right",

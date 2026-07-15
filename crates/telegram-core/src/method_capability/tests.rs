@@ -6,10 +6,12 @@ use super::{
     AccountKind, ApplicationRequirement, ArgumentRef, AuthorizationState, BusinessBotRight,
     BusinessConnectionRef, CapabilityDescriptor, CapabilityModelErrorKind, ChatAdministratorRight,
     ChatKindCondition, ChatMemberRight, ChatTargetRef, CurrentAccountEntitlement, DcEnvironment,
-    ForumTopicRef, MAX_ATOMS_PER_METHOD, MAX_CLAUSES_PER_METHOD, MAX_PARAMETER_NOTICES_PER_METHOD,
-    MAX_SYNCHRONOUS_VALUES_PER_METHOD, MessageCapability, MessageIdRef, MessageIdsRef,
-    MessageSubjectRef, ParameterCapabilityNotice, ParameterGate, ParameterStringValue,
-    RequirementAlternatives, ResolvedChatKind, RuntimeRequirement, SynchronousCapability,
+    ForumTopicRef, GroupCallIdRef, GroupCallKindCondition, GroupCallMessageCapability,
+    GroupCallMessageIdsRef, GroupCallMessageSubjectRef, GroupCallProperty, MAX_ATOMS_PER_METHOD,
+    MAX_CLAUSES_PER_METHOD, MAX_PARAMETER_NOTICES_PER_METHOD, MAX_SYNCHRONOUS_VALUES_PER_METHOD,
+    MessageCapability, MessageIdRef, MessageIdsRef, MessageSubjectRef, ParameterCapabilityNotice,
+    ParameterGate, ParameterStringValue, RequirementAlternatives, ResolvedChatKind,
+    ResolvedGroupCallKind, RuntimeRequirement, SynchronousCapability,
 };
 
 #[test]
@@ -96,6 +98,106 @@ fn message_capabilities_and_subject_cardinality_are_closed_and_semantic() {
             .map(ArgumentRef::as_str)
             .collect::<Vec<_>>(),
         ["supergroup_id", "message_ids"]
+    );
+}
+
+#[test]
+fn group_call_properties_and_message_cardinality_are_closed_and_semantic() {
+    let schema = Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl"))
+        .expect("pinned schema parses");
+    let mut expected_group_call_properties = schema_fields(&schema, "groupCall")
+        .into_iter()
+        .filter(|field| field.starts_with("can_"))
+        .collect::<BTreeSet<_>>();
+    expected_group_call_properties.insert("is_owned");
+    assert_eq!(
+        expected_group_call_properties,
+        enum_values(GroupCallProperty::ALL)
+    );
+    assert_eq!(
+        schema_fields(&schema, "groupCallMessage")
+            .into_iter()
+            .filter(|field| field.starts_with("can_"))
+            .collect::<BTreeSet<_>>(),
+        enum_values(GroupCallMessageCapability::ALL)
+    );
+    for property in GroupCallProperty::ALL {
+        assert_eq!(GroupCallProperty::try_from(property.as_str()), Ok(property));
+    }
+    for capability in GroupCallMessageCapability::ALL {
+        assert_eq!(
+            GroupCallMessageCapability::try_from(capability.as_str()),
+            Ok(capability)
+        );
+    }
+    for kind in ResolvedGroupCallKind::ALL {
+        assert_eq!(ResolvedGroupCallKind::try_from(kind.as_str()), Ok(kind));
+    }
+
+    let subject = GroupCallMessageSubjectRef::Each {
+        group_call: GroupCallIdRef::try_from("group_call_id").expect("group call id"),
+        messages: GroupCallMessageIdsRef::try_from("message_ids").expect("message ids"),
+    };
+    assert_eq!(subject.group_call().argument().as_str(), "group_call_id");
+    assert_eq!(subject.message_argument().as_str(), "message_ids");
+    assert!(GroupCallIdRef::try_from("chat_id").is_err());
+    assert!(GroupCallMessageIdsRef::try_from("message_id").is_err());
+    let kind = GroupCallKindCondition::new(
+        GroupCallIdRef::try_from("group_call_id").expect("group call id"),
+        ResolvedGroupCallKind::LiveStory,
+    );
+    assert_eq!(kind.group_call().argument().as_str(), "group_call_id");
+    assert_eq!(kind.kind(), ResolvedGroupCallKind::LiveStory);
+
+    let requirement = RuntimeRequirement::GroupCallMessageCapability {
+        subject,
+        capability: GroupCallMessageCapability::CanBeDeleted,
+    };
+    assert_eq!(
+        requirement
+            .argument_refs()
+            .into_iter()
+            .map(ArgumentRef::as_str)
+            .collect::<Vec<_>>(),
+        ["group_call_id", "message_ids"]
+    );
+
+    let group_call = GroupCallIdRef::try_from("group_call_id").expect("group call id");
+    let video = RuntimeRequirement::GroupCallKind(GroupCallKindCondition::new(
+        group_call.clone(),
+        ResolvedGroupCallKind::VideoChat,
+    ));
+    let live_story = RuntimeRequirement::GroupCallKind(GroupCallKindCondition::new(
+        group_call,
+        ResolvedGroupCallKind::LiveStory,
+    ));
+    assert_eq!(
+        RequirementAlternatives::try_new(vec![vec![video, live_story]])
+            .expect_err("one group_call_id can't resolve to two kinds in one AND clause")
+            .kind(),
+        CapabilityModelErrorKind::ContradictoryClause
+    );
+
+    let bot_group_call =
+        RequirementAlternatives::try_new(vec![vec![RuntimeRequirement::GroupCallProperty {
+            group_call: GroupCallIdRef::try_from("group_call_id").expect("group call id"),
+            property: GroupCallProperty::CanSendMessages,
+        }]])
+        .expect("bounded group-call requirement");
+    assert_eq!(
+        CapabilityDescriptor::try_new(
+            SynchronousCapability::Never,
+            vec![AccountKind::Bot],
+            vec![AuthorizationState::Ready],
+            Vec::new(),
+            ApplicationRequirement::Any,
+            vec![DcEnvironment::Production, DcEnvironment::Test],
+            bot_group_call,
+            Vec::new(),
+        )
+        .expect_err("pinned group-call methods are unavailable to bots")
+        .kind(),
+        CapabilityModelErrorKind::IncompatibleRuntimeRequirement
     );
 }
 
@@ -586,5 +688,8 @@ impl_capability_value!(
     ChatAdministratorRight,
     ChatMemberRight,
     BusinessBotRight,
-    MessageCapability
+    MessageCapability,
+    GroupCallProperty,
+    GroupCallMessageCapability,
+    ResolvedGroupCallKind
 );

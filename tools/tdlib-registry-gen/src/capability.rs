@@ -14,16 +14,18 @@ use telegram_core::method_capability::{
     AccountKind, ApplicationRequirement, ArgumentRef, AuthorizationState, BusinessBotRight,
     BusinessConnectionRef, CapabilityDescriptor, ChatAdministratorRight, ChatKindCondition,
     ChatMemberRight, ChatTargetKind, ChatTargetRef, CurrentAccountEntitlement, DcEnvironment,
-    ForumTopicRef, MAX_ATOMS_PER_METHOD, MAX_CLAUSES_PER_METHOD, MAX_PARAMETER_NOTICES_PER_METHOD,
-    MAX_SYNCHRONOUS_VALUES_PER_METHOD, MessageCapability, MessageIdRef, MessageIdsRef,
-    MessageSubjectRef, ParameterCapabilityNotice, ParameterGate, ParameterStringValue,
-    RequirementAlternatives, ResolvedChatKind, RuntimeRequirement, SynchronousCapability,
+    ForumTopicRef, GroupCallIdRef, GroupCallKindCondition, GroupCallMessageCapability,
+    GroupCallMessageIdsRef, GroupCallMessageSubjectRef, GroupCallProperty, MAX_ATOMS_PER_METHOD,
+    MAX_CLAUSES_PER_METHOD, MAX_PARAMETER_NOTICES_PER_METHOD, MAX_SYNCHRONOUS_VALUES_PER_METHOD,
+    MessageCapability, MessageIdRef, MessageIdsRef, MessageSubjectRef, ParameterCapabilityNotice,
+    ParameterGate, ParameterStringValue, RequirementAlternatives, ResolvedChatKind,
+    ResolvedGroupCallKind, RuntimeRequirement, SynchronousCapability,
 };
 use telegram_core::schema::{Definition, DefinitionKind, Parameter, Schema};
 
 use crate::engine;
 
-const FORMAT_VERSION: u32 = 3;
+const FORMAT_VERSION: u32 = 4;
 const MAX_MANIFEST_BYTES: usize = 64 * 1024;
 const MAX_SCHEMA_BYTES: usize = 2 * 1024 * 1024;
 const MAX_OWNER_POLICY_BYTES: usize = 4 * 1024 * 1024;
@@ -85,6 +87,7 @@ pub fn generate(
     validate_right_vocabularies(&schema)?;
     validate_chat_type_vocabulary(&schema)?;
     validate_message_properties_vocabulary(&schema)?;
+    validate_group_call_vocabulary(&schema)?;
 
     let policy: CapabilityPolicyDto =
         serde_json::from_slice(capability_policy_bytes).map_err(|error| {
@@ -516,6 +519,32 @@ fn parse_runtime_requirement(
             capability: MessageCapability::try_from(capability.as_str())
                 .map_err(CapabilityGenerationError::from_model_value)?,
         }),
+        RuntimeRequirementDto::GroupCallKind {
+            group_call_argument,
+            value,
+        } => Ok(RuntimeRequirement::GroupCallKind(
+            GroupCallKindCondition::new(
+                parse_group_call_id(method, group_call_argument)?,
+                ResolvedGroupCallKind::try_from(value.as_str())
+                    .map_err(CapabilityGenerationError::from_model_value)?,
+            ),
+        )),
+        RuntimeRequirementDto::GroupCallProperty {
+            group_call_argument,
+            property,
+        } => Ok(RuntimeRequirement::GroupCallProperty {
+            group_call: parse_group_call_id(method, group_call_argument)?,
+            property: GroupCallProperty::try_from(property.as_str())
+                .map_err(CapabilityGenerationError::from_model_value)?,
+        }),
+        RuntimeRequirementDto::GroupCallMessageCapability {
+            subject,
+            capability,
+        } => Ok(RuntimeRequirement::GroupCallMessageCapability {
+            subject: parse_group_call_message_subject(method, subject)?,
+            capability: GroupCallMessageCapability::try_from(capability.as_str())
+                .map_err(CapabilityGenerationError::from_model_value)?,
+        }),
     }
 }
 
@@ -552,6 +581,45 @@ fn parse_message_subject(
             Ok(MessageSubjectRef::Each {
                 chat: parse_chat_target(method, chat_argument)?,
                 messages: MessageIdsRef::try_from(messages)
+                    .map_err(CapabilityGenerationError::from_model_value)?,
+            })
+        }
+    }
+}
+
+fn parse_group_call_id(
+    method: &Definition,
+    argument: String,
+) -> Result<GroupCallIdRef, CapabilityGenerationError> {
+    GroupCallIdRef::try_from(parse_role_argument(
+        method,
+        argument,
+        &["group_call_id"],
+        "int32",
+    )?)
+    .map_err(CapabilityGenerationError::from_model_value)
+}
+
+fn parse_group_call_message_subject(
+    method: &Definition,
+    dto: GroupCallMessageSubjectDto,
+) -> Result<GroupCallMessageSubjectRef, CapabilityGenerationError> {
+    match dto {
+        GroupCallMessageSubjectDto::Each {
+            group_call_argument,
+            message_argument,
+        } => {
+            let messages = parse_argument(method, message_argument)?;
+            if messages.as_str() != "message_ids" {
+                return Err(CapabilityGenerationError::invalid_policy(format!(
+                    "method {:?} group-call message requirement needs semantic message_ids argument",
+                    method.name()
+                )));
+            }
+            require_vector_argument_type(method, &messages, "int32")?;
+            Ok(GroupCallMessageSubjectRef::Each {
+                group_call: parse_group_call_id(method, group_call_argument)?,
+                messages: GroupCallMessageIdsRef::try_from(messages)
                     .map_err(CapabilityGenerationError::from_model_value)?,
             })
         }
@@ -853,6 +921,72 @@ fn validate_message_properties_vocabulary(
     Ok(())
 }
 
+fn validate_group_call_vocabulary(schema: &Schema) -> Result<(), CapabilityGenerationError> {
+    const GROUP_CALL: &str = "groupCall id:int32 unique_id:int64 title:string invite_link:string paid_message_star_count:int53 scheduled_start_date:int32 enabled_start_notification:Bool is_active:Bool is_video_chat:Bool is_live_story:Bool is_rtmp_stream:Bool is_joined:Bool need_rejoin:Bool is_owned:Bool can_be_managed:Bool participant_count:int32 has_hidden_listeners:Bool loaded_all_participants:Bool message_sender_id:MessageSender recent_speakers:vector<groupCallRecentSpeaker> is_my_video_enabled:Bool is_my_video_paused:Bool can_enable_video:Bool mute_new_participants:Bool can_toggle_mute_new_participants:Bool can_send_messages:Bool are_messages_allowed:Bool can_toggle_are_messages_allowed:Bool can_delete_messages:Bool record_duration:int32 is_video_recorded:Bool duration:int32 = GroupCall;";
+    const GROUP_CALL_MESSAGE: &str = "groupCallMessage message_id:int32 sender_id:MessageSender date:int32 text:formattedText paid_message_star_count:int53 is_from_owner:Bool can_be_deleted:Bool = GroupCallMessage;";
+    const GET_GROUP_CALL: &str = "getGroupCall group_call_id:int32 = GroupCall;";
+    const UPDATE_GROUP_CALL: &str = "updateGroupCall group_call:groupCall = Update;";
+    const UPDATE_NEW_GROUP_CALL_MESSAGE: &str =
+        "updateNewGroupCallMessage group_call_id:int32 message:groupCallMessage = Update;";
+    const UPDATE_GROUP_CALL_MESSAGES_DELETED: &str =
+        "updateGroupCallMessagesDeleted group_call_id:int32 message_ids:vector<int32> = Update;";
+
+    for (result, expected, label) in [
+        ("GroupCall", GROUP_CALL, "GroupCall"),
+        ("GroupCallMessage", GROUP_CALL_MESSAGE, "GroupCallMessage"),
+    ] {
+        let constructors = schema
+            .definitions()
+            .iter()
+            .filter(|definition| {
+                definition.kind() == DefinitionKind::Constructor
+                    && definition.result().name() == result
+            })
+            .collect::<Vec<_>>();
+        if !matches!(constructors.as_slice(), [constructor] if constructor.canonical_signature() == expected)
+        {
+            return Err(CapabilityGenerationError::new(
+                CapabilityGenerationErrorKind::SchemaDrift,
+                format!("schema {label} constructor differs from the exact pinned shape"),
+            ));
+        }
+    }
+
+    let methods = schema
+        .methods()
+        .iter()
+        .filter(|method| method.name() == "getGroupCall")
+        .collect::<Vec<_>>();
+    if !matches!(methods.as_slice(), [method] if method.canonical_signature() == GET_GROUP_CALL) {
+        return Err(CapabilityGenerationError::new(
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "schema getGroupCall method differs from the exact pinned signature",
+        ));
+    }
+
+    for (name, expected) in [
+        ("updateGroupCall", UPDATE_GROUP_CALL),
+        ("updateNewGroupCallMessage", UPDATE_NEW_GROUP_CALL_MESSAGE),
+        (
+            "updateGroupCallMessagesDeleted",
+            UPDATE_GROUP_CALL_MESSAGES_DELETED,
+        ),
+    ] {
+        let updates = schema
+            .definitions()
+            .iter()
+            .filter(|definition| definition.name() == name)
+            .collect::<Vec<_>>();
+        if !matches!(updates.as_slice(), [update] if update.canonical_signature() == expected) {
+            return Err(CapabilityGenerationError::new(
+                CapabilityGenerationErrorKind::SchemaDrift,
+                format!("schema {name} differs from the exact pinned signature"),
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn validate_bool_constructor(
     schema: &Schema,
     constructor_name: &str,
@@ -1032,6 +1166,7 @@ fn validate_documented_method_constraints(
 ) -> Result<(), CapabilityGenerationError> {
     let description = method_description(method).to_ascii_lowercase();
     let runtime_contract = reviewed_runtime_contract(method.name(), &normalized_text(&description));
+    let group_call_contract = reviewed_group_call_contract(method)?;
     let ready = descriptor.ready_accounts();
     let entitlements = descriptor.current_account_entitlements();
     let dcs = descriptor.dc_environments();
@@ -1065,7 +1200,7 @@ fn validate_documented_method_constraints(
     let runtime_regular_only = matches!(
         runtime_contract,
         Some(ReviewedRuntimeContract::OwnerInKind(_))
-    );
+    ) || group_call_contract.is_some();
     let expected_ready = if bot_only || runtime_bot_only {
         vec![AccountKind::Bot]
     } else if regular_only || runtime_regular_only || !expected_entitlements.is_empty() {
@@ -1121,7 +1256,16 @@ fn documented_runtime_requirements(
     let description = normalized_text(&method_description(method));
     let runtime_contract = reviewed_runtime_contract(method.name(), &description);
     let message_contract = reviewed_message_capability_contract(method)?;
-    if runtime_contract.is_some() && message_contract.is_some() {
+    let group_call_contract = reviewed_group_call_contract(method)?;
+    let reviewed_family_count = [
+        runtime_contract.is_some(),
+        message_contract.is_some(),
+        group_call_contract.is_some(),
+    ]
+    .into_iter()
+    .filter(|present| *present)
+    .count();
+    if reviewed_family_count > 1 {
         return Err(unsupported_runtime_documentation(
             method,
             "multiple reviewed runtime contract families overlap",
@@ -1138,7 +1282,7 @@ fn documented_runtime_requirements(
         ));
     }
 
-    if runtime_contract.is_none() && message_contract.is_none() {
+    if reviewed_family_count == 0 {
         if dispositions.iter().any(|(_, disposition)| {
             *disposition == RuntimeSignalDisposition::ConsumedByRuntimeRequirements
         }) {
@@ -1162,6 +1306,9 @@ fn documented_runtime_requirements(
     if let Some(contract) = message_contract {
         expected_consumed.extend(contract.consumed_signal_keys()?);
     }
+    if let Some(contract) = group_call_contract {
+        expected_consumed.extend(contract.consumed_signal_keys());
+    }
     if consumed != expected_consumed {
         return Err(unsupported_runtime_documentation(
             method,
@@ -1170,6 +1317,8 @@ fn documented_runtime_requirements(
     }
     let clauses = if let Some(contract) = message_contract {
         documented_message_capability_clauses(method, contract)?
+    } else if let Some(contract) = group_call_contract {
+        documented_group_call_clauses(method, contract)?
     } else {
         let Some(contract) = runtime_contract else {
             return Err(unsupported_runtime_documentation(
@@ -1677,6 +1826,275 @@ fn reviewed_message_capability_contract(
     Ok(Some(contract))
 }
 
+#[derive(Clone, Copy)]
+enum ReviewedGroupCallFormula {
+    Property(GroupCallProperty),
+    KindAndProperty {
+        kind: ResolvedGroupCallKind,
+        property: GroupCallProperty,
+    },
+    KindAndMessages {
+        kind: ResolvedGroupCallKind,
+        capability: GroupCallMessageCapability,
+    },
+    VideoManagedOrUnboundOwned,
+    ManagedBoundKindOrUnboundOwned,
+}
+
+#[derive(Clone, Copy)]
+struct ReviewedGroupCallContract {
+    source_text: &'static str,
+    consumed_families: &'static [RuntimeSignalFamily],
+    formula: ReviewedGroupCallFormula,
+}
+
+impl ReviewedGroupCallContract {
+    fn consumed_signal_keys(self) -> BTreeSet<RuntimeSignalKey> {
+        self.consumed_families
+            .iter()
+            .copied()
+            .map(|family| RuntimeSignalKey {
+                source: RuntimeSignalSource::Description,
+                family,
+            })
+            .collect()
+    }
+}
+
+fn reviewed_group_call_contract(
+    method: &Definition,
+) -> Result<Option<ReviewedGroupCallContract>, CapabilityGenerationError> {
+    use GroupCallMessageCapability as MessageCapability;
+    use GroupCallProperty as Property;
+    use ResolvedGroupCallKind as Kind;
+    use ReviewedGroupCallFormula as Formula;
+
+    const PROPERTY_FACT: &[RuntimeSignalFamily] = &[
+        RuntimeSignalFamily::RequiresRightPhrase,
+        RuntimeSignalFamily::GroupCallFact,
+        RuntimeSignalFamily::CanFieldReference,
+    ];
+    const MESSAGE_PROPERTY_FACT: &[RuntimeSignalFamily] = &[
+        RuntimeSignalFamily::RequiresRightPhrase,
+        RuntimeSignalFamily::GroupCallMessageFact,
+        RuntimeSignalFamily::CanFieldReference,
+    ];
+    const DELETE_PROPERTY_FACT: &[RuntimeSignalFamily] = &[
+        RuntimeSignalFamily::RequiresRightPhrase,
+        RuntimeSignalFamily::GroupCallFact,
+        RuntimeSignalFamily::CanFieldReference,
+        RuntimeSignalFamily::NamedRight(ChatAdministratorRight::CanDeleteMessages),
+    ];
+    const OWNERSHIP_FACT: &[RuntimeSignalFamily] = &[
+        RuntimeSignalFamily::GroupCallFact,
+        RuntimeSignalFamily::IsFieldReference,
+    ];
+    const MANAGED_OR_OWNED_FACT: &[RuntimeSignalFamily] = &[
+        RuntimeSignalFamily::RequiresRightPhrase,
+        RuntimeSignalFamily::GroupCallFact,
+        RuntimeSignalFamily::CanFieldReference,
+        RuntimeSignalFamily::IsFieldReference,
+    ];
+
+    let Some(contract) = (match method.name() {
+        "setVideoChatTitle" => Some(ReviewedGroupCallContract {
+            source_text: "sets title of a video chat; requires groupcall.can_be_managed right",
+            consumed_families: PROPERTY_FACT,
+            formula: Formula::KindAndProperty {
+                kind: Kind::VideoChat,
+                property: Property::CanBeManaged,
+            },
+        }),
+        "toggleVideoChatMuteNewParticipants" => Some(ReviewedGroupCallContract {
+            source_text: "toggles whether new participants of a video chat can be unmuted only by administrators of the video chat. requires groupcall.can_toggle_mute_new_participants right",
+            consumed_families: PROPERTY_FACT,
+            formula: Formula::KindAndProperty {
+                kind: Kind::VideoChat,
+                property: Property::CanToggleMuteNewParticipants,
+            },
+        }),
+        "toggleGroupCallAreMessagesAllowed" => Some(ReviewedGroupCallContract {
+            source_text: "toggles whether participants of a group call can send messages there. requires groupcall.can_toggle_are_messages_allowed right",
+            consumed_families: PROPERTY_FACT,
+            formula: Formula::Property(Property::CanToggleAreMessagesAllowed),
+        }),
+        "sendGroupCallMessage" => Some(ReviewedGroupCallContract {
+            source_text: "sends a message to other participants of a group call. requires groupcall.can_send_messages right",
+            consumed_families: PROPERTY_FACT,
+            formula: Formula::Property(Property::CanSendMessages),
+        }),
+        "deleteGroupCallMessages" => Some(ReviewedGroupCallContract {
+            source_text: "deletes messages in a group call; for live story calls only. requires groupcallmessage.can_be_deleted right",
+            consumed_families: MESSAGE_PROPERTY_FACT,
+            formula: Formula::KindAndMessages {
+                kind: Kind::LiveStory,
+                capability: MessageCapability::CanBeDeleted,
+            },
+        }),
+        "deleteGroupCallMessagesBySender" => Some(ReviewedGroupCallContract {
+            source_text: "deletes all messages sent by the specified message sender in a group call; for live story calls only. requires groupcall.can_delete_messages right",
+            consumed_families: DELETE_PROPERTY_FACT,
+            formula: Formula::KindAndProperty {
+                kind: Kind::LiveStory,
+                property: Property::CanDeleteMessages,
+            },
+        }),
+        "banGroupCallParticipants" => Some(ReviewedGroupCallContract {
+            source_text: "bans users from a group call not bound to a chat; requires groupcall.is_owned. only the owner of the group call can invite the banned users back",
+            consumed_families: OWNERSHIP_FACT,
+            formula: Formula::KindAndProperty {
+                kind: Kind::Unbound,
+                property: Property::IsOwned,
+            },
+        }),
+        "revokeGroupCallInviteLink" => Some(ReviewedGroupCallContract {
+            source_text: "revokes invite link for a group call. requires groupcall.can_be_managed right for video chats or groupcall.is_owned otherwise",
+            consumed_families: MANAGED_OR_OWNED_FACT,
+            formula: Formula::VideoManagedOrUnboundOwned,
+        }),
+        "startGroupCallRecording" => Some(ReviewedGroupCallContract {
+            source_text: "starts recording of an active group call; for video chats only. requires groupcall.can_be_managed right",
+            consumed_families: PROPERTY_FACT,
+            formula: Formula::KindAndProperty {
+                kind: Kind::VideoChat,
+                property: Property::CanBeManaged,
+            },
+        }),
+        "endGroupCallRecording" => Some(ReviewedGroupCallContract {
+            source_text: "ends recording of an active group call; for video chats only. requires groupcall.can_be_managed right",
+            consumed_families: PROPERTY_FACT,
+            formula: Formula::KindAndProperty {
+                kind: Kind::VideoChat,
+                property: Property::CanBeManaged,
+            },
+        }),
+        "setGroupCallPaidMessageStarCount" => Some(ReviewedGroupCallContract {
+            source_text: "changes the minimum number of telegram stars that must be paid by general participant for each sent message to a live story call. requires groupcall.can_be_managed right",
+            consumed_families: PROPERTY_FACT,
+            formula: Formula::KindAndProperty {
+                kind: Kind::LiveStory,
+                property: Property::CanBeManaged,
+            },
+        }),
+        "endGroupCall" => Some(ReviewedGroupCallContract {
+            source_text: "ends a group call. requires groupcall.can_be_managed right for video chats and live stories or groupcall.is_owned otherwise",
+            consumed_families: MANAGED_OR_OWNED_FACT,
+            formula: Formula::ManagedBoundKindOrUnboundOwned,
+        }),
+        _ => None,
+    }) else {
+        return Ok(None);
+    };
+
+    if !signal_source_has_exact_text(
+        method,
+        &RuntimeSignalSource::Description,
+        contract.source_text,
+    ) {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed group-call source text drifted or disappeared",
+        ));
+    }
+    Ok(Some(contract))
+}
+
+fn documented_group_call_clauses(
+    method: &Definition,
+    contract: ReviewedGroupCallContract,
+) -> Result<Vec<Vec<RuntimeRequirement>>, CapabilityGenerationError> {
+    use GroupCallProperty as Property;
+    use ResolvedGroupCallKind as Kind;
+    use ReviewedGroupCallFormula as Formula;
+
+    let group_call = documented_group_call_id(method)?;
+    let kind = |kind| {
+        RuntimeRequirement::GroupCallKind(GroupCallKindCondition::new(group_call.clone(), kind))
+    };
+    let property = |property| RuntimeRequirement::GroupCallProperty {
+        group_call: group_call.clone(),
+        property,
+    };
+    Ok(match contract.formula {
+        Formula::Property(value) => vec![vec![property(value)]],
+        Formula::KindAndProperty {
+            kind: value,
+            property: required,
+        } => vec![vec![kind(value), property(required)]],
+        Formula::KindAndMessages {
+            kind: value,
+            capability,
+        } => vec![vec![
+            kind(value),
+            RuntimeRequirement::GroupCallMessageCapability {
+                subject: documented_group_call_message_subject(method, group_call.clone())?,
+                capability,
+            },
+        ]],
+        Formula::VideoManagedOrUnboundOwned => vec![
+            vec![kind(Kind::VideoChat), property(Property::CanBeManaged)],
+            vec![kind(Kind::Unbound), property(Property::IsOwned)],
+        ],
+        Formula::ManagedBoundKindOrUnboundOwned => vec![
+            vec![kind(Kind::VideoChat), property(Property::CanBeManaged)],
+            vec![kind(Kind::LiveStory), property(Property::CanBeManaged)],
+            vec![kind(Kind::Unbound), property(Property::IsOwned)],
+        ],
+    })
+}
+
+fn documented_group_call_id(
+    method: &Definition,
+) -> Result<GroupCallIdRef, CapabilityGenerationError> {
+    let Some(ty) = field_type(method, "group_call_id") else {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "group-call contract is missing group_call_id",
+        ));
+    };
+    if ty.name() != "int32" || !ty.arguments().is_empty() {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "group_call_id must have exact int32 type",
+        ));
+    }
+    GroupCallIdRef::try_from("group_call_id").map_err(|error| {
+        CapabilityGenerationError::new(
+            CapabilityGenerationErrorKind::SchemaDrift,
+            error.to_string(),
+        )
+    })
+}
+
+fn documented_group_call_message_subject(
+    method: &Definition,
+    group_call: GroupCallIdRef,
+) -> Result<GroupCallMessageSubjectRef, CapabilityGenerationError> {
+    let Some(ty) = field_type(method, "message_ids") else {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "group-call message contract is missing message_ids",
+        ));
+    };
+    let exact = ty.name() == "vector"
+        && matches!(ty.arguments(), [element] if element.name() == "int32" && element.arguments().is_empty());
+    if !exact {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "universal group-call message contract requires exact vector<int32>",
+        ));
+    }
+    Ok(GroupCallMessageSubjectRef::Each {
+        group_call,
+        messages: GroupCallMessageIdsRef::try_from("message_ids").map_err(|error| {
+            CapabilityGenerationError::new(
+                CapabilityGenerationErrorKind::SchemaDrift,
+                error.to_string(),
+            )
+        })?,
+    })
+}
+
 fn documented_message_capability_clauses(
     method: &Definition,
     contract: ReviewedMessageCapabilityContract,
@@ -1985,6 +2403,7 @@ enum DeferredSignalLane {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum NonGateReason {
     ChatBoostVocabulary,
+    GroupCallParticipantUnmutePolicy,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -2006,6 +2425,9 @@ impl RuntimeSignalDisposition {
             Self::Deferred(DeferredSignalLane::RetryCondition) => "deferred:retry_condition",
             Self::NotRuntimeGate(NonGateReason::ChatBoostVocabulary) => {
                 "not_runtime_gate:chat_boost_vocabulary"
+            }
+            Self::NotRuntimeGate(NonGateReason::GroupCallParticipantUnmutePolicy) => {
+                "not_runtime_gate:group_call_participant_unmute_policy"
             }
         }
     }
@@ -2058,6 +2480,9 @@ fn documented_runtime_signal_dispositions(
     if let Some(contract) = reviewed_message_capability_contract(method)? {
         consumed.extend(contract.consumed_signal_keys()?);
     }
+    if let Some(contract) = reviewed_group_call_contract(method)? {
+        consumed.extend(contract.consumed_signal_keys());
+    }
     runtime_signal_dispositions_with_consumed(method, &consumed)
 }
 
@@ -2068,8 +2493,8 @@ fn runtime_signal_dispositions_with_consumed(
     documented_runtime_signal_keys(method).map(|keys| {
         keys.into_iter()
             .map(|key| {
-                let disposition = if is_terminal_non_gate(method, &key) {
-                    RuntimeSignalDisposition::NotRuntimeGate(NonGateReason::ChatBoostVocabulary)
+                let disposition = if let Some(reason) = terminal_non_gate_reason(method, &key) {
+                    RuntimeSignalDisposition::NotRuntimeGate(reason)
                 } else if consumed.contains(&key) {
                     RuntimeSignalDisposition::ConsumedByRuntimeRequirements
                 } else if is_retry_signal(method, &key) {
@@ -2085,8 +2510,18 @@ fn runtime_signal_dispositions_with_consumed(
     })
 }
 
-fn is_terminal_non_gate(method: &Definition, key: &RuntimeSignalKey) -> bool {
+fn terminal_non_gate_reason(method: &Definition, key: &RuntimeSignalKey) -> Option<NonGateReason> {
     match (method.name(), key.source(), key.family()) {
+        (
+            "toggleVideoChatMuteNewParticipants",
+            RuntimeSignalSource::Description,
+            RuntimeSignalFamily::OnlyByAdministrator,
+        ) => signal_source_has_exact_text(
+            method,
+            key.source(),
+            "toggles whether new participants of a video chat can be unmuted only by administrators of the video chat. requires groupcall.can_toggle_mute_new_participants right",
+        )
+        .then_some(NonGateReason::GroupCallParticipantUnmutePolicy),
         (
             "getChatBoostFeatures",
             RuntimeSignalSource::Description,
@@ -2095,7 +2530,8 @@ fn is_terminal_non_gate(method: &Definition, key: &RuntimeSignalKey) -> bool {
             method,
             key.source(),
             "returns the list of features available for different chat boost levels. this is an offline method",
-        ),
+        )
+        .then_some(NonGateReason::ChatBoostVocabulary),
         (
             "getChatBoostLevelFeatures",
             RuntimeSignalSource::Description,
@@ -2104,15 +2540,15 @@ fn is_terminal_non_gate(method: &Definition, key: &RuntimeSignalKey) -> bool {
             method,
             key.source(),
             "returns the list of features available on the specific chat boost level. this is an offline method",
-        ),
+        )
+        .then_some(NonGateReason::ChatBoostVocabulary),
         (
             "getChatBoostLevelFeatures",
             RuntimeSignalSource::Argument(argument),
             RuntimeSignalFamily::BoostLevelPhrase,
-        ) => {
-            argument.as_str() == "level"
-                && signal_source_has_exact_text(method, key.source(), "chat boost level")
-        }
+        ) => (argument.as_str() == "level"
+            && signal_source_has_exact_text(method, key.source(), "chat boost level"))
+        .then_some(NonGateReason::ChatBoostVocabulary),
         (
             "getChatBoostLinkInfo",
             RuntimeSignalSource::Description,
@@ -2121,8 +2557,9 @@ fn is_terminal_non_gate(method: &Definition, key: &RuntimeSignalKey) -> bool {
             method,
             key.source(),
             "returns information about a link to boost a chat. can be called for any internal link of the type internallinktypechatboost",
-        ),
-        _ => false,
+        )
+        .then_some(NonGateReason::ChatBoostVocabulary),
+        _ => None,
     }
 }
 
@@ -2659,6 +3096,18 @@ enum RuntimeRequirementDto {
         subject: MessageSubjectDto,
         capability: String,
     },
+    GroupCallKind {
+        group_call_argument: String,
+        value: String,
+    },
+    GroupCallProperty {
+        group_call_argument: String,
+        property: String,
+    },
+    GroupCallMessageCapability {
+        subject: GroupCallMessageSubjectDto,
+        capability: String,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -2670,6 +3119,15 @@ enum MessageSubjectDto {
     },
     Each {
         chat_argument: String,
+        message_argument: String,
+    },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum GroupCallMessageSubjectDto {
+    Each {
+        group_call_argument: String,
         message_argument: String,
     },
 }
@@ -2906,6 +3364,18 @@ enum CanonicalRuntimeRequirement {
         subject: CanonicalMessageSubject,
         capability: &'static str,
     },
+    GroupCallKind {
+        group_call_argument: String,
+        value: &'static str,
+    },
+    GroupCallProperty {
+        group_call_argument: String,
+        property: &'static str,
+    },
+    GroupCallMessageCapability {
+        subject: CanonicalGroupCallMessageSubject,
+        capability: &'static str,
+    },
 }
 
 impl CanonicalRuntimeRequirement {
@@ -2952,6 +3422,47 @@ impl CanonicalRuntimeRequirement {
             } => Self::MessageCapability {
                 subject: CanonicalMessageSubject::from_domain(subject),
                 capability: capability.as_str(),
+            },
+            RuntimeRequirement::GroupCallKind(condition) => Self::GroupCallKind {
+                group_call_argument: condition.group_call().argument().as_str().to_owned(),
+                value: condition.kind().as_str(),
+            },
+            RuntimeRequirement::GroupCallProperty {
+                group_call,
+                property,
+            } => Self::GroupCallProperty {
+                group_call_argument: group_call.argument().as_str().to_owned(),
+                property: property.as_str(),
+            },
+            RuntimeRequirement::GroupCallMessageCapability {
+                subject,
+                capability,
+            } => Self::GroupCallMessageCapability {
+                subject: CanonicalGroupCallMessageSubject::from_domain(subject),
+                capability: capability.as_str(),
+            },
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum CanonicalGroupCallMessageSubject {
+    Each {
+        group_call_argument: String,
+        message_argument: String,
+    },
+}
+
+impl CanonicalGroupCallMessageSubject {
+    fn from_domain(value: &GroupCallMessageSubjectRef) -> Self {
+        match value {
+            GroupCallMessageSubjectRef::Each {
+                group_call,
+                messages,
+            } => Self::Each {
+                group_call_argument: group_call.argument().as_str().to_owned(),
+                message_argument: messages.argument().as_str().to_owned(),
             },
         }
     }

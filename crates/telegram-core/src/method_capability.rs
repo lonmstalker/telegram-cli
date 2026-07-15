@@ -269,6 +269,47 @@ string_enum!(
     }
 );
 
+string_enum!(
+    /// Проверяемое Bool-поле exact `groupCall` runtime snapshot.
+    ///
+    /// Vocabulary содержит все `can_*` поля и ownership branch. Kind хранится
+    /// отдельным типом, а lifecycle prerequisites принадлежат своему слою.
+    GroupCallProperty,
+    7,
+    "group call property",
+    {
+        CanBeManaged => "can_be_managed",
+        CanDeleteMessages => "can_delete_messages",
+        CanEnableVideo => "can_enable_video",
+        CanSendMessages => "can_send_messages",
+        CanToggleAreMessagesAllowed => "can_toggle_are_messages_allowed",
+        CanToggleMuteNewParticipants => "can_toggle_mute_new_participants",
+        IsOwned => "is_owned",
+    }
+);
+
+string_enum!(
+    /// Взаимоисключающий resolved kind exact `groupCall` snapshot.
+    ResolvedGroupCallKind,
+    3,
+    "resolved group call kind",
+    {
+        VideoChat => "video_chat",
+        LiveStory => "live_story",
+        Unbound => "unbound",
+    }
+);
+
+string_enum!(
+    /// Action capability из exact `groupCallMessage.can_*` vocabulary.
+    GroupCallMessageCapability,
+    1,
+    "group call message capability",
+    {
+        CanBeDeleted => "can_be_deleted",
+    }
+);
+
 /// Ссылка на именованный argument TDLib method.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ArgumentRef(String);
@@ -428,6 +469,120 @@ impl TryFrom<&str> for MessageIdsRef {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::try_from(ArgumentRef::try_from(value)?)
+    }
+}
+
+/// Exact `group_call_id:int32` argument role.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct GroupCallIdRef(ArgumentRef);
+
+impl GroupCallIdRef {
+    pub fn argument(&self) -> &ArgumentRef {
+        &self.0
+    }
+}
+
+impl TryFrom<ArgumentRef> for GroupCallIdRef {
+    type Error = CapabilityModelError;
+
+    fn try_from(argument: ArgumentRef) -> Result<Self, Self::Error> {
+        if argument.as_str() != "group_call_id" {
+            return Err(CapabilityModelError::new(
+                CapabilityModelErrorKind::InvalidSemanticArgument,
+                format!(
+                    "group-call target must be named group_call_id, got {:?}",
+                    argument.as_str()
+                ),
+            ));
+        }
+        Ok(Self(argument))
+    }
+}
+
+impl TryFrom<&str> for GroupCallIdRef {
+    type Error = CapabilityModelError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::try_from(ArgumentRef::try_from(value)?)
+    }
+}
+
+/// Exact `message_ids:vector<int32>` argument role for group-call messages.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct GroupCallMessageIdsRef(ArgumentRef);
+
+impl GroupCallMessageIdsRef {
+    pub fn argument(&self) -> &ArgumentRef {
+        &self.0
+    }
+}
+
+impl TryFrom<ArgumentRef> for GroupCallMessageIdsRef {
+    type Error = CapabilityModelError;
+
+    fn try_from(argument: ArgumentRef) -> Result<Self, Self::Error> {
+        if argument.as_str() != "message_ids" {
+            return Err(CapabilityModelError::new(
+                CapabilityModelErrorKind::InvalidSemanticArgument,
+                format!(
+                    "group-call message collection must be named message_ids, got {:?}",
+                    argument.as_str()
+                ),
+            ));
+        }
+        Ok(Self(argument))
+    }
+}
+
+impl TryFrom<&str> for GroupCallMessageIdsRef {
+    type Error = CapabilityModelError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::try_from(ArgumentRef::try_from(value)?)
+    }
+}
+
+/// Group-call-message evidence с явной universal cardinality.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum GroupCallMessageSubjectRef {
+    Each {
+        group_call: GroupCallIdRef,
+        messages: GroupCallMessageIdsRef,
+    },
+}
+
+impl GroupCallMessageSubjectRef {
+    pub fn group_call(&self) -> &GroupCallIdRef {
+        match self {
+            Self::Each { group_call, .. } => group_call,
+        }
+    }
+
+    pub fn message_argument(&self) -> &ArgumentRef {
+        match self {
+            Self::Each { messages, .. } => messages.argument(),
+        }
+    }
+}
+
+/// Typed condition на resolved group-call kind.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct GroupCallKindCondition {
+    group_call: GroupCallIdRef,
+    kind: ResolvedGroupCallKind,
+}
+
+impl GroupCallKindCondition {
+    pub fn new(group_call: GroupCallIdRef, kind: ResolvedGroupCallKind) -> Self {
+        Self { group_call, kind }
+    }
+
+    pub fn group_call(&self) -> &GroupCallIdRef {
+        &self.group_call
+    }
+
+    pub fn kind(&self) -> ResolvedGroupCallKind {
+        self.kind
     }
 }
 
@@ -682,6 +837,15 @@ pub enum RuntimeRequirement {
         subject: MessageSubjectRef,
         capability: MessageCapability,
     },
+    GroupCallKind(GroupCallKindCondition),
+    GroupCallProperty {
+        group_call: GroupCallIdRef,
+        property: GroupCallProperty,
+    },
+    GroupCallMessageCapability {
+        subject: GroupCallMessageSubjectRef,
+        capability: GroupCallMessageCapability,
+    },
 }
 
 impl RuntimeRequirement {
@@ -697,6 +861,11 @@ impl RuntimeRequirement {
             Self::MessageCapability { subject, .. } => {
                 vec![subject.chat().argument(), subject.message_argument()]
             }
+            Self::GroupCallProperty { group_call, .. } => vec![group_call.argument()],
+            Self::GroupCallKind(condition) => vec![condition.group_call().argument()],
+            Self::GroupCallMessageCapability { subject, .. } => {
+                vec![subject.group_call().argument(), subject.message_argument()]
+            }
             Self::TopicCreator { target, topic } => {
                 vec![target.argument(), topic.argument()]
             }
@@ -710,6 +879,12 @@ impl RuntimeRequirement {
                 AccountKind::RegularUser,
                 Self::BusinessConnectionEnabled { .. } | Self::BusinessConnectionRight { .. }
             ) | (AccountKind::Bot, Self::ChatOwner { .. })
+                | (
+                    AccountKind::Bot,
+                    Self::GroupCallKind(_)
+                        | Self::GroupCallProperty { .. }
+                        | Self::GroupCallMessageCapability { .. }
+                )
         )
     }
 }
@@ -763,7 +938,7 @@ impl RequirementAlternatives {
                 ));
             }
             canonicalize_unique(clause, "runtime requirement")?;
-            if clause.iter().enumerate().any(|(left_index, left)| {
+            let contradictory_chat_kind = clause.iter().enumerate().any(|(left_index, left)| {
                 let RuntimeRequirement::ChatKind(left) = left else {
                     return false;
                 };
@@ -774,10 +949,25 @@ impl RequirementAlternatives {
                             if left.target() == right.target() && left.kind() != right.kind()
                     )
                 })
-            }) {
+            });
+            let contradictory_group_call_kind =
+                clause.iter().enumerate().any(|(left_index, left)| {
+                    let RuntimeRequirement::GroupCallKind(left) = left else {
+                        return false;
+                    };
+                    clause.iter().skip(left_index + 1).any(|right| {
+                        matches!(
+                            right,
+                            RuntimeRequirement::GroupCallKind(right)
+                                if left.group_call() == right.group_call()
+                                    && left.kind() != right.kind()
+                        )
+                    })
+                });
+            if contradictory_chat_kind || contradictory_group_call_kind {
                 return Err(CapabilityModelError::new(
                     CapabilityModelErrorKind::ContradictoryClause,
-                    "runtime requirement clause assigns multiple chat kinds to one target",
+                    "runtime requirement clause assigns multiple kinds to one target",
                 ));
             }
         }

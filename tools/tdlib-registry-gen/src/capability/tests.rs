@@ -6,8 +6,9 @@ use sha2::{Digest, Sha256};
 use telegram_core::method_capability::{
     AccountKind, ApplicationRequirement, AuthorizationState, CapabilityDescriptor,
     ChatAdministratorRight, ChatKindCondition, ChatMemberRight, ChatTargetRef, DcEnvironment,
-    ForumTopicRef, MessageCapability, MessageSubjectRef, RequirementAlternatives, ResolvedChatKind,
-    RuntimeRequirement, SynchronousCapability,
+    ForumTopicRef, GroupCallMessageCapability, GroupCallMessageSubjectRef, GroupCallProperty,
+    MessageCapability, MessageSubjectRef, RequirementAlternatives, ResolvedChatKind,
+    ResolvedGroupCallKind, RuntimeRequirement, SynchronousCapability,
 };
 use telegram_core::schema::Schema;
 
@@ -21,7 +22,8 @@ use super::{
     runtime_signal_dispositions_with_consumed, runtime_signal_families,
     serialize_pretty_with_limit, sha256_hex, validate_documented_authorization_states,
     validate_documented_method_constraints, validate_documented_parameter_notices,
-    validate_documented_runtime_requirements, validate_message_properties_vocabulary,
+    validate_documented_runtime_requirements, validate_group_call_vocabulary,
+    validate_message_properties_vocabulary,
 };
 
 type PolicyMutation = Box<dyn Fn(&mut Value)>;
@@ -56,6 +58,14 @@ chatAdministratorRights is_anonymous:Bool can_manage_chat:Bool can_change_info:B
 chatPermissions can_send_basic_messages:Bool can_send_audios:Bool can_send_documents:Bool can_send_photos:Bool can_send_videos:Bool can_send_video_notes:Bool can_send_voice_notes:Bool can_send_polls:Bool can_send_other_messages:Bool can_add_link_previews:Bool can_react_to_messages:Bool can_edit_tag:Bool can_change_info:Bool can_invite_users:Bool can_pin_messages:Bool can_create_topics:Bool = ChatPermissions;
 businessBotRights can_reply:Bool can_read_messages:Bool can_delete_sent_messages:Bool can_delete_all_messages:Bool can_edit_name:Bool can_edit_bio:Bool can_edit_profile_photo:Bool can_edit_username:Bool can_view_gifts_and_stars:Bool can_sell_gifts:Bool can_change_gift_settings:Bool can_transfer_and_upgrade_gifts:Bool can_transfer_stars:Bool can_manage_stories:Bool = BusinessBotRights;
 messageProperties can_add_offer:Bool can_add_tasks:Bool can_be_approved:Bool can_be_copied:Bool can_be_copied_to_secret_chat:Bool can_be_declined:Bool can_be_deleted_only_for_self:Bool can_be_deleted_for_all_users:Bool can_be_edited:Bool can_be_forwarded:Bool can_be_paid:Bool can_be_pinned:Bool can_be_replied:Bool can_be_replied_in_another_chat:Bool can_be_saved:Bool can_be_shared_in_story:Bool can_delete_reactions:Bool can_edit_media:Bool can_edit_scheduling_state:Bool can_edit_suggested_post_info:Bool can_get_author:Bool can_get_embedding_code:Bool can_get_link:Bool can_get_media_timestamp_links:Bool can_get_message_thread:Bool can_get_poll_vote_statistics:Bool can_get_read_date:Bool can_get_statistics:Bool can_get_video_advertisements:Bool can_get_viewers:Bool can_mark_tasks_as_done:Bool can_recognize_speech:Bool can_report_chat:Bool can_report_reactions:Bool can_report_supergroup_spam:Bool can_set_fact_check:Bool has_protected_content_by_current_user:Bool has_protected_content_by_other_user:Bool need_show_statistics:Bool = MessageProperties;
+messageSenderTest = MessageSender;
+formattedText text:string = FormattedText;
+groupCallRecentSpeaker participant_id:MessageSender is_speaking:Bool = GroupCallRecentSpeaker;
+groupCall id:int32 unique_id:int64 title:string invite_link:string paid_message_star_count:int53 scheduled_start_date:int32 enabled_start_notification:Bool is_active:Bool is_video_chat:Bool is_live_story:Bool is_rtmp_stream:Bool is_joined:Bool need_rejoin:Bool is_owned:Bool can_be_managed:Bool participant_count:int32 has_hidden_listeners:Bool loaded_all_participants:Bool message_sender_id:MessageSender recent_speakers:vector<groupCallRecentSpeaker> is_my_video_enabled:Bool is_my_video_paused:Bool can_enable_video:Bool mute_new_participants:Bool can_toggle_mute_new_participants:Bool can_send_messages:Bool are_messages_allowed:Bool can_toggle_are_messages_allowed:Bool can_delete_messages:Bool record_duration:int32 is_video_recorded:Bool duration:int32 = GroupCall;
+groupCallMessage message_id:int32 sender_id:MessageSender date:int32 text:formattedText paid_message_star_count:int53 is_from_owner:Bool can_be_deleted:Bool = GroupCallMessage;
+updateGroupCall group_call:groupCall = Update;
+updateNewGroupCallMessage group_call_id:int32 message:groupCallMessage = Update;
+updateGroupCallMessagesDeleted group_call_id:int32 message_ids:vector<int32> = Update;
 
 ---functions---
 
@@ -67,6 +77,9 @@ setTdlibParameters = Ok;
 
 //@description Returns a chat @chat_id Chat identifier
 getChat chat_id:int53 = Ok;
+
+//@description Returns information about a group call @group_call_id Group call identifier
+getGroupCall group_call_id:int32 = GroupCall;
 
 //@description Returns properties of a message. This is an offline method @chat_id Chat identifier @message_id Identifier of the message
 getMessageProperties chat_id:int53 message_id:int53 = MessageProperties;
@@ -136,8 +149,8 @@ fn canonical_generation_is_pure_and_independent_of_policy_order() {
     assert_eq!(first.last(), Some(&b'\n'));
     let artifact: Value = serde_json::from_slice(&first).expect("artifact JSON");
     assert_eq!(artifact["format_version"], super::FORMAT_VERSION);
-    assert_eq!(artifact["counts"]["schema_methods"], 17);
-    assert_eq!(artifact["counts"]["capability_methods"], 17);
+    assert_eq!(artifact["counts"]["schema_methods"], 18);
+    assert_eq!(artifact["counts"]["capability_methods"], 18);
     let methods = artifact["methods"].as_array().expect("method rows");
     assert!(
         methods
@@ -225,6 +238,160 @@ fn public_generation_enforces_and_serializes_message_capability_contracts() {
                 },
                 "capability": "can_be_edited"
             }]}]
+        })
+    );
+}
+
+#[test]
+fn public_generation_enforces_and_serializes_group_call_contracts() {
+    let marker = "//@description Uses a feature; for Telegram Premium users only";
+    let schema = SCHEMA.replacen(
+        marker,
+        concat!(
+            "//@description Sets title of a video chat; requires groupCall.can_be_managed right\n",
+            "//@group_call_id Group call identifier\n",
+            "//@title New group call title; 1-64 characters\n",
+            "setVideoChatTitle group_call_id:int32 title:string = Ok;\n\n",
+            "//@description Uses a feature; for Telegram Premium users only"
+        ),
+        1,
+    );
+    assert_ne!(schema, SCHEMA, "group-call-gated fixture insertion");
+    let fixture = Fixture::new(&schema);
+    let error = fixture
+        .generate()
+        .expect_err("public generator must reject omitted group-call contract");
+    assert_eq!(error.kind(), CapabilityGenerationErrorKind::InvalidPolicy);
+
+    let mut property_only = fixture.capability_value();
+    let row = method_row_mut(&mut property_only, "setVideoChatTitle");
+    row["ready_accounts"] = json!(["regular_user"]);
+    row["runtime_requirements"] = json!({
+        "kind": "any_of",
+        "clauses": [{"all_of": [{
+            "kind": "group_call_property",
+            "group_call_argument": "group_call_id",
+            "property": "can_be_managed"
+        }]}]
+    });
+    assert_eq!(
+        fixture
+            .generate_value(&property_only)
+            .expect_err("video-only method needs a typed kind guard")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let mut policy = fixture.capability_value();
+    let row = method_row_mut(&mut policy, "setVideoChatTitle");
+    row["ready_accounts"] = json!(["regular_user"]);
+    row["runtime_requirements"] = json!({
+        "kind": "any_of",
+        "clauses": [{"all_of": [
+            {
+                "kind": "group_call_kind",
+                "group_call_argument": "group_call_id",
+                "value": "video_chat"
+            },
+            {
+                "kind": "group_call_property",
+                "group_call_argument": "group_call_id",
+                "property": "can_be_managed"
+            }
+        ]}]
+    });
+    let artifact: Value = serde_json::from_slice(
+        &fixture
+            .generate_value(&policy)
+            .expect("public group-call capability generation"),
+    )
+    .expect("canonical public artifact");
+    let row = method_row(&artifact, "setVideoChatTitle");
+    assert_eq!(row["ready_accounts"], json!(["regular_user"]));
+    assert_eq!(
+        row["runtime_requirements"],
+        json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": [
+                {
+                    "kind": "group_call_kind",
+                    "group_call_argument": "group_call_id",
+                    "value": "video_chat"
+                },
+                {
+                    "kind": "group_call_property",
+                    "group_call_argument": "group_call_id",
+                    "property": "can_be_managed"
+                }
+            ]}]
+        })
+    );
+}
+
+#[test]
+fn public_generation_keeps_group_call_message_universal_cardinality() {
+    let marker = "//@description Uses a feature; for Telegram Premium users only";
+    let schema = SCHEMA.replacen(
+        marker,
+        concat!(
+            "//@description Deletes messages in a group call; for live story calls only. Requires groupCallMessage.can_be_deleted right\n",
+            "//@group_call_id Group call identifier\n",
+            "//@message_ids Identifiers of the messages to be deleted\n",
+            "//@report_spam Pass true to report the messages as spam\n",
+            "deleteGroupCallMessages group_call_id:int32 message_ids:vector<int32> report_spam:Bool = Ok;\n\n",
+            "//@description Uses a feature; for Telegram Premium users only"
+        ),
+        1,
+    );
+    let fixture = Fixture::new(&schema);
+    let mut policy = fixture.capability_value();
+    let row = method_row_mut(&mut policy, "deleteGroupCallMessages");
+    row["ready_accounts"] = json!(["regular_user"]);
+    row["runtime_requirements"] = json!({
+        "kind": "any_of",
+        "clauses": [{"all_of": [
+            {
+                "kind": "group_call_kind",
+                "group_call_argument": "group_call_id",
+                "value": "live_story"
+            },
+            {
+                "kind": "group_call_message_capability",
+                "subject": {
+                    "kind": "each",
+                    "group_call_argument": "group_call_id",
+                    "message_argument": "message_ids"
+                },
+                "capability": "can_be_deleted"
+            }
+        ]}]
+    });
+    let artifact: Value = serde_json::from_slice(
+        &fixture
+            .generate_value(&policy)
+            .expect("public universal group-call-message generation"),
+    )
+    .expect("canonical public artifact");
+    assert_eq!(
+        method_row(&artifact, "deleteGroupCallMessages")["runtime_requirements"],
+        json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": [
+                {
+                    "kind": "group_call_kind",
+                    "group_call_argument": "group_call_id",
+                    "value": "live_story"
+                },
+                {
+                    "kind": "group_call_message_capability",
+                    "subject": {
+                        "kind": "each",
+                        "group_call_argument": "group_call_id",
+                        "message_argument": "message_ids"
+                    },
+                    "capability": "can_be_deleted"
+                }
+            ]}]
         })
     );
 }
@@ -495,8 +662,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            35,
-            "fcd0437a123ad047e2e8edddbe51ffc63795d49c47e9ae1bb4c986745155a22e".to_owned()
+            47,
+            "952b7a34cad37987b3a0914e451c79111042a819dcb9df84594d91c410297979".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -512,8 +679,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            38,
-            "cc79495102cf0d22c42f412154433e46b5ba1c1559d880a724627aba17893115".to_owned()
+            50,
+            "f08a00cc6fc7377504637ef3fb84b75b52455cd2397fa1dd669bf2ef41f16175".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -522,12 +689,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        155,
+        143,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "4ed02dd1adbb3c87c61b4f6fccc009e331670c22fa7ac0c406e782d917ef9c1b",
+        "a6e5b3c9d53a657e7ee3f9f4f5ed4bad7043292418b08849273d406f513b3a12",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -604,7 +771,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "9261d9aa49c7bb6dd37a973029a356efb6f44381f59be4ed5a4766ec14b681f7"
+        "97dd27f0432fe34a6a1c0af4e8cfc2cec955067a735971205341bf99a7c81859"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -872,6 +1039,150 @@ fn parses_schema_bound_message_capability_atoms() {
 }
 
 #[test]
+fn parses_schema_bound_group_call_atoms() {
+    let schema =
+        Schema::parse(include_str!("../../../../vendor/tdlib/td_api.tl")).expect("pinned schema");
+    let parse = |method: &str, atoms: Vec<Value>| {
+        let dto: RuntimeRequirementsDto = serde_json::from_value(json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": atoms}]
+        }))
+        .expect("group-call requirement DTO");
+        parse_runtime_requirements(dto, find_method(&schema, method))
+    };
+
+    let title = parse(
+        "setVideoChatTitle",
+        vec![
+            json!({
+                "kind": "group_call_kind",
+                "group_call_argument": "group_call_id",
+                "value": "video_chat"
+            }),
+            json!({
+                "kind": "group_call_property",
+                "group_call_argument": "group_call_id",
+                "property": "can_be_managed"
+            }),
+        ],
+    )
+    .expect("typed group-call kind and property");
+    assert!(title.clauses()[0].iter().any(|requirement| matches!(
+        requirement,
+        RuntimeRequirement::GroupCallKind(condition)
+            if condition.kind() == ResolvedGroupCallKind::VideoChat
+                && condition.group_call().argument().as_str() == "group_call_id"
+    )));
+    assert!(title.clauses()[0].iter().any(|requirement| matches!(
+        requirement,
+        RuntimeRequirement::GroupCallProperty { group_call, property }
+            if *property == GroupCallProperty::CanBeManaged
+                && group_call.argument().as_str() == "group_call_id"
+    )));
+
+    let messages = parse(
+        "deleteGroupCallMessages",
+        vec![json!({
+            "kind": "group_call_message_capability",
+            "subject": {
+                "kind": "each",
+                "group_call_argument": "group_call_id",
+                "message_argument": "message_ids"
+            },
+            "capability": "can_be_deleted"
+        })],
+    )
+    .expect("universal group-call message capability");
+    assert!(matches!(
+        messages.clauses(),
+        [clause]
+            if matches!(
+                clause.as_slice(),
+                [RuntimeRequirement::GroupCallMessageCapability { subject, capability }]
+                    if *capability == GroupCallMessageCapability::CanBeDeleted
+                        && matches!(subject, GroupCallMessageSubjectRef::Each { .. })
+            )
+    ));
+    assert_eq!(
+        serde_json::to_value(super::CanonicalRuntimeRequirement::from_domain(
+            &messages.clauses()[0][0]
+        ))
+        .expect("canonical group-call message capability"),
+        json!({
+            "kind": "group_call_message_capability",
+            "subject": {
+                "kind": "each",
+                "group_call_argument": "group_call_id",
+                "message_argument": "message_ids"
+            },
+            "capability": "can_be_deleted"
+        })
+    );
+
+    for atom in [
+        json!({
+            "kind": "group_call_kind",
+            "group_call_argument": "group_call_id",
+            "value": "conference"
+        }),
+        json!({
+            "kind": "group_call_property",
+            "group_call_argument": "group_call_id",
+            "property": "is_active"
+        }),
+    ] {
+        assert_eq!(
+            parse("setVideoChatTitle", vec![atom])
+                .expect_err("unknown group-call vocabulary")
+                .kind(),
+            CapabilityGenerationErrorKind::InvalidPolicy
+        );
+    }
+
+    let wrong_vector = include_str!("../../../../vendor/tdlib/td_api.tl").replace(
+        "deleteGroupCallMessages group_call_id:int32 message_ids:vector<int32>",
+        "deleteGroupCallMessages group_call_id:int32 message_ids:vector<int53>",
+    );
+    let wrong_vector = Schema::parse(&wrong_vector).expect("valid wrong-vector schema");
+    let dto: RuntimeRequirementsDto = serde_json::from_value(json!({
+        "kind": "any_of",
+        "clauses": [{"all_of": [{
+            "kind": "group_call_message_capability",
+            "subject": {
+                "kind": "each",
+                "group_call_argument": "group_call_id",
+                "message_argument": "message_ids"
+            },
+            "capability": "can_be_deleted"
+        }]}]
+    }))
+    .expect("universal group-call message DTO");
+    assert_eq!(
+        parse_runtime_requirements(dto, find_method(&wrong_vector, "deleteGroupCallMessages"))
+            .expect_err("group-call message_ids needs exact vector<int32>")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+    assert!(
+        serde_json::from_value::<RuntimeRequirementsDto>(json!({
+            "kind": "any_of",
+            "clauses": [{"all_of": [{
+                "kind": "group_call_message_capability",
+                "subject": {
+                    "kind": "each",
+                    "group_call_argument": "group_call_id",
+                    "message_argument": "message_ids",
+                    "unexpected": true
+                },
+                "capability": "can_be_deleted"
+            }]}]
+        }))
+        .is_err(),
+        "group-call message subject DTO must reject unknown fields"
+    );
+}
+
+#[test]
 fn requires_exact_message_properties_schema_vocabulary() {
     let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
     validate_message_properties_vocabulary(&Schema::parse(pinned).expect("pinned schema"))
@@ -934,6 +1245,102 @@ fn requires_exact_message_properties_schema_vocabulary() {
         )
         .expect_err("MessageProperties drift");
         assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
+    }
+
+    let group_call = pinned
+        .lines()
+        .find(|line| line.starts_with("groupCall "))
+        .expect("groupCall constructor");
+    let extra_constructor = group_call.replacen("groupCall ", "groupCallOther ", 1);
+    let extra_constructor = pinned.replace(
+        "---functions---",
+        &format!("{extra_constructor}\n\n---functions---"),
+    );
+    assert_eq!(
+        validate_group_call_vocabulary(
+            &Schema::parse(&extra_constructor).expect("second GroupCall constructor")
+        )
+        .expect_err("extra constructor with GroupCall result")
+        .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    for signature in [
+        "getGroupCall group_call_id:int32 = GroupCall;",
+        "updateNewGroupCallMessage group_call_id:int32 message:groupCallMessage = Update;",
+    ] {
+        assert!(
+            Schema::parse(&pinned.replacen(signature, &format!("{signature}\n{signature}"), 1))
+                .is_err(),
+            "duplicate exact definition must fail at the schema boundary"
+        );
+    }
+}
+
+#[test]
+fn requires_exact_group_call_schema_vocabulary() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    validate_group_call_vocabulary(&Schema::parse(pinned).expect("pinned schema"))
+        .expect("exact pinned GroupCall contract");
+
+    let drifted = [
+        pinned.replace(
+            "groupCall id:int32 unique_id:int64",
+            "groupCall unique_id:int64 id:int32",
+        ),
+        pinned.replace(" can_be_managed:Bool", " can_be_managed:int32"),
+        pinned.replace(" can_delete_messages:Bool", " can_delete_messages_other:Bool"),
+        pinned.replace(
+            "groupCallMessage message_id:int32 sender_id:MessageSender",
+            "groupCallMessage sender_id:MessageSender message_id:int32",
+        ),
+        pinned.replace(" can_be_deleted:Bool = GroupCallMessage;", " = GroupCallMessage;"),
+        pinned.replace(
+            "getGroupCall group_call_id:int32 = GroupCall;",
+            "getGroupCall group_call_id:int53 = GroupCall;",
+        ),
+        pinned.replace(
+            "updateNewGroupCallMessage group_call_id:int32 message:groupCallMessage = Update;",
+            "updateNewGroupCallMessage group_call_id:int32 message:GroupCallMessage = Update;",
+        ),
+        pinned.replace(
+            "updateGroupCall group_call:groupCall = Update;",
+            "updateGroupCall group_call:GroupCall = Update;",
+        ),
+        pinned.replace(
+            "updateGroupCallMessagesDeleted group_call_id:int32 message_ids:vector<int32> = Update;",
+            "updateGroupCallMessagesDeleted group_call_id:int32 message_ids:vector<int53> = Update;",
+        ),
+    ];
+    for schema in drifted {
+        let error = validate_group_call_vocabulary(
+            &Schema::parse(&schema).expect("valid drifted group-call schema"),
+        )
+        .expect_err("GroupCall schema drift");
+        assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
+    }
+
+    for signature in [
+        "updateGroupCall group_call:groupCall = Update;",
+        "updateNewGroupCallMessage group_call_id:int32 message:groupCallMessage = Update;",
+        "updateGroupCallMessagesDeleted group_call_id:int32 message_ids:vector<int32> = Update;",
+    ] {
+        let without_update = pinned.replacen(signature, "", 1);
+        assert_ne!(without_update, pinned, "update movement fixture");
+        let moved_to_methods = without_update.replacen(
+            "---functions---",
+            &format!("---functions---\n{signature}"),
+            1,
+        );
+        let moved_to_methods =
+            Schema::parse(&moved_to_methods).expect("valid update-to-method drift schema");
+        assert_eq!(
+            validate_group_call_vocabulary(&moved_to_methods)
+                .expect_err("update ingress must remain a constructor")
+                .kind(),
+            CapabilityGenerationErrorKind::SchemaDrift,
+            "{signature}"
+        );
     }
 }
 
@@ -1249,6 +1656,316 @@ fn pinned_message_capability_contracts_are_exact() {
             error.kind(),
             CapabilityGenerationErrorKind::SchemaDrift,
             "{name}"
+        );
+    }
+}
+
+#[test]
+fn pinned_group_call_capability_contracts_are_exact() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let safe_methods = [
+        "banGroupCallParticipants",
+        "deleteGroupCallMessages",
+        "deleteGroupCallMessagesBySender",
+        "endGroupCall",
+        "endGroupCallRecording",
+        "revokeGroupCallInviteLink",
+        "sendGroupCallMessage",
+        "setGroupCallPaidMessageStarCount",
+        "setVideoChatTitle",
+        "startGroupCallRecording",
+        "toggleGroupCallAreMessagesAllowed",
+        "toggleVideoChatMuteNewParticipants",
+    ];
+    let deferred_methods = [
+        "getVideoChatInviteLink",
+        "toggleGroupCallParticipantIsHandRaised",
+    ];
+    let hash_rows = |mut rows: Vec<String>| {
+        rows.sort_unstable();
+        let mut payload = rows.join("\n");
+        payload.push('\n');
+        sha256_hex(payload.as_bytes())
+    };
+    let safe = safe_methods
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    let deferred = deferred_methods
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    assert!(safe.is_disjoint(&deferred));
+    let reviewed = safe
+        .union(&deferred)
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    let derived = schema
+        .methods()
+        .iter()
+        .filter_map(|method| {
+            documented_runtime_signal_dispositions(method)
+                .unwrap_or_else(|error| panic!("{}: {error}", method.name()))
+                .iter()
+                .any(|(key, _)| {
+                    matches!(
+                        key.family(),
+                        RuntimeSignalFamily::GroupCallFact
+                            | RuntimeSignalFamily::GroupCallMessageFact
+                    )
+                })
+                .then_some(method.name())
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(reviewed, derived, "group-call partition must be exhaustive");
+    assert_eq!(
+        hash_rows(reviewed.iter().map(ToString::to_string).collect()),
+        "19f031588f1a95638917e614017be240ae1bcb7a139d1c9b8e74c0882b79c2e5"
+    );
+    assert_eq!(
+        hash_rows(safe.iter().map(ToString::to_string).collect()),
+        "a889f96632f1e7e61cb292ec5bb97fc6eaf260ce524f2742636216b2fd7c9570"
+    );
+    assert_eq!(
+        hash_rows(deferred.iter().map(ToString::to_string).collect()),
+        "08e959dd01394969d60f64a26448a2baf959b82d1deb7b775aeb32b35b336d3e"
+    );
+
+    let expected_formulas = std::collections::BTreeMap::from([
+        ("banGroupCallParticipants", "kind:unbound&property:is_owned"),
+        (
+            "deleteGroupCallMessages",
+            "kind:live_story&messages:each:can_be_deleted",
+        ),
+        (
+            "deleteGroupCallMessagesBySender",
+            "kind:live_story&property:can_delete_messages",
+        ),
+        (
+            "endGroupCall",
+            "kind:live_story&property:can_be_managed|kind:unbound&property:is_owned|kind:video_chat&property:can_be_managed",
+        ),
+        (
+            "endGroupCallRecording",
+            "kind:video_chat&property:can_be_managed",
+        ),
+        (
+            "revokeGroupCallInviteLink",
+            "kind:unbound&property:is_owned|kind:video_chat&property:can_be_managed",
+        ),
+        ("sendGroupCallMessage", "property:can_send_messages"),
+        (
+            "setGroupCallPaidMessageStarCount",
+            "kind:live_story&property:can_be_managed",
+        ),
+        (
+            "setVideoChatTitle",
+            "kind:video_chat&property:can_be_managed",
+        ),
+        (
+            "startGroupCallRecording",
+            "kind:video_chat&property:can_be_managed",
+        ),
+        (
+            "toggleGroupCallAreMessagesAllowed",
+            "property:can_toggle_are_messages_allowed",
+        ),
+        (
+            "toggleVideoChatMuteNewParticipants",
+            "kind:video_chat&property:can_toggle_mute_new_participants",
+        ),
+    ]);
+    let mut consumed_rows = Vec::new();
+    for method_name in safe_methods {
+        let method = find_method(&schema, method_name);
+        let dispositions = documented_runtime_signal_dispositions(method)
+            .unwrap_or_else(|error| panic!("{method_name}: {error}"));
+        consumed_rows.extend(dispositions.iter().filter_map(|(key, disposition)| {
+            let describes_setting_value = method_name == "toggleVideoChatMuteNewParticipants"
+                && key.source() == &RuntimeSignalSource::Description
+                && key.family() == RuntimeSignalFamily::OnlyByAdministrator;
+            if describes_setting_value {
+                assert_eq!(
+                    *disposition,
+                    RuntimeSignalDisposition::NotRuntimeGate(
+                        NonGateReason::GroupCallParticipantUnmutePolicy
+                    ),
+                    "{method_name}: administrator wording describes the configured value"
+                );
+                return None;
+            }
+            assert_eq!(
+                *disposition,
+                RuntimeSignalDisposition::ConsumedByRuntimeRequirements,
+                "{method_name}: every exact signal key must be consumed"
+            );
+            let source = match key.source() {
+                RuntimeSignalSource::Description => "description".to_owned(),
+                RuntimeSignalSource::Argument(argument) => {
+                    format!("argument:{}", argument.as_str())
+                }
+            };
+            Some(format!(
+                "{method_name}\t{source}\t{}",
+                key.family().canonical_name()
+            ))
+        }));
+
+        let requirements = documented_runtime_requirements(method)
+            .unwrap_or_else(|error| panic!("{method_name}: {error}"))
+            .expect("reviewed group-call contract");
+        let mut clauses = requirements
+            .clauses()
+            .iter()
+            .map(|clause| {
+                let mut atoms = clause
+                    .iter()
+                    .map(|requirement| match requirement {
+                        RuntimeRequirement::GroupCallKind(condition) => {
+                            assert_eq!(condition.group_call().argument().as_str(), "group_call_id");
+                            format!("kind:{}", condition.kind().as_str())
+                        }
+                        RuntimeRequirement::GroupCallProperty {
+                            group_call,
+                            property,
+                        } => {
+                            assert_eq!(group_call.argument().as_str(), "group_call_id");
+                            format!("property:{}", property.as_str())
+                        }
+                        RuntimeRequirement::GroupCallMessageCapability {
+                            subject:
+                                GroupCallMessageSubjectRef::Each {
+                                    group_call,
+                                    messages,
+                                },
+                            capability,
+                        } => {
+                            assert_eq!(group_call.argument().as_str(), "group_call_id");
+                            assert_eq!(messages.argument().as_str(), "message_ids");
+                            format!("messages:each:{}", capability.as_str())
+                        }
+                        other => panic!("{method_name}: unexpected atom {other:?}"),
+                    })
+                    .collect::<Vec<_>>();
+                atoms.sort_unstable();
+                atoms.join("&")
+            })
+            .collect::<Vec<_>>();
+        clauses.sort_unstable();
+        assert_eq!(
+            clauses.join("|"),
+            expected_formulas[method_name],
+            "{method_name}: exact typed DNF"
+        );
+    }
+    assert_eq!(consumed_rows.len(), 38, "exact safe group-call key count");
+    assert_eq!(
+        hash_rows(consumed_rows),
+        "baa12c60379a31fd62a3f030b65ac3e87f0827793c340bb7f63f7bff000f1df5"
+    );
+
+    let mut deferred_rows = Vec::new();
+    for method_name in deferred_methods {
+        let method = find_method(&schema, method_name);
+        let error = documented_runtime_requirements(method)
+            .expect_err("argument-dependent group-call method must stay open");
+        assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
+        deferred_rows.extend(
+            documented_runtime_signal_dispositions(method)
+                .expect("deferred group-call dispositions")
+                .into_iter()
+                .map(|(key, disposition)| {
+                    assert_eq!(
+                        disposition,
+                        RuntimeSignalDisposition::Deferred(DeferredSignalLane::InputPrerequisite)
+                    );
+                    let RuntimeSignalSource::Argument(argument) = key.source() else {
+                        panic!("{method_name}: deferred source must be an argument")
+                    };
+                    format!(
+                        "{method_name}\targument:{}\t{}",
+                        argument.as_str(),
+                        key.family().canonical_name()
+                    )
+                }),
+        );
+    }
+    assert_eq!(deferred_rows.len(), 6);
+    assert_eq!(
+        hash_rows(deferred_rows),
+        "c7d82927a49fb17def723966a8b964c8d4a725fdc755b1c72b97cf59fd5878ef"
+    );
+
+    let source = "Sets title of a video chat; requires groupCall.can_be_managed right";
+    for replacement in [
+        "Sets title of a video chat",
+        "Sets title of a video chat; requires groupCall.can_send_messages right",
+        "Sets title of an active video chat; requires groupCall.can_be_managed right",
+    ] {
+        let mutated = pinned.replacen(source, replacement, 1);
+        assert_ne!(mutated, pinned, "source mutation fixture");
+        let mutated = Schema::parse(&mutated).expect("valid source mutation");
+        let error = documented_runtime_requirements(find_method(&mutated, "setVideoChatTitle"))
+            .expect_err("group-call source drift must fail closed");
+        assert_eq!(error.kind(), CapabilityGenerationErrorKind::SchemaDrift);
+    }
+    let duplicate_source = pinned.replacen(
+        source,
+        &format!("{source}\n//@description Duplicate non-gating documentation"),
+        1,
+    );
+    let duplicate_source = Schema::parse(&duplicate_source).expect("duplicate source-tag schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&duplicate_source, "setVideoChatTitle"))
+            .expect_err("duplicate reviewed source must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+    let additional_signal = pinned.replacen(
+        "New group call title; 1-64 characters",
+        "New group call title; 1-64 characters. Requires groupCall.can_send_messages right",
+        1,
+    );
+    let additional_signal =
+        Schema::parse(&additional_signal).expect("additional argument-signal schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&additional_signal, "setVideoChatTitle"))
+            .expect_err("unconsumed additional group-call signal must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    for mutated in [
+        pinned.replace(
+            "setVideoChatTitle group_call_id:int32",
+            "setVideoChatTitle group_call_id:int53",
+        ),
+        pinned.replace(
+            "deleteGroupCallMessages group_call_id:int32 message_ids:vector<int32>",
+            "deleteGroupCallMessages group_call_id:int32 message_ids:int32",
+        ),
+        pinned.replace(
+            "deleteGroupCallMessages group_call_id:int32 message_ids:vector<int32>",
+            "deleteGroupCallMessages group_call_id:int32 message_ids:vector<int53>",
+        ),
+        pinned.replace(
+            "deleteGroupCallMessages group_call_id:int32 message_ids:vector<int32>",
+            "deleteGroupCallMessages group_call_id:int32 message_ids:vector<vector<int32>>",
+        ),
+    ] {
+        let mutated = Schema::parse(&mutated).expect("valid role-shape mutation");
+        let method = if mutated.methods().iter().any(|method| {
+            method.name() == "setVideoChatTitle"
+                && field_type(method, "group_call_id").is_some_and(|ty| ty.name() == "int53")
+        }) {
+            "setVideoChatTitle"
+        } else {
+            "deleteGroupCallMessages"
+        };
+        assert_eq!(
+            documented_runtime_requirements(find_method(&mutated, method))
+                .expect_err("group-call identifier/cardinality drift must fail closed")
+                .kind(),
+            CapabilityGenerationErrorKind::SchemaDrift
         );
     }
 }
@@ -2225,6 +2942,7 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
         "setSupergroupStickerSet",
         "unpinChatMessage",
         "reportSupergroupSpam",
+        "banGroupCallParticipants",
     ] {
         let error =
             validate_documented_runtime_requirements(find_method(&schema, method), &unrestricted)
@@ -2238,7 +2956,6 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
         "deleteForumTopic",
         "setChatMemberStatus",
         "getSupergroupMembers",
-        "banGroupCallParticipants",
         "canPostStory",
         "postStory",
         "startLiveStory",

@@ -96,3 +96,11 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Transition: `getChatBoostLinkInfo` выходит из open set; terminal complete set 38, open-set SHA-256 `4ed02dd1adbb3c87c61b4f6fccc009e331670c22fa7ac0c406e782d917ef9c1b`.
 - Status: open; 155 methods остаются deferred. Next: typed group-call/object-field families.
 - Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md).
+
+## [2026-07-15] open update | P-20260715-005 | GroupCall family уменьшила open set до 143 methods
+
+- Evidence: [GroupCall capability digest](../raw/2026-07-15-tdlib-group-call-capabilities.md); schema-derived family exhaustive разделена на 12 complete и 2 argument-dependent methods, 38 keys consumed, 1 setting-semantics key terminally non-gate, 6 keys сохранены deferred.
+- Transition: exact kind/property/cardinality DNF terminally disposition 12 methods. Supported typed set теперь 47, terminal complete set 50, open-set SHA-256 `a6e5b3c9d53a657e7ee3f9f4f5ed4bad7043292418b08849273d406f513b3a12`.
+- Status: open; zero-open gate не достигнут, 143 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
+- Next check: отдельными reviewed tasks закрывать full-info/option/admin/object-field source families; runtime evaluator отдельно обязан fail closed на stale/unknown group-call-message evidence.
+- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-014](../decisions/decisions.md).

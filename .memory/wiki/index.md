@@ -46,7 +46,7 @@
 
 ## Current records
 
-- Implementation: P0–P3 accepted; первые пять пунктов P4 закрыты, следующий — file/sticker/bot/Web App terminal workflows; см. [project-state.md](project-state.md).
+- Implementation: P0–P3 accepted; первые шесть пунктов P4 закрыты, следующий — gap marker/resync; см. [project-state.md](project-state.md).
 - Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -72,6 +72,7 @@
 - Chat inspection/open lease: [D-20260715-055](../decisions/decisions.md), [W-20260715-060](../logs/work.md), [`docs/chat-inspection-workflow.md`](../../docs/chat-inspection-workflow.md).
 - Message pagination: [D-20260715-056](../decisions/decisions.md), [W-20260715-061](../logs/work.md), [`docs/message-pagination.md`](../../docs/message-pagination.md).
 - Members/statistics workflows: [D-20260715-057](../decisions/decisions.md), [W-20260715-062](../logs/work.md), [`docs/members-statistics-workflow.md`](../../docs/members-statistics-workflow.md).
+- File/sticker/bot/Web App terminal workflows: [D-20260715-058](../decisions/decisions.md), [W-20260715-063](../logs/work.md), [`docs/terminal-domain-workflows.md`](../../docs/terminal-domain-workflows.md).
 
 ## Operating rules
 

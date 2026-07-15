@@ -3,12 +3,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt;
+use std::path::Path;
 use std::time::{Instant, SystemTime};
 
 use serde_json::{Value, json};
 
+use crate::authorization::SensitiveString;
 use crate::raw_api::{RawApiError, RawPolicy, td_call, td_call_with_boundary};
-use crate::reducer::{ChatList, ChatListPosition, ReducerError};
+use crate::reducer::{ChatList, ChatListPosition, MessageSendKey, MessageSendState, ReducerError};
 use crate::registry::TdObject;
 use crate::runtime::{CoreRuntime, RuntimeError};
 use crate::transport::TransportError;
@@ -127,6 +129,7 @@ pub struct MessagePage {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Freshness {
     ServerSnapshot,
+    OrderedUpdate,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -157,6 +160,98 @@ pub struct StatisticsSnapshot {
     pub capability_sequence: u64,
     pub observed_at: SystemTime,
     pub freshness: Freshness,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TerminalSource {
+    Response,
+    OrderedUpdate,
+}
+
+#[derive(Clone, Copy)]
+pub struct DownloadQuery {
+    pub file_id: i32,
+    pub priority: i32,
+    pub offset: i64,
+    pub limit: i64,
+}
+
+pub enum InputFileSource<'source> {
+    Id(i32),
+    Remote(&'source str),
+    Local(&'source Path),
+    Generated {
+        original_path: &'source Path,
+        conversion: &'source str,
+        expected_size: i64,
+    },
+}
+
+#[derive(Clone, Copy)]
+pub enum StickerFormat {
+    Webp,
+    Tgs,
+    Webm,
+}
+
+#[derive(Clone, PartialEq)]
+pub struct FileTransferReceipt {
+    pub file: Value,
+    pub sequence: Option<u64>,
+    pub source: TerminalSource,
+    pub complete: bool,
+    pub observed_at: SystemTime,
+    pub freshness: Freshness,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BotStartOutcome {
+    Succeeded { message: Value },
+    Failed { message: Value, error: Value },
+    Uncertain,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BotStartReceipt {
+    pub old_message_id: i64,
+    pub outcome: BotStartOutcome,
+    pub source: Option<TerminalSource>,
+    pub complete: bool,
+    pub observed_at: SystemTime,
+}
+
+#[derive(Clone, Copy)]
+pub enum WebAppMode {
+    Compact,
+    FullSize,
+    FullScreen,
+}
+
+pub struct WebAppRequest<'request> {
+    pub chat_id: i64,
+    pub bot_user_id: i64,
+    pub button_url: &'request str,
+    pub application_name: &'request str,
+    pub mode: WebAppMode,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct WebAppMessageReceipt {
+    pub launch_id: i64,
+    pub source: Option<TerminalSource>,
+    pub complete: bool,
+    pub observed_at: SystemTime,
+}
+
+pub struct WebAppLease<'runtime> {
+    runtime: &'runtime mut CoreRuntime,
+    policy: &'runtime RawPolicy,
+    launch_id: i64,
+    launch_url: SensitiveString,
+    require_same_origin: bool,
+    baseline_sequence: u64,
+    deadline: Instant,
+    active: bool,
 }
 
 impl ChatInspection {
@@ -349,6 +444,426 @@ pub fn chat_statistics(
         allowed,
         capability.sequence.get(),
         |method, request| invoke(runtime, policy, method, request, deadline),
+    )
+}
+
+pub fn download_file(
+    runtime: &mut CoreRuntime,
+    policy: &RawPolicy,
+    query: DownloadQuery,
+    deadline: Instant,
+) -> Result<FileTransferReceipt, ChatWorkflowError> {
+    if !(1..=32).contains(&query.priority) || query.offset < 0 || query.limit < 0 {
+        return Err(ChatWorkflowError::InvalidFileTransfer);
+    }
+    let baseline_sequence = last_sequence(runtime);
+    let (response, boundary) = td_call_with_boundary(
+        runtime,
+        policy,
+        json!({
+            "@type":"downloadFile",
+            "file_id":query.file_id,
+            "priority":query.priority,
+            "offset":query.offset,
+            "limit":query.limit,
+            "synchronous":false
+        }),
+        deadline,
+    )
+    .map_err(ChatWorkflowError::Call)?;
+    runtime
+        .apply_through_boundary(boundary, deadline)
+        .map_err(ChatWorkflowError::Runtime)?;
+    let response = checked_response("downloadFile", response)?.into_value();
+    wait_file_terminal(
+        runtime,
+        response,
+        baseline_sequence,
+        FileDirection::Download,
+        deadline,
+    )
+}
+
+pub fn upload_sticker_file(
+    runtime: &mut CoreRuntime,
+    policy: &RawPolicy,
+    user_id: i64,
+    format: StickerFormat,
+    source: InputFileSource<'_>,
+    deadline: Instant,
+) -> Result<FileTransferReceipt, ChatWorkflowError> {
+    let baseline_sequence = last_sequence(runtime);
+    let (response, boundary) = td_call_with_boundary(
+        runtime,
+        policy,
+        json!({
+            "@type":"uploadStickerFile",
+            "user_id":user_id,
+            "sticker_format":format.tdjson(),
+            "sticker":source.tdjson()?
+        }),
+        deadline,
+    )
+    .map_err(ChatWorkflowError::Call)?;
+    runtime
+        .apply_through_boundary(boundary, deadline)
+        .map_err(ChatWorkflowError::Runtime)?;
+    let response = checked_response("uploadStickerFile", response)?.into_value();
+    wait_file_terminal(
+        runtime,
+        response,
+        baseline_sequence,
+        FileDirection::Upload,
+        deadline,
+    )
+}
+
+pub fn start_bot(
+    runtime: &mut CoreRuntime,
+    policy: &RawPolicy,
+    bot_user_id: i64,
+    chat_id: i64,
+    parameter: &str,
+    deadline: Instant,
+) -> Result<BotStartReceipt, ChatWorkflowError> {
+    let (response, boundary) = td_call_with_boundary(
+        runtime,
+        policy,
+        json!({
+            "@type":"sendBotStartMessage",
+            "bot_user_id":bot_user_id,
+            "chat_id":chat_id,
+            "parameter":parameter
+        }),
+        deadline,
+    )
+    .map_err(ChatWorkflowError::Call)?;
+    runtime
+        .apply_through_boundary(boundary, deadline)
+        .map_err(ChatWorkflowError::Runtime)?;
+    let response = checked_response("sendBotStartMessage", response)?;
+    if response.as_value()["@type"] != "message" {
+        return Err(ChatWorkflowError::UnexpectedResult {
+            method: "sendBotStartMessage",
+        });
+    }
+    let key = MessageSendKey {
+        chat_id: required_i64(response.as_value(), "chat_id", "sendBotStartMessage")?,
+        old_message_id: required_i64(response.as_value(), "id", "sendBotStartMessage")?,
+    };
+    wait_message_send(runtime, key, deadline)
+}
+
+pub fn open_web_app<'runtime>(
+    runtime: &'runtime mut CoreRuntime,
+    policy: &'runtime RawPolicy,
+    request: WebAppRequest<'_>,
+    deadline: Instant,
+) -> Result<WebAppLease<'runtime>, ChatWorkflowError> {
+    let baseline_sequence = last_sequence(runtime);
+    let (response, boundary) = td_call_with_boundary(
+        runtime,
+        policy,
+        json!({
+            "@type":"openWebApp",
+            "chat_id":request.chat_id,
+            "bot_user_id":request.bot_user_id,
+            "url":request.button_url,
+            "topic_id":null,
+            "reply_to":null,
+            "parameters":{
+                "@type":"webAppOpenParameters",
+                "theme":null,
+                "application_name":request.application_name,
+                "mode":request.mode.tdjson()
+            }
+        }),
+        deadline,
+    )
+    .map_err(ChatWorkflowError::Call)?;
+    runtime
+        .apply_through_boundary(boundary, deadline)
+        .map_err(ChatWorkflowError::Runtime)?;
+    let response = checked_response("openWebApp", response)?;
+    if response.as_value()["@type"] != "webAppInfo" {
+        return Err(ChatWorkflowError::UnexpectedResult {
+            method: "openWebApp",
+        });
+    }
+    let url = &response.as_value()["url"];
+    if url["@type"] != "webAppUrl" {
+        return Err(ChatWorkflowError::InvalidResult {
+            method: "openWebApp",
+            field: "url",
+        });
+    }
+    Ok(WebAppLease {
+        runtime,
+        policy,
+        launch_id: required_i64(response.as_value(), "launch_id", "openWebApp")?,
+        launch_url: SensitiveString::new(required_string(url, "url", "openWebApp")?),
+        require_same_origin: required_bool(url, "require_same_origin", "openWebApp")?,
+        baseline_sequence,
+        deadline,
+        active: true,
+    })
+}
+
+impl WebAppLease<'_> {
+    pub fn launch_id(&self) -> i64 {
+        self.launch_id
+    }
+
+    pub fn launch_url(&self) -> &SensitiveString {
+        &self.launch_url
+    }
+
+    pub fn require_same_origin(&self) -> bool {
+        self.require_same_origin
+    }
+
+    pub fn wait_message_sent(&mut self) -> Result<WebAppMessageReceipt, ChatWorkflowError> {
+        loop {
+            if self
+                .runtime
+                .state()
+                .web_app_message_sent(self.launch_id)
+                .is_some_and(|sequence| sequence.get() > self.baseline_sequence)
+            {
+                return Ok(WebAppMessageReceipt {
+                    launch_id: self.launch_id,
+                    source: Some(TerminalSource::OrderedUpdate),
+                    complete: true,
+                    observed_at: SystemTime::now(),
+                });
+            }
+            match self.runtime.next_event_until(self.deadline) {
+                Ok(_) => {}
+                Err(RuntimeError::DeadlineExceeded) => {
+                    return Ok(WebAppMessageReceipt {
+                        launch_id: self.launch_id,
+                        source: None,
+                        complete: false,
+                        observed_at: SystemTime::now(),
+                    });
+                }
+                Err(error) => return Err(ChatWorkflowError::Runtime(error)),
+            }
+        }
+    }
+
+    pub fn close(mut self) -> Result<(), ChatWorkflowError> {
+        close_web_app(self.runtime, self.policy, self.launch_id, self.deadline)?;
+        self.active = false;
+        Ok(())
+    }
+}
+
+impl Drop for WebAppLease<'_> {
+    fn drop(&mut self) {
+        if self.active {
+            self.active = false;
+            let _ = close_web_app(self.runtime, self.policy, self.launch_id, self.deadline);
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum FileDirection {
+    Download,
+    Upload,
+}
+
+impl InputFileSource<'_> {
+    fn tdjson(&self) -> Result<Value, ChatWorkflowError> {
+        Ok(match self {
+            Self::Id(id) => json!({"@type":"inputFileId","id":id}),
+            Self::Remote(id) if !id.is_empty() => {
+                json!({"@type":"inputFileRemote","id":id})
+            }
+            Self::Local(file) => json!({"@type":"inputFileLocal","path":file_path(file)?}),
+            Self::Generated {
+                original_path,
+                conversion,
+                expected_size,
+            } if *expected_size >= 0 => json!({
+                "@type":"inputFileGenerated",
+                "original_path":file_path(original_path)?,
+                "conversion":conversion,
+                "expected_size":expected_size
+            }),
+            _ => return Err(ChatWorkflowError::InvalidFileTransfer),
+        })
+    }
+}
+
+fn file_path(path: &Path) -> Result<&str, ChatWorkflowError> {
+    path.to_str().ok_or(ChatWorkflowError::InvalidFileTransfer)
+}
+
+impl StickerFormat {
+    fn tdjson(self) -> Value {
+        let kind = match self {
+            Self::Webp => "stickerFormatWebp",
+            Self::Tgs => "stickerFormatTgs",
+            Self::Webm => "stickerFormatWebm",
+        };
+        json!({"@type":kind})
+    }
+}
+
+impl WebAppMode {
+    fn tdjson(self) -> Value {
+        let mode = match self {
+            Self::Compact => "webAppOpenModeCompact",
+            Self::FullSize => "webAppOpenModeFullSize",
+            Self::FullScreen => "webAppOpenModeFullScreen",
+        };
+        json!({"@type":mode})
+    }
+}
+
+fn last_sequence(runtime: &CoreRuntime) -> u64 {
+    runtime
+        .state()
+        .last_sequence()
+        .map(|sequence| sequence.get())
+        .unwrap_or(0)
+}
+
+fn wait_file_terminal(
+    runtime: &mut CoreRuntime,
+    response: Value,
+    baseline_sequence: u64,
+    direction: FileDirection,
+    deadline: Instant,
+) -> Result<FileTransferReceipt, ChatWorkflowError> {
+    if response["@type"] != "file" {
+        return Err(ChatWorkflowError::UnexpectedResult {
+            method: "file transfer",
+        });
+    }
+    let file_id = i32::try_from(required_i64(&response, "id", "file transfer")?).map_err(|_| {
+        ChatWorkflowError::InvalidResult {
+            method: "file transfer",
+            field: "id",
+        }
+    })?;
+    if file_complete(&response, direction)? {
+        return Ok(file_receipt(response, None, TerminalSource::Response));
+    }
+    loop {
+        if let Some(file) = runtime
+            .state()
+            .file(file_id)
+            .filter(|file| file.sequence.get() > baseline_sequence)
+        {
+            if file_complete(&file.value, direction)? {
+                return Ok(file_receipt(
+                    file.value.clone(),
+                    Some(file.sequence.get()),
+                    TerminalSource::OrderedUpdate,
+                ));
+            }
+        }
+        runtime
+            .next_event_until(deadline)
+            .map_err(ChatWorkflowError::Runtime)?;
+    }
+}
+
+fn file_complete(file: &Value, direction: FileDirection) -> Result<bool, ChatWorkflowError> {
+    let (part, field) = match direction {
+        FileDirection::Download => (&file["local"], "is_downloading_completed"),
+        FileDirection::Upload => (&file["remote"], "is_uploading_completed"),
+    };
+    required_bool(part, field, "file transfer")
+}
+
+fn file_receipt(file: Value, sequence: Option<u64>, source: TerminalSource) -> FileTransferReceipt {
+    FileTransferReceipt {
+        file,
+        sequence,
+        source,
+        complete: true,
+        observed_at: SystemTime::now(),
+        freshness: match source {
+            TerminalSource::Response => Freshness::ServerSnapshot,
+            TerminalSource::OrderedUpdate => Freshness::OrderedUpdate,
+        },
+    }
+}
+
+fn wait_message_send(
+    runtime: &mut CoreRuntime,
+    key: MessageSendKey,
+    deadline: Instant,
+) -> Result<BotStartReceipt, ChatWorkflowError> {
+    loop {
+        let outcome = runtime
+            .state()
+            .message_send(key)
+            .map(|state| state.state.clone());
+        match outcome {
+            Some(MessageSendState::Succeeded { message }) => {
+                return Ok(bot_start_receipt(
+                    key.old_message_id,
+                    BotStartOutcome::Succeeded { message },
+                    true,
+                ));
+            }
+            Some(MessageSendState::Failed { message, error }) => {
+                return Ok(bot_start_receipt(
+                    key.old_message_id,
+                    BotStartOutcome::Failed { message, error },
+                    true,
+                ));
+            }
+            Some(MessageSendState::Acknowledged) | None => {}
+        }
+        match runtime.next_event_until(deadline) {
+            Ok(_) => {}
+            Err(RuntimeError::DeadlineExceeded) => {
+                return Ok(bot_start_receipt(
+                    key.old_message_id,
+                    BotStartOutcome::Uncertain,
+                    false,
+                ));
+            }
+            Err(error) => return Err(ChatWorkflowError::Runtime(error)),
+        }
+    }
+}
+
+fn bot_start_receipt(
+    old_message_id: i64,
+    outcome: BotStartOutcome,
+    complete: bool,
+) -> BotStartReceipt {
+    BotStartReceipt {
+        old_message_id,
+        outcome,
+        source: complete.then_some(TerminalSource::OrderedUpdate),
+        complete,
+        observed_at: SystemTime::now(),
+    }
+}
+
+fn close_web_app(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    launch_id: i64,
+    deadline: Instant,
+) -> Result<(), ChatWorkflowError> {
+    expect_ok(
+        invoke(
+            runtime,
+            policy,
+            "closeWebApp",
+            json!({"@type":"closeWebApp","web_app_launch_id":launch_id}),
+            deadline,
+        )?,
+        "closeWebApp",
     )
 }
 
@@ -1114,6 +1629,16 @@ fn required_string<'value>(
         .ok_or(ChatWorkflowError::InvalidResult { method, field })
 }
 
+fn required_bool(
+    value: &Value,
+    field: &'static str,
+    method: &'static str,
+) -> Result<bool, ChatWorkflowError> {
+    value[field]
+        .as_bool()
+        .ok_or(ChatWorkflowError::InvalidResult { method, field })
+}
+
 fn optional_nonzero_i64(
     value: &Value,
     field: &'static str,
@@ -1147,6 +1672,7 @@ pub enum ChatWorkflowError {
     InvalidTarget,
     InvalidLimit,
     InvalidPageOptions,
+    InvalidFileTransfer,
 }
 
 impl fmt::Display for ChatWorkflowError {
@@ -1175,6 +1701,9 @@ impl fmt::Display for ChatWorkflowError {
             Self::InvalidPageOptions => {
                 formatter.write_str("requested count and page limit must be within bounds")
             }
+            Self::InvalidFileTransfer => {
+                formatter.write_str("file transfer input is outside TDLib bounds")
+            }
         }
     }
 }
@@ -1192,15 +1721,21 @@ impl Error for ChatWorkflowError {
             | Self::CapabilityDenied { .. }
             | Self::InvalidTarget
             | Self::InvalidLimit
-            | Self::InvalidPageOptions => None,
+            | Self::InvalidPageOptions
+            | Self::InvalidFileTransfer => None,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
     use super::*;
     use crate::registry::{CapabilityDisposition, RiskClass, capability};
+    use crate::transport::{BackendError, TdJsonBackend};
 
     fn object(value: Value) -> Result<TdObject, RawApiError> {
         Ok(TdObject::from_value(value).unwrap())
@@ -1622,5 +2157,162 @@ mod tests {
                 capability: "can_get_statistics"
             }
         ));
+    }
+
+    struct TerminalWorkflowBackend {
+        incoming: VecDeque<String>,
+        methods: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl TerminalWorkflowBackend {
+        fn new() -> (Self, Arc<Mutex<Vec<String>>>) {
+            let methods = Arc::new(Mutex::new(Vec::new()));
+            (
+                Self {
+                    incoming: VecDeque::new(),
+                    methods: Arc::clone(&methods),
+                },
+                methods,
+            )
+        }
+
+        fn push(&mut self, value: Value) {
+            self.incoming.push_back(value.to_string());
+        }
+    }
+
+    impl TdJsonBackend for TerminalWorkflowBackend {
+        fn send(&mut self, request: &str) -> Result<(), BackendError> {
+            let request: Value = serde_json::from_str(request).unwrap();
+            let method = request["@type"].as_str().unwrap();
+            self.methods.lock().unwrap().push(method.to_owned());
+            let extra = request["@extra"].clone();
+            match method {
+                "setLogStream" | "closeWebApp" => {
+                    self.push(json!({"@type":"ok","@extra":extra}));
+                }
+                "getOption" => {
+                    let value = if request["name"] == "version" {
+                        crate::registry::SCHEMA.version
+                    } else {
+                        crate::registry::SCHEMA.commit
+                    };
+                    self.push(json!({"@type":"optionValueString","value":value,"@extra":extra}));
+                }
+                "getCurrentState" => {
+                    self.push(json!({"@type":"updates","updates":[],"@extra":extra}));
+                }
+                "downloadFile" => {
+                    self.push(json!({"@type":"file","id":5,"local":{"@type":"localFile","is_downloading_completed":false},"remote":{"@type":"remoteFile","is_uploading_completed":true},"@extra":extra}));
+                    self.push(json!({"@type":"updateFile","file":{"@type":"file","id":5,"local":{"@type":"localFile","is_downloading_completed":true},"remote":{"@type":"remoteFile","is_uploading_completed":true}}}));
+                }
+                "uploadStickerFile" => {
+                    self.push(json!({"@type":"file","id":6,"local":{"@type":"localFile","is_downloading_completed":true},"remote":{"@type":"remoteFile","is_uploading_completed":false},"@extra":extra}));
+                    self.push(json!({"@type":"updateFile","file":{"@type":"file","id":6,"local":{"@type":"localFile","is_downloading_completed":true},"remote":{"@type":"remoteFile","is_uploading_completed":true}}}));
+                }
+                "sendBotStartMessage" => {
+                    self.push(json!({"@type":"message","id":-7,"chat_id":9,"@extra":extra}));
+                    self.push(json!({"@type":"updateMessageSendAcknowledged","chat_id":9,"message_id":-7}));
+                    self.push(json!({"@type":"updateMessageSendSucceeded","message":{"@type":"message","id":10,"chat_id":9},"old_message_id":-7}));
+                }
+                "openWebApp" => {
+                    self.push(json!({"@type":"webAppInfo","launch_id":11,"url":{"@type":"webAppUrl","url":"https://example.invalid/?tgWebAppData=secret","require_same_origin":true},"@extra":extra}));
+                    self.push(json!({"@type":"updateWebAppMessageSent","web_app_launch_id":11}));
+                }
+                _ => unreachable!("unexpected test method {method}"),
+            }
+            Ok(())
+        }
+
+        fn receive(&mut self, timeout: Duration) -> Result<Option<String>, BackendError> {
+            if self.incoming.is_empty() {
+                std::thread::sleep(timeout.min(Duration::from_millis(1)));
+            }
+            Ok(self.incoming.pop_front())
+        }
+    }
+
+    fn test_deadline() -> Instant {
+        Instant::now() + Duration::from_secs(3)
+    }
+
+    #[test]
+    fn file_sticker_bot_and_web_app_wait_for_terminal_updates() {
+        let (backend, methods) = TerminalWorkflowBackend::new();
+        let mut runtime = CoreRuntime::start(backend, test_deadline()).unwrap();
+        let policy = RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![
+                RiskClass::Read,
+                RiskClass::ReversibleMutation,
+                RiskClass::Send,
+                RiskClass::Presence,
+            ],
+        );
+
+        let download = download_file(
+            &mut runtime,
+            &policy,
+            DownloadQuery {
+                file_id: 5,
+                priority: 1,
+                offset: 0,
+                limit: 0,
+            },
+            test_deadline(),
+        )
+        .unwrap();
+        assert_eq!(download.source, TerminalSource::OrderedUpdate);
+        assert_eq!(download.file["id"], 5);
+
+        let upload = upload_sticker_file(
+            &mut runtime,
+            &policy,
+            0,
+            StickerFormat::Webp,
+            InputFileSource::Local(Path::new("/tmp/synthetic-sticker.webp")),
+            test_deadline(),
+        )
+        .unwrap();
+        assert_eq!(upload.source, TerminalSource::OrderedUpdate);
+        assert_eq!(upload.file["id"], 6);
+
+        let bot = start_bot(&mut runtime, &policy, 8, 9, "", test_deadline()).unwrap();
+        assert!(bot.complete);
+        assert!(matches!(bot.outcome, BotStartOutcome::Succeeded { .. }));
+
+        let mut web_app = open_web_app(
+            &mut runtime,
+            &policy,
+            WebAppRequest {
+                chat_id: 9,
+                bot_user_id: 8,
+                button_url: "https://example.invalid/",
+                application_name: "telegram_cli",
+                mode: WebAppMode::FullSize,
+            },
+            test_deadline(),
+        )
+        .unwrap();
+        assert_eq!(format!("{:?}", web_app.launch_url()), "<redacted>");
+        assert!(web_app.require_same_origin());
+        assert!(web_app.wait_message_sent().unwrap().complete);
+        web_app.close().unwrap();
+
+        assert_eq!(
+            methods.lock().unwrap().as_slice(),
+            [
+                "setLogStream",
+                "getOption",
+                "getOption",
+                "getCurrentState",
+                "downloadFile",
+                "uploadStickerFile",
+                "sendBotStartMessage",
+                "openWebApp",
+                "closeWebApp"
+            ]
+        );
+        runtime.shutdown().unwrap();
     }
 }

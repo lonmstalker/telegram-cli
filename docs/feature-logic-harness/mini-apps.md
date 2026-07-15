@@ -61,7 +61,10 @@ Bot/Web App/attachment-menu/OAuth availability and user consent are checked; bro
 
 ## Live Verification Boundary
 
-No Mini App opened. Existing tg-analytics Playwright runner is a reuse candidate, not current project evidence.
+Synthetic runtime test proves typed `openWebApp`, redacted/zeroizing launch URL,
+launch-ID-correlated `updateWebAppMessageSent` and paired `closeWebApp`. No Mini App was
+opened and no browser/UI proof exists. Existing tg-analytics Playwright runner is a reuse
+candidate, not current project evidence.
 
 ## Scope
 
@@ -152,7 +155,8 @@ No Mini App opened. Existing tg-analytics Playwright runner is a reuse candidate
 
 ## Coverage Notes
 
-- Kernel coverage: Telegram/browser/security boundary modeled.
+- Kernel coverage: Telegram open/message/close lifecycle and secret URL boundary
+  implemented; browser/artifact bridge remains modeled.
 - Modeled: end-to-end test phases.
 - Partial: remote handoff and exact schema classification.
 - Unknown: deployment-specific browser topology.

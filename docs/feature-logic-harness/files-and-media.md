@@ -61,7 +61,8 @@ File access follows Telegram/chat rights, protected content and local filesystem
 
 ## Live Verification Boundary
 
-No transfer executed in this task; only schema/plan behavior is modeled.
+Synthetic runtime test proves async `downloadFile` remains pending until matching
+`updateFile.local.is_downloading_completed`; no live transfer has been executed.
 
 ## Scope
 
@@ -152,8 +153,9 @@ No transfer executed in this task; only schema/plan behavior is modeled.
 
 ## Coverage Notes
 
-- Kernel coverage: state/path/resume modeled.
+- Kernel coverage: typed async download and ordered terminal update implemented;
+  path/resume/gap behavior remains modeled.
 - Modeled: file lifecycle and cross-surface semantics.
-- Partial: artifact backend and exact schema mapping.
+- Partial: upload families beyond sticker prerequisite, artifact backend, resume/gap and live transfer.
 - Unknown: server quota defaults.
 - Not applicable: Telegram account authorization.

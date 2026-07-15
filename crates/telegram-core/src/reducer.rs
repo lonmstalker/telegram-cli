@@ -33,6 +33,7 @@ pub enum CachedUpdateKind {
     File,
     Connection,
     MessageSend,
+    WebAppMessage,
     Unknown,
 }
 
@@ -102,6 +103,7 @@ pub struct StateReducer {
     files: BTreeMap<i32, VersionedValue>,
     connection: Option<VersionedValue>,
     message_sends: BTreeMap<MessageSendKey, VersionedMessageSendState>,
+    web_app_messages: BTreeMap<i64, UpdateSequence>,
     unknown_updates: Vec<VersionedValue>,
 }
 
@@ -190,6 +192,10 @@ impl StateReducer {
 
     pub fn message_send(&self, key: MessageSendKey) -> Option<&VersionedMessageSendState> {
         self.message_sends.get(&key)
+    }
+
+    pub fn web_app_message_sent(&self, launch_id: i64) -> Option<UpdateSequence> {
+        self.web_app_messages.get(&launch_id).copied()
     }
 
     pub fn unknown_updates(&self) -> &[VersionedValue] {
@@ -305,6 +311,11 @@ impl StateReducer {
             "updateMessageSendAcknowledged" => self.apply_message_acknowledged(object, sequence)?,
             "updateMessageSendSucceeded" => self.apply_message_terminal(object, sequence, true)?,
             "updateMessageSendFailed" => self.apply_message_terminal(object, sequence, false)?,
+            "updateWebAppMessageSent" => {
+                self.web_app_messages
+                    .insert(integer(object, "web_app_launch_id")?, sequence);
+                CachedUpdateKind::WebAppMessage
+            }
             _ => {
                 self.unknown_updates.push(VersionedValue {
                     sequence,
@@ -860,6 +871,22 @@ mod tests {
             reducer.message_send(failed_key).unwrap().state,
             MessageSendState::Failed { .. }
         ));
+    }
+
+    #[test]
+    fn web_app_message_update_is_correlated_by_launch_id() {
+        let mut reducer = StateReducer::default();
+        let applied = reducer
+            .apply(&json!({
+                "@type":"updateWebAppMessageSent",
+                "web_app_launch_id":"9007199254740993"
+            }))
+            .unwrap();
+        assert_eq!(applied.kind, CachedUpdateKind::WebAppMessage);
+        assert_eq!(
+            reducer.web_app_message_sent(9_007_199_254_740_993).unwrap(),
+            applied.sequence
+        );
     }
 
     #[test]

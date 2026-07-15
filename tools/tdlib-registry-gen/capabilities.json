@@ -59,6 +59,15 @@
       "retry": "convergent"
     },
     {
+      "method": "closeWebApp",
+      "risk": "presence",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "WebAppLaunchKnown { launch: web_app_launch_id }",
+      "retry": "convergent"
+    },
+    {
       "method": "createChatInviteLink",
       "risk": "admin",
       "accounts": [
@@ -144,6 +153,15 @@
       ],
       "runtime_requirements": "(ChatKind { target: supergroup_id, kind: Supergroup } AND ChatOwner { target: supergroup_id }) OR (ChatKind { target: supergroup_id, kind: Channel } AND ChatOwner { target: supergroup_id })",
       "retry": "convergent"
+    },
+    {
+      "method": "downloadFile",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "FileKnown { target: file_id }",
+      "retry": "safe_read"
     },
     {
       "method": "editMessageCaption",
@@ -499,6 +517,15 @@
       "retry": "convergent"
     },
     {
+      "method": "openWebApp",
+      "risk": "presence",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKnown { target: chat_id } AND BotUserKnown { target: bot_user_id }",
+      "retry": "reconcile"
+    },
+    {
       "method": "pinChatMessage",
       "risk": "reversible_mutation",
       "accounts": [
@@ -595,6 +622,15 @@
       "retry": "safe_read"
     },
     {
+      "method": "sendBotStartMessage",
+      "risk": "send",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKnown { target: chat_id } AND BotUserKnown { target: bot_user_id }",
+      "retry": "reconcile"
+    },
+    {
       "method": "sendGroupCallMessage",
       "risk": "send",
       "accounts": [
@@ -602,6 +638,16 @@
         "bot"
       ],
       "runtime_requirements": "GroupCallProperty { group_call: group_call_id, property: CanSendMessages }",
+      "retry": "reconcile"
+    },
+    {
+      "method": "uploadStickerFile",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready } AND ScopedLocalOrRemoteFile { target: sticker }",
       "retry": "reconcile"
     },
     {

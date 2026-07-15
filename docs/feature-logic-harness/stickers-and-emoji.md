@@ -62,7 +62,10 @@ Check account type, set ownership, Premium/custom-emoji availability, chat right
 
 ## Live Verification Boundary
 
-No sticker or emoji mutation has been executed. Acceptance uses a disposable test set and explicit cleanup proof.
+Synthetic runtime test proves typed `uploadStickerFile` waits for
+`updateFile.remote.is_uploading_completed`. It does not claim sticker-set mutation;
+no live sticker/emoji mutation has been executed. Acceptance uses a disposable test set
+and explicit cleanup proof.
 
 ## Scope
 
@@ -153,7 +156,8 @@ No sticker or emoji mutation has been executed. Acceptance uses a disposable tes
 
 ## Coverage Notes
 
-- Kernel coverage: ownership, request chain, retry and proof modeled.
+- Kernel coverage: typed upload prerequisite and terminal file proof implemented;
+  set ownership/mutation/reconciliation remain modeled.
 - Modeled: read and mutation families.
 - Partial: exact generated method mapping and live rights matrix.
 - Unknown: deployment converter choice.

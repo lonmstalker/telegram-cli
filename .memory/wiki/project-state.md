@@ -9,7 +9,7 @@
 - Pinned schema: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`; 1010 functions, 2168 definitions, 184 updates, 13 auth states; gate `scripts/check-tdlib-pin.py`.
 - Strict schema parser в `telegram-core::schema` (12 тестов, без внешних dependencies).
 - macOS arm64 и Linux x86_64 `tdjson` с provenance в content-addressed cache; общий gate `scripts/check-tdlib-native-pin.py`, локальная проверка обоих artifacts — с `--require-local-artifact`.
-- Ручное capability-ревью: 89 reviewed и 921 default-deny методов сохранены в canonical data table и `docs/capability-notes.md`. Recognizer engine удалён ([D-20260715-035](../decisions/decisions.md)); классификация — данные с default-deny.
+- Ручное capability-ревью: 94 reviewed и 916 default-deny методов сохранены в canonical data table и `docs/capability-notes.md`. Recognizer engine удалён ([D-20260715-035](../decisions/decisions.md)); классификация — данные с default-deny.
 - Свежий protected live gate существующей зашифрованной сессии прошёл `WaitTdlibParameters -> Ready -> getMe -> close -> Closed` без нового login input; `.env.local` contract (mode `0600`, protected loader) соблюдён.
 - Canonical GitHub remote: `https://github.com/lonmstalker/telegram-cli.git` (public, принято пользователем).
 - P0 accepted: `tg-analytics@e35c54ce213aa170fb0b411eab614485424b3e60` audited from clean archive (97 tests); phase-neutral patterns перенесены, runtime contracts распределены по owner-фазам в `docs/tg-analytics-reuse.md`.
@@ -38,10 +38,11 @@
 - Третий пункт P4 закрыт: chat inspection нормализует username/public link/invite, ждёт authoritative cache, выбирает full-info call по `ChatType` и парно закрывает optional open lease ([D-20260715-055](../decisions/decisions.md)).
 - Четвёртый пункт P4 закрыт: history/search pager продолжает short pages, следует returned/derived cursors и различает complete count/date/exhausted от partial no-progress ([D-20260715-056](../decisions/decisions.md)).
 - Пятый пункт P4 закрыт: members pager проверяет reducer-owned capability и method-specific terminal condition; statistics walker раскрывает async graph tokens до data/error и сохраняет partial/lineage/freshness evidence ([D-20260715-057](../decisions/decisions.md)).
+- Шестой пункт P4 закрыт: typed file/sticker transfer, bot start и scoped Web App workflows ждут matching terminal updates; Web App URL redacted/zeroizing, close paired ([D-20260715-058](../decisions/decisions.md)).
 
 ## Not implemented
 
-- Остаток P4 и P5–P10: file/sticker/bot/Web App, gap/resync и остальные workflows, reliability/policy expansion, CLI, MCP и packaging.
+- Остаток P4 и P5–P10: gap/resync, reliability/policy expansion, CLI, MCP и packaging.
 
 ## Active boundary
 
@@ -50,4 +51,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: шестой Tasks-пункт P4 — file/sticker/bot/Web App workflows с ожиданием terminal updates.
+- Следующий implementation boundary: седьмой Tasks-пункт P4 — gap marker и обязательный resync после update lag.

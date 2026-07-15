@@ -35,7 +35,7 @@ Canonical machine-readable source после P3 —
 - Generator создаёт descriptor для каждого pinned method. Reviewed rows получают эти
   поля, остальные — только `DefaultDeny` без угаданной классификации.
 
-## Reviewed contracts (89)
+## Reviewed contracts (94)
 
 | Method | Accounts | Runtime requirements |
 |---|---|---|
@@ -45,6 +45,7 @@ Canonical machine-readable source после P3 —
 | `banGroupCallParticipants` | regular_user, bot | `GroupCallKind { group_call: group_call_id, kind: Unbound } AND GroupCallProperty { group_call: group_call_id, property: IsOwned }` |
 | `checkChatInviteLink` | regular_user | `AuthorizationState { state: Ready }` |
 | `closeChat` | regular_user | `ChatKnown { target: chat_id }` |
+| `closeWebApp` | regular_user | `WebAppLaunchKnown { launch: web_app_launch_id }` |
 | `createChatInviteLink` | regular_user, bot | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers })` |
 | `createVideoChat` | regular_user | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats })` |
 | `declineSuggestedPost` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeDeclined }` |
@@ -54,6 +55,7 @@ Canonical machine-readable source после P3 —
 | `deleteGroupCallMessagesBySender` | regular_user, bot | `GroupCallKind { group_call: group_call_id, kind: LiveStory } AND GroupCallProperty { group_call: group_call_id, property: CanDeleteMessages }` |
 | `deleteMessageReactionsFromSender` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanDeleteReactions }` |
 | `disableAllSupergroupUsernames` | regular_user | `(ChatKind { target: supergroup_id, kind: Supergroup } AND ChatOwner { target: supergroup_id }) OR (ChatKind { target: supergroup_id, kind: Channel } AND ChatOwner { target: supergroup_id })` |
+| `downloadFile` | regular_user | `FileKnown { target: file_id }` |
 | `editMessageCaption` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeEdited }` |
 | `editMessageChecklist` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeEdited }` |
 | `editMessageLiveLocation` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeEdited }` |
@@ -91,6 +93,7 @@ Canonical machine-readable source после P3 —
 | `loadChats` | regular_user | `AuthorizationState { state: Ready }` |
 | `markChecklistTasksAsDone` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanMarkTasksAsDone }` |
 | `openChat` | regular_user | `ChatKnown { target: chat_id }` |
+| `openWebApp` | regular_user | `ChatKnown { target: chat_id } AND BotUserKnown { target: bot_user_id }` |
 | `pinChatMessage` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBePinned }` |
 | `recognizeSpeech` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanRecognizeSpeech }` |
 | `reorderSupergroupActiveUsernames` | regular_user | `(ChatKind { target: supergroup_id, kind: Supergroup } AND ChatOwner { target: supergroup_id }) OR (ChatKind { target: supergroup_id, kind: Channel } AND ChatOwner { target: supergroup_id })` |
@@ -101,6 +104,7 @@ Canonical machine-readable source после P3 —
 | `revokeGroupCallInviteLink` | regular_user, bot | `(GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }) OR (GroupCallKind { group_call: group_call_id, kind: Unbound } AND GroupCallProperty { group_call: group_call_id, property: IsOwned })` |
 | `searchChatMessages` | regular_user | `ChatKnown { target: chat_id } AND MessageDatabaseEnabled` |
 | `searchPublicChat` | regular_user | `AuthorizationState { state: Ready }` |
+| `sendBotStartMessage` | regular_user | `ChatKnown { target: chat_id } AND BotUserKnown { target: bot_user_id }` |
 | `sendGroupCallMessage` | regular_user, bot | `GroupCallProperty { group_call: group_call_id, property: CanSendMessages }` |
 | `setChatDescription` | regular_user, bot | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatMemberRight { target: chat_id, right: CanChangeInfo }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatMemberRight { target: chat_id, right: CanChangeInfo }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatMemberRight { target: chat_id, right: CanChangeInfo })` |
 | `setChatLocation` | regular_user | `SupergroupFullInfoProperty { target: chat_id, property: CanSetLocation }` |
@@ -128,6 +132,7 @@ Canonical machine-readable source после P3 —
 | `toggleSupergroupUsernameIsActive` | regular_user | `(ChatKind { target: supergroup_id, kind: Supergroup } AND ChatOwner { target: supergroup_id }) OR (ChatKind { target: supergroup_id, kind: Channel } AND ChatOwner { target: supergroup_id })` |
 | `toggleVideoChatMuteNewParticipants` | regular_user, bot | `GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanToggleMuteNewParticipants }` |
 | `upgradeBasicGroupChatToSupergroupChat` | regular_user | `ChatKind { target: chat_id, kind: BasicGroup } AND ChatOwner { target: chat_id }` |
+| `uploadStickerFile` | regular_user, bot | `AuthorizationState { state: Ready } AND ScopedLocalOrRemoteFile { target: sticker }` |
 
 ## Recognized but unclassified (116)
 

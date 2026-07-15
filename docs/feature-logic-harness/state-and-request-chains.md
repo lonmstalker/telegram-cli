@@ -61,7 +61,7 @@ Graph checks rights/capability fields before protected steps and returns forbidd
 
 ## Live Verification Boundary
 
-Pure core tests подтверждают transport-order sequence, representative caches, exact unknown payload/order, terminal message-send state, startup snapshot boundary, history/search/member pagination и async statistics graph boundaries. Pinned native runtime применяет `getCurrentState` к reducer до дальнейших events. Durable raw journal, gap/resync и остальные domain completion proofs ещё не реализованы.
+Pure core tests подтверждают transport-order sequence, representative caches, exact unknown payload/order, terminal message-send state, startup snapshot boundary, history/search/member pagination, async statistics graphs и synthetic file/sticker/bot/Web App terminal chains. Pinned native runtime применяет `getCurrentState` к reducer до дальнейших events. Durable raw journal, gap/resync и остальные domain completion proofs ещё не реализованы.
 
 ## Scope
 
@@ -155,5 +155,5 @@ Pure core tests подтверждают transport-order sequence, representativ
 
 - Kernel coverage: state/paging/gap/concurrency modeled.
 - Modeled: generic engine and result semantics.
-- Partial: ordered/lossless caches, startup snapshot, history/search/member paging и statistics graph traversal реализованы; durable journal, gap/resync и остальные domain completion rules остаются дальнейшими slices.
+- Partial: ordered/lossless caches, startup snapshot, history/search/member paging, statistics graph traversal и representative terminal-update chains реализованы; durable journal, gap/resync и остальные domain completion rules остаются дальнейшими slices.
 - Not applicable: account secret entry.

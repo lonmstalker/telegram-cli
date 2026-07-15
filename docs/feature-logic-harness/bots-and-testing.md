@@ -61,7 +61,10 @@ User-side testing and bot-account methods differ. Owner-only BotFather/managed-b
 
 ## Live Verification Boundary
 
-No messages/callbacks sent in this task. P10 requires disposable/test bot scenarios and exact cleanup.
+Synthetic runtime test proves `sendBotStartMessage` waits through acknowledgement for
+matching send succeeded/failed state; timeout remains uncertain. It does not claim a bot
+reply. No live messages/callbacks were sent; P10 requires disposable/test bot scenarios
+and exact cleanup.
 
 ## Scope
 
@@ -152,7 +155,8 @@ No messages/callbacks sent in this task. P10 requires disposable/test bot scenar
 
 ## Coverage Notes
 
-- Kernel coverage: trigger/correlation/callback/cleanup modeled.
+- Kernel coverage: typed start trigger and terminal send correlation implemented;
+  incoming reply/callback/assertion/cleanup remain modeled.
 - Modeled: core bot testing flow.
 - Partial: bot-account/managed-bot ownership matrix.
 - Unknown: canonical test spec.

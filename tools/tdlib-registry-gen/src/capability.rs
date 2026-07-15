@@ -3,6 +3,7 @@
 //! This module classifies static requirements. It never claims that a runtime
 //! account currently satisfies them and it does not grant policy permission.
 
+mod chat_event_logs;
 mod chat_invite_links;
 mod chat_settings;
 mod supergroup_usernames;
@@ -1258,6 +1259,7 @@ fn validate_documented_method_constraints(
     let group_call_contract = reviewed_group_call_contract(method)?;
     let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
     let boolean_option_contract = reviewed_runtime_boolean_option_contract(method)?;
+    let chat_event_log_contract = reviewed_chat_event_log_contract(method)?;
     let chat_setting_contract = reviewed_chat_setting_contract(method)?;
     let supergroup_username_contract = reviewed_supergroup_username_contract(method)?;
     let ready = descriptor.ready_accounts();
@@ -1296,6 +1298,7 @@ fn validate_documented_method_constraints(
     ) || group_call_contract.is_some()
         || supergroup_full_info_contract.is_some()
         || boolean_option_contract.is_some_and(|contract| contract.regular_user_only)
+        || chat_event_log_contract.is_some()
         || chat_setting_contract.is_some_and(|contract| contract.regular_user_only())
         || supergroup_username_contract.is_some();
     let expected_ready = if bot_only || runtime_bot_only {
@@ -1356,6 +1359,7 @@ fn documented_runtime_requirements(
     let group_call_contract = reviewed_group_call_contract(method)?;
     let supergroup_full_info_contract = reviewed_supergroup_full_info_contract(method)?;
     let boolean_option_contract = reviewed_runtime_boolean_option_contract(method)?;
+    let chat_event_log_contract = reviewed_chat_event_log_contract(method)?;
     let chat_invite_link_contract = reviewed_chat_invite_link_contract(method)?;
     let chat_setting_contract = reviewed_chat_setting_contract(method)?;
     let supergroup_username_contract = reviewed_supergroup_username_contract(method)?;
@@ -1365,6 +1369,7 @@ fn documented_runtime_requirements(
         group_call_contract.is_some(),
         supergroup_full_info_contract.is_some(),
         boolean_option_contract.is_some(),
+        chat_event_log_contract.is_some(),
         chat_invite_link_contract.is_some(),
         chat_setting_contract.is_some(),
         supergroup_username_contract.is_some(),
@@ -1422,6 +1427,9 @@ fn documented_runtime_requirements(
     if let Some(contract) = boolean_option_contract {
         expected_consumed.extend(contract.consumed_signal_keys());
     }
+    if chat_event_log_contract.is_some() {
+        expected_consumed.extend(chat_event_log_consumed_signal_keys());
+    }
     if chat_invite_link_contract.is_some() {
         expected_consumed.extend(chat_invite_link_consumed_signal_keys());
     }
@@ -1447,6 +1455,13 @@ fn documented_runtime_requirements(
         vec![vec![RuntimeRequirement::BooleanOptionEnabled {
             option: contract.option,
         }]]
+    } else if let Some(contract) = chat_event_log_contract {
+        let target = documented_chat_target(method)?;
+        chat_kind_clauses(&target, contract.supported_chat_kinds(), |target| {
+            RuntimeRequirement::ChatAdministrator {
+                target: target.clone(),
+            }
+        })?
     } else if let Some(contract) = supergroup_username_contract {
         let target = documented_chat_target(method)?;
         chat_kind_clauses(&target, contract.supported_chat_kinds(), |target| {
@@ -1611,6 +1626,31 @@ fn reviewed_chat_invite_link_contract(
     Ok(Some(contract))
 }
 
+fn reviewed_chat_event_log_contract(
+    method: &Definition,
+) -> Result<Option<&'static chat_event_logs::ChatEventLogContract>, CapabilityGenerationError> {
+    let Some(contract) = chat_event_logs::reviewed_contract(method.name()) else {
+        return Ok(None);
+    };
+    if method.canonical_signature() != contract.canonical_signature() {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed chat-event-log signature drifted",
+        ));
+    }
+    if !signal_source_has_exact_text(
+        method,
+        &RuntimeSignalSource::Description,
+        contract.source_text(),
+    ) {
+        return Err(unsupported_runtime_documentation(
+            method,
+            "reviewed chat-event-log source text drifted or disappeared",
+        ));
+    }
+    Ok(Some(contract))
+}
+
 fn reviewed_chat_setting_contract(
     method: &Definition,
 ) -> Result<Option<&'static chat_settings::ChatSettingContract>, CapabilityGenerationError> {
@@ -1720,6 +1760,15 @@ fn chat_invite_link_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
         source: RuntimeSignalSource::Description,
         family,
     })
+    .collect()
+}
+
+fn chat_event_log_consumed_signal_keys() -> BTreeSet<RuntimeSignalKey> {
+    [RuntimeSignalKey {
+        source: RuntimeSignalSource::Description,
+        family: RuntimeSignalFamily::RequiresAdministrator,
+    }]
+    .into_iter()
     .collect()
 }
 
@@ -2967,6 +3016,9 @@ fn documented_runtime_signal_dispositions(
     if reviewed_chat_invite_link_contract(method)?.is_some() {
         consumed.extend(chat_invite_link_consumed_signal_keys());
     }
+    if reviewed_chat_event_log_contract(method)?.is_some() {
+        consumed.extend(chat_event_log_consumed_signal_keys());
+    }
     if let Some(contract) = reviewed_chat_setting_contract(method)? {
         consumed.extend(chat_setting_consumed_signal_keys(contract));
     }
@@ -3473,6 +3525,10 @@ fn engine_source_sha256() -> String {
     let mut hasher = Sha256::new();
     for (path, bytes) in [
         ("capability.rs", include_bytes!("capability.rs").as_slice()),
+        (
+            "capability/chat_event_logs.rs",
+            include_bytes!("capability/chat_event_logs.rs").as_slice(),
+        ),
         (
             "capability/chat_invite_links.rs",
             include_bytes!("capability/chat_invite_links.rs").as_slice(),

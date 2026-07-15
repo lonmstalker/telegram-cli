@@ -1163,8 +1163,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported.clone()),
         (
-            66,
-            "502aa34506879a1c37f8fbbb1e3e0dea0617a344e75158c430e386a1faa51fb5".to_owned()
+            67,
+            "354bd086523c04cb6ac2f8f35f92b770cdc67c16a36bc7f44be16445979572db".to_owned()
         ),
         "reviewed real runtime-contract set drift"
     );
@@ -1180,8 +1180,8 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     assert_eq!(
         hash_method_set(supported),
         (
-            69,
-            "f85d132a7d4e1bfe5a2997ddd29bb1cac41c2c985f16eab1f8c4a54d0d0be731".to_owned()
+            70,
+            "9de489e0204801f32ba0d644def028f8519de0946e560b1875bf4742182829bf".to_owned()
         ),
         "terminal runtime-disposition set drift"
     );
@@ -1190,12 +1190,12 @@ fn pinned_runtime_signal_inventory_and_open_disposition_boundary_are_exact() {
     unsupported_oracle.push('\n');
     assert_eq!(
         unsupported.len(),
-        124,
+        123,
         "reviewed runtime-disposition boundary drift"
     );
     assert_eq!(
         sha256_hex(unsupported_oracle.as_bytes()),
-        "437c17ed2ccb09f23aa7eba6b04223e0b05a97ae55493d280fa18f28fe7ce796",
+        "a142adc309d4c392ae78f34437eb0568b23b4e69d0a576db335bab659b572b10",
         "reviewed runtime-disposition boundary hash drift"
     );
 }
@@ -1272,7 +1272,7 @@ fn pinned_runtime_signal_keys_and_dispositions_are_exact() {
     );
     assert_eq!(
         hash_rows(semantic),
-        "49a6419cd0ddaca17dfd856d54c1eb2ec4120a176b583641d572e4dd99aac051"
+        "1059126baece82a1200222e92f3ad4166191f629b5f9979b39c907a9f35f1414"
     );
     assert_eq!(source_tags.len(), 208, "signaled source-tag count");
     assert_eq!(
@@ -3983,6 +3983,131 @@ fn chat_member_invites_remain_deferred_without_invocation_partition() {
 }
 
 #[test]
+fn pinned_chat_event_log_contract_is_exact() {
+    let pinned = include_str!("../../../../vendor/tdlib/td_api.tl");
+    let schema = Schema::parse(pinned).expect("pinned schema");
+    let method = find_method(&schema, "getChatEventLog");
+    assert_eq!(
+        method.canonical_signature(),
+        "getChatEventLog chat_id:int53 query:string from_event_id:int64 limit:int32 filters:chatEventLogFilters user_ids:vector<int53> = ChatEvents;"
+    );
+    assert_eq!(
+        normalized_text(&super::method_description(method)),
+        "returns a list of service actions taken by chat members and administrators in the last 48 hours. available only for supergroups and channels. requires administrator rights. returns results in reverse chronological order (i.e., in order of decreasing event_id)"
+    );
+
+    let target = ChatTargetRef::try_from("chat_id").expect("chat target");
+    let expected = RequirementAlternatives::try_new(
+        [ResolvedChatKind::Supergroup, ResolvedChatKind::Channel]
+            .into_iter()
+            .map(|kind| {
+                vec![
+                    RuntimeRequirement::ChatKind(
+                        ChatKindCondition::try_new(target.clone(), kind)
+                            .expect("event-log chat kind"),
+                    ),
+                    RuntimeRequirement::ChatAdministrator {
+                        target: target.clone(),
+                    },
+                ]
+            })
+            .collect(),
+    )
+    .expect("event-log alternatives");
+    assert_eq!(
+        documented_runtime_requirements(method)
+            .expect("reviewed event-log documentation")
+            .expect("event-log contract"),
+        expected
+    );
+
+    let descriptor = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        expected.clone(),
+        Vec::new(),
+    )
+    .expect("event-log descriptor");
+    validate_documented_method_constraints(method, &descriptor).expect("regular-user contract");
+    validate_documented_runtime_requirements(method, &descriptor).expect("runtime contract");
+
+    let dispositions = documented_runtime_signal_dispositions(method).expect("event-log signals");
+    assert_eq!(
+        dispositions,
+        vec![(
+            RuntimeSignalKey {
+                source: RuntimeSignalSource::Description,
+                family: RuntimeSignalFamily::RequiresAdministrator,
+            },
+            RuntimeSignalDisposition::ConsumedByRuntimeRequirements,
+        )]
+    );
+
+    let bot_enabled = CapabilityDescriptor::try_new(
+        SynchronousCapability::Never,
+        vec![AccountKind::RegularUser, AccountKind::Bot],
+        vec![AuthorizationState::Ready],
+        Vec::new(),
+        ApplicationRequirement::Any,
+        vec![DcEnvironment::Production, DcEnvironment::Test],
+        expected,
+        Vec::new(),
+    )
+    .expect("structurally valid bot-enabled event-log descriptor");
+    assert_eq!(
+        validate_documented_method_constraints(method, &bot_enabled)
+            .expect_err("event log must remain regular-user-only")
+            .kind(),
+        CapabilityGenerationErrorKind::InvalidPolicy
+    );
+
+    let source_drift = pinned.replacen(
+        "Available only for supergroups and channels. Requires administrator rights.",
+        "Available only for supergroups and channels. Requires exact administrator rights.",
+        1,
+    );
+    let source_drift = Schema::parse(&source_drift).expect("valid event-log source drift schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&source_drift, "getChatEventLog"))
+            .expect_err("event-log source drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let signature_drift = pinned.replacen(
+        "getChatEventLog chat_id:int53 query:string from_event_id:int64 limit:int32 filters:chatEventLogFilters user_ids:vector<int53> = ChatEvents;",
+        "getChatEventLog chat_id:int32 query:string from_event_id:int64 limit:int32 filters:chatEventLogFilters user_ids:vector<int53> = ChatEvents;",
+        1,
+    );
+    let signature_drift =
+        Schema::parse(&signature_drift).expect("valid event-log signature drift schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&signature_drift, "getChatEventLog"))
+            .expect_err("event-log signature drift must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+
+    let additional_signal = pinned.replacen(
+        "@query Search query by which to filter events",
+        "@query Search query; requires administrator rights",
+        1,
+    );
+    let additional_signal =
+        Schema::parse(&additional_signal).expect("valid additional event-log signal schema");
+    assert_eq!(
+        documented_runtime_requirements(find_method(&additional_signal, "getChatEventLog"))
+            .expect_err("unconsumed event-log argument signal must fail closed")
+            .kind(),
+        CapabilityGenerationErrorKind::SchemaDrift
+    );
+}
+
+#[test]
 fn pinned_chat_setting_right_contracts_are_exact() {
     #[derive(Clone, Copy)]
     enum ExpectedRight {
@@ -5114,6 +5239,7 @@ fn recognizers_reject_unclassified_constraints_from_the_real_pinned_wording() {
         "banGroupCallParticipants",
         "setNewChatPrivacySettings",
         "toggleSupergroupJoinToSendMessages",
+        "getChatEventLog",
     ] {
         let error =
             validate_documented_runtime_requirements(find_method(&schema, method), &unrestricted)

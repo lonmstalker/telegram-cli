@@ -42,10 +42,11 @@
 - [TDLib chat setting right capabilities](../raw/2026-07-15-tdlib-chat-setting-right-capabilities.md) — three exact contracts, account-conditioned title/photo deferred и 124-method open set.
 - [TDLib addChatMember overclaim correction](../raw/2026-07-15-tdlib-add-chat-member-overclaim-correction.md) — hidden regular-user/direct-messages-group gates возвращают incomplete contract в deferred и 125-method open set.
 - [TDLib supergroup subtype capability semantics](../raw/2026-07-15-tdlib-supergroup-flag-capabilities.md) — closed Boolean flags закрывают ordinary-setting contract, сохраняя оба self/cardinality-dependent invite flows deferred; open set 124.
+- [TDLib chat event log capability semantics](../raw/2026-07-15-tdlib-chat-event-log-capability.md) — exact regular-user, supergroup/channel и administrator contract; open set 123.
 
 ## Current records
 
-- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option/username-owner/invite-link/chat-setting/supergroup-subtype semantics, planning-taxonomy correction и macOS native pin закрыты через `W-20260715-027`; 124 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
+- Implementation: [P0 in progress](project-state.md) — workspace, exact schema, strict parser/inventory, capability foundation/ChatKind/per-signal/MessageProperties/GroupCall/SupergroupFullInfo/runtime-option/username-owner/invite-link/chat-setting/supergroup-subtype/chat-event-log semantics, planning-taxonomy correction и macOS native pin закрыты через `W-20260715-028`; 123 typed dispositions, 1010-method capability corpus, risk/retry, full registry и runtime ещё не реализованы.
 - Native pin: [reviewed rebuild correction](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — exact source/schema и crash-safe macOS arm64 artifact закреплены; Linux/reproducibility остаются open.
 - Decision: [D-20260715-001](../decisions/archive/2026-07-15--2026-07-15-001.md) — раздельная memory model, rotation и secret boundary.
 - Decision: [D-20260715-002](../decisions/archive/2026-07-15--2026-07-15-002.md) — публичный GitHub remote принят как canonical `origin`.
@@ -70,9 +71,10 @@
 - Decision: [D-20260715-021](../decisions/decisions.md) — chat settings закрываются только complete kind/right/account contracts; account-conditioned title/photo остаются deferred.
 - Decision: [D-20260715-022](../decisions/decisions.md) — membership contract остаётся deferred, если pinned handler добавляет account или supergroup-subtype gate, отсутствующий в static DNF.
 - Decision: [D-20260715-023](../decisions/decisions.md) — supergroup subtype выражается closed schema-bound Boolean fact; static prerequisite требует отдельной generation-bound runtime freshness.
+- Decision: [D-20260715-024](../decisions/decisions.md) — chat event log требует explicit regular-user, supergroup/channel и current administrator evidence.
 - Open problem: [P-20260715-001](../problems/problems.md) — database key ещё не подключён к штатному gateway.
 - Open problem: [P-20260715-003](../problems/problems.md) — Linux x86_64 native artifact ещё не закреплён.
-- Open problem: [P-20260715-005](../problems/problems.md) — 124 pinned runtime-signal methods ещё не имеют typed disposition.
+- Open problem: [P-20260715-005](../problems/problems.md) — 123 pinned runtime-signal methods ещё не имеют typed disposition.
 
 ## Operating rules
 

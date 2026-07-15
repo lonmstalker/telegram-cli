@@ -2,14 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] open update | P-20260715-005 | SupergroupFullInfo family уменьшила open set до 138 methods
-
-- Evidence: [SupergroupFullInfo capability digest](../raw/2026-07-15-tdlib-supergroup-full-info-capabilities.md); schema-derived family exhaustive разделена на 5 complete и 7 mixed methods, 12 keys consumed, 2 cross-token false positives terminally non-gate, 18 keys сохранены deferred.
-- Transition: exact property/target DNF terminally disposition five methods. Supported typed set теперь 52, terminal complete set 55, open-set SHA-256 `a2028d7acb1055b4c5fc5a0fda69cf4a8c09200feea2fd3d386596e24fc9aa67`.
-- Status: open; zero-open gate не достигнут, 138 methods по-прежнему дают `SchemaDrift` и не считаются capability coverage.
-- Next check: отдельными reviewed tasks закрывать option/admin/object-field source families; runtime evaluator отдельно обязан fail closed на stale/unknown full-info evidence.
-- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/decisions.md), [D-20260715-015](../decisions/decisions.md).
-
 ## [2026-07-15] open update | P-20260715-005 | Runtime boolean option family уменьшила open set до 137 methods
 
 - Evidence: [runtime boolean option digest](../raw/2026-07-15-tdlib-runtime-boolean-options.md); exact family разделена на one complete method-level gate и two mixed deferred methods. Один key consumed, семь mixed keys сохранены deferred.
@@ -143,3 +135,11 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Next check: продолжать reviewed source-family tasks; runtime subtype evidence обязано быть current-session, target/account/DC-bound и fail closed на gap/staleness.
 - Archive link map после ротации: [D-20260715-012](../decisions/archive/2026-07-15--2026-07-15-011.md).
 - Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/archive/2026-07-15--2026-07-15-011.md), [D-20260715-023](../decisions/decisions.md).
+
+## [2026-07-15] open update | P-20260715-005 | Chat event log contract уменьшил open set до 123 methods
+
+- Evidence: [chat event log capability digest](../raw/2026-07-15-tdlib-chat-event-log-capability.md); exact supported set 67, terminal set 70, open-set SHA-256 `a142adc309d4c392ae78f34437eb0568b23b4e69d0a576db335bab659b572b10`.
+- Transition: `getChatEventLog` получил exact regular-user, supergroup/channel и administrator contract; capability format остался `8`.
+- Status: open; zero-open gate не достигнут, 123 methods дают `SchemaDrift` и не считаются capability coverage.
+- Next check: продолжать exact source-family tasks; runtime role evidence обязано быть current-session, target/account-bound и fail closed на gap/staleness.
+- Related decisions: [D-20260715-010](../decisions/decisions.md), [D-20260715-012](../decisions/archive/2026-07-15--2026-07-15-011.md), [D-20260715-024](../decisions/decisions.md).

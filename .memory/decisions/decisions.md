@@ -84,3 +84,13 @@ Active append-only decision records. Изменение решения офор�
 - Consequences: capability format становится `8`; supported set 65 → 66, terminal set 68 → 69, open set 125 → 124. Runtime evaluator/freshness и zero-open full corpus остаются отдельными gates.
 - Archive link map после ротации: [D-20260715-007](archive/2026-07-15--2026-07-15-006.md), [D-20260715-009](archive/2026-07-15--2026-07-15-008.md), [D-20260715-012](archive/2026-07-15--2026-07-15-011.md), [D-20260715-015](archive/2026-07-15--2026-07-15-016.md) и [D-20260715-016](archive/2026-07-15--2026-07-15-018.md).
 - Supersedes: none; сохраняет singular fail-closed correction [D-20260715-022](decisions.md) и extends [D-20260715-009](archive/2026-07-15--2026-07-15-008.md), [D-20260715-010](decisions.md), [D-20260715-012](archive/2026-07-15--2026-07-15-011.md), [D-20260715-020](decisions.md) и [D-20260715-021](decisions.md).
+
+## [2026-07-15] accepted | D-20260715-024 | Chat event log требует explicit account, kind и administrator evidence
+
+- Context: public schema даёт kind/admin signals, но account boundary и exact handler semantics нужно подтвердить pinned C++ path, а не выводить из общей lexical family.
+- Decision: `getChatEventLog` regular-user-only и имеет ровно две static DNF alternatives: `supergroup AND ChatAdministrator` и `channel AND ChatAdministrator`. Contract pin-ит full signature и exact normalized method source; argument-level additions не поглощаются молча.
+- Runtime rule: administrator status — prerequisite, не current proof. Будущий singleton daemon должен давать account/target/session-bound evidence и invalidates его при role, membership, kind, generation и update-gap changes; missing/stale evidence fail closed.
+- Evidence: [chat event log capability digest](../raw/2026-07-15-tdlib-chat-event-log-capability.md), pinned schema/Requests/DialogEventLog, red/green exact tests, oracle transitions и independent code-review `APPROVED`.
+- Alternatives: допустить bots, свести kinds к broad group, положиться только на description или добавить generic event-log DSL отклонены как неточные либо лишние.
+- Consequences: supported typed set 66 → 67, terminal set 69 → 70, open set 124 → 123; capability format остаётся `8`. Runtime evaluator/freshness и zero-open full corpus остаются separate gates.
+- Supersedes: none; extends [D-20260715-009](archive/2026-07-15--2026-07-15-008.md), [D-20260715-010](decisions.md) и [D-20260715-012](archive/2026-07-15--2026-07-15-011.md).

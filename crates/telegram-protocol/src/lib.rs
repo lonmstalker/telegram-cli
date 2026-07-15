@@ -280,6 +280,7 @@ pub enum ClientErrorCode {
     TransportFailed,
     InvalidResponse,
     OutputFailed,
+    Cancelled,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

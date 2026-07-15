@@ -8,10 +8,13 @@ use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::str::FromStr;
-use std::time::Duration;
+use std::sync::atomic::{AtomicI32, Ordering};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use telegram_protocol::{
-    ClientErrorCode, DaemonRequest, DaemonResponse, LeaseId, MachineEnvelope, RiskScope,
+    ClientErrorCode, DaemonRequest, DaemonResponse, LeaseErrorCode, LeaseId, MachineEnvelope,
+    RiskScope,
 };
 
 const DEFAULT_TTL_MS: u64 = 60_000;
@@ -20,6 +23,9 @@ const EXIT_INPUT: u8 = 2;
 const EXIT_UNAVAILABLE: u8 = 3;
 const EXIT_REJECTED: u8 = 4;
 const EXIT_PROTOCOL: u8 = 5;
+const EXIT_CANCELLED: u8 = 6;
+const WATCH_POLL_INTERVAL: Duration = Duration::from_millis(200);
+static RECEIVED_SIGNAL: AtomicI32 = AtomicI32::new(0);
 
 fn main() -> ExitCode {
     execute(env::args().skip(1).collect())
@@ -43,23 +49,38 @@ fn execute(arguments: Vec<String>) -> ExitCode {
         Ok(invocation) => invocation,
         Err(error) => return finish_error(default_output, error),
     };
-    match run(arguments) {
-        Ok(response) => {
-            let exit = response_exit(&response);
-            if write_response(format, &response).is_err() {
-                return ExitCode::from(EXIT_PROTOCOL);
-            }
-            exit
-        }
+    match run(arguments, format) {
+        Ok(exit) => exit,
         Err(error) => finish_error(format, error),
     }
 }
 
-fn run(arguments: Vec<String>) -> Result<DaemonResponse, CliError> {
+fn run(arguments: Vec<String>, format: OutputFormat) -> Result<ExitCode, CliError> {
     let profile = env::var("TELEGRAM_PROFILE").unwrap_or_else(|_| "default".to_owned());
     let principal = env::var("TELEGRAM_PRINCIPAL").unwrap_or_else(|_| "telegram-cli".to_owned());
     let request = command(&arguments, principal)?;
-    exchange(&profile, &request)
+    if format != OutputFormat::Json {
+        if let DaemonRequest::EventsWatch {
+            lease_id,
+            principal,
+            after,
+        } = request
+        {
+            install_signal_handlers()?;
+            return stream_events(
+                &profile,
+                lease_id,
+                principal,
+                after,
+                |response| write_response(format, response),
+                || RECEIVED_SIGNAL.load(Ordering::Relaxed) != 0,
+            );
+        }
+    }
+    let response = exchange(&profile, &request)?;
+    let exit = response_exit(&response);
+    write_response(format, &response).map_err(|_| CliError::new(ClientErrorCode::OutputFailed))?;
+    Ok(exit)
 }
 
 fn command(arguments: &[String], principal: String) -> Result<DaemonRequest, CliError> {
@@ -179,6 +200,169 @@ fn exchange(profile: &str, request: &DaemonRequest) -> Result<DaemonResponse, Cl
     serde_json::from_str(&response).map_err(|_| CliError::new(ClientErrorCode::InvalidResponse))
 }
 
+extern "C" fn receive_signal(signal: libc::c_int) {
+    RECEIVED_SIGNAL.store(signal, Ordering::Relaxed);
+}
+
+fn install_signal_handlers() -> Result<(), CliError> {
+    RECEIVED_SIGNAL.store(0, Ordering::Relaxed);
+    for signal in [libc::SIGINT, libc::SIGTERM] {
+        // SAFETY: `receive_signal` has the required C ABI and performs only an atomic store.
+        let previous =
+            unsafe { libc::signal(signal, receive_signal as *const () as libc::sighandler_t) };
+        if previous == libc::SIG_ERR {
+            return Err(CliError::new(ClientErrorCode::TransportFailed));
+        }
+    }
+    Ok(())
+}
+
+fn stream_events(
+    profile: &str,
+    lease_id: LeaseId,
+    principal: String,
+    mut cursor: Option<u64>,
+    mut emit: impl FnMut(&DaemonResponse) -> io::Result<()>,
+    cancelled: impl Fn() -> bool,
+) -> Result<ExitCode, CliError> {
+    let mut heartbeat_at = match renew_watch(profile, &lease_id, &principal) {
+        Ok(delay) => Instant::now()
+            .checked_add(delay)
+            .unwrap_or_else(Instant::now),
+        Err(WatchError::Client(error)) => {
+            let _ = release_watch(profile, &lease_id, &principal);
+            return Err(error);
+        }
+        Err(WatchError::Rejected(response)) => {
+            let exit = response_exit(&response);
+            let emitted = emit(&response);
+            release_watch(profile, &lease_id, &principal)?;
+            if emitted.is_err() {
+                return Ok(ExitCode::from(EXIT_CANCELLED));
+            }
+            return Ok(exit);
+        }
+    };
+    let mut first = true;
+
+    loop {
+        if cancelled() {
+            release_watch(profile, &lease_id, &principal)?;
+            return Err(CliError::new(ClientErrorCode::Cancelled));
+        }
+
+        let now = Instant::now();
+        if now >= heartbeat_at {
+            match renew_watch(profile, &lease_id, &principal) {
+                Ok(delay) => {
+                    heartbeat_at = now.checked_add(delay).unwrap_or(now);
+                }
+                Err(WatchError::Client(error)) => {
+                    let _ = release_watch(profile, &lease_id, &principal);
+                    return Err(error);
+                }
+                Err(WatchError::Rejected(response)) => {
+                    let exit = response_exit(&response);
+                    let emitted = emit(&response);
+                    release_watch(profile, &lease_id, &principal)?;
+                    if emitted.is_err() {
+                        return Ok(ExitCode::from(EXIT_CANCELLED));
+                    }
+                    return Ok(exit);
+                }
+            }
+        }
+
+        let response = match exchange(
+            profile,
+            &DaemonRequest::EventsWatch {
+                lease_id: lease_id.clone(),
+                principal: principal.clone(),
+                after: cursor,
+            },
+        ) {
+            Ok(response) => response,
+            Err(error) => {
+                let _ = release_watch(profile, &lease_id, &principal);
+                return Err(error);
+            }
+        };
+        match &response {
+            DaemonResponse::Events {
+                events,
+                next_cursor,
+                gap,
+            } => {
+                cursor = Some(*next_cursor);
+                if (first || !events.is_empty() || *gap) && emit(&response).is_err() {
+                    release_watch(profile, &lease_id, &principal)?;
+                    return Ok(ExitCode::from(EXIT_CANCELLED));
+                }
+            }
+            DaemonResponse::CommandError { .. } | DaemonResponse::Error { .. } => {
+                let exit = response_exit(&response);
+                let emitted = emit(&response);
+                release_watch(profile, &lease_id, &principal)?;
+                if emitted.is_err() {
+                    return Ok(ExitCode::from(EXIT_CANCELLED));
+                }
+                return Ok(exit);
+            }
+            _ => {
+                release_watch(profile, &lease_id, &principal)?;
+                return Err(CliError::new(ClientErrorCode::InvalidResponse));
+            }
+        }
+        first = false;
+
+        let until_heartbeat = heartbeat_at.saturating_duration_since(Instant::now());
+        thread::sleep(WATCH_POLL_INTERVAL.min(until_heartbeat));
+    }
+}
+
+enum WatchError {
+    Client(CliError),
+    Rejected(DaemonResponse),
+}
+
+fn renew_watch(profile: &str, lease_id: &LeaseId, principal: &str) -> Result<Duration, WatchError> {
+    let response = exchange(
+        profile,
+        &DaemonRequest::LeaseHeartbeat {
+            lease_id: lease_id.clone(),
+            principal: principal.to_owned(),
+        },
+    )
+    .map_err(WatchError::Client)?;
+    match response {
+        DaemonResponse::LeaseRenewed { lease } => {
+            Ok(Duration::from_millis((lease.ttl_ms / 3).max(1)))
+        }
+        response @ (DaemonResponse::CommandError { .. } | DaemonResponse::Error { .. }) => {
+            Err(WatchError::Rejected(response))
+        }
+        _ => Err(WatchError::Client(CliError::new(
+            ClientErrorCode::InvalidResponse,
+        ))),
+    }
+}
+
+fn release_watch(profile: &str, lease_id: &LeaseId, principal: &str) -> Result<(), CliError> {
+    match exchange(
+        profile,
+        &DaemonRequest::LeaseRelease {
+            lease_id: lease_id.clone(),
+            principal: principal.to_owned(),
+        },
+    )? {
+        DaemonResponse::LeaseReleased { .. }
+        | DaemonResponse::Error {
+            code: LeaseErrorCode::LeaseNotFound | LeaseErrorCode::LeaseExpired,
+        } => Ok(()),
+        _ => Err(CliError::new(ClientErrorCode::InvalidResponse)),
+    }
+}
+
 fn socket_path(profile: &str) -> Result<PathBuf, CliError> {
     if profile.is_empty()
         || profile.len() > 48
@@ -276,6 +460,7 @@ impl CliError {
             | ClientErrorCode::UnsafeSocket
             | ClientErrorCode::TransportFailed => EXIT_UNAVAILABLE,
             ClientErrorCode::InvalidResponse | ClientErrorCode::OutputFailed => EXIT_PROTOCOL,
+            ClientErrorCode::Cancelled => EXIT_CANCELLED,
         }
     }
 
@@ -290,6 +475,7 @@ impl CliError {
             ClientErrorCode::TransportFailed => "обмен с daemon не выполнен",
             ClientErrorCode::InvalidResponse => "daemon вернул неверный protocol response",
             ClientErrorCode::OutputFailed => "не удалось записать output",
+            ClientErrorCode::Cancelled => "операция отменена",
         }
     }
 }
@@ -440,7 +626,7 @@ mod tests {
     use std::thread;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use telegram_protocol::MachineStatus;
+    use telegram_protocol::{LeaseView, MachineStatus};
 
     use super::*;
 
@@ -654,5 +840,94 @@ mod tests {
         );
         server.join().unwrap();
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn watch_releases_lease_on_cancellation_or_pipe_close() {
+        for cancelled in [true, false] {
+            let nonce = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let profile = format!("watch-{}-{nonce:x}", std::process::id());
+            let path = socket_path(&profile).unwrap();
+            let directory = path.parent().unwrap();
+            match DirBuilder::new().mode(0o700).create(directory) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                Err(error) => panic!("can't create test socket directory: {error}"),
+            }
+            let listener = UnixListener::bind(&path).unwrap();
+            fs::set_permissions(&path, Permissions::from_mode(0o600)).unwrap();
+            let lease_id = LeaseId::new(format!("lease-{nonce:x}"));
+            let server_lease = lease_id.clone();
+            let server = thread::spawn(move || {
+                let respond = |expected: DaemonRequest, response: DaemonResponse| {
+                    let (mut stream, _) = listener.accept().unwrap();
+                    let mut request = String::new();
+                    BufReader::new(&mut stream).read_line(&mut request).unwrap();
+                    assert_eq!(
+                        serde_json::from_str::<DaemonRequest>(&request).unwrap(),
+                        expected
+                    );
+                    serde_json::to_writer(&mut stream, &response).unwrap();
+                    stream.write_all(b"\n").unwrap();
+                };
+                respond(
+                    DaemonRequest::LeaseHeartbeat {
+                        lease_id: server_lease.clone(),
+                        principal: "cli".to_owned(),
+                    },
+                    DaemonResponse::LeaseRenewed {
+                        lease: LeaseView {
+                            lease_id: server_lease.clone(),
+                            principal: "cli".to_owned(),
+                            scopes: vec![RiskScope::Read],
+                            ttl_ms: 60_000,
+                            expires_in_ms: 60_000,
+                        },
+                    },
+                );
+                if !cancelled {
+                    respond(
+                        DaemonRequest::EventsWatch {
+                            lease_id: server_lease.clone(),
+                            principal: "cli".to_owned(),
+                            after: None,
+                        },
+                        DaemonResponse::Events {
+                            events: Vec::new(),
+                            next_cursor: 7,
+                            gap: false,
+                        },
+                    );
+                }
+                respond(
+                    DaemonRequest::LeaseRelease {
+                        lease_id: server_lease.clone(),
+                        principal: "cli".to_owned(),
+                    },
+                    DaemonResponse::LeaseReleased {
+                        lease_id: server_lease,
+                    },
+                );
+            });
+
+            let result = stream_events(
+                &profile,
+                lease_id,
+                "cli".to_owned(),
+                None,
+                |_| Err(io::Error::from(io::ErrorKind::BrokenPipe)),
+                || cancelled,
+            );
+            if cancelled {
+                assert_eq!(result.unwrap_err().code, ClientErrorCode::Cancelled);
+            } else {
+                assert_eq!(result.unwrap(), ExitCode::from(EXIT_CANCELLED));
+            }
+            server.join().unwrap();
+            fs::remove_file(path).unwrap();
+        }
     }
 }

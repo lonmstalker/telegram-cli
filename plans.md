@@ -234,7 +234,7 @@ flowchart LR
 - [x] CLI routes для всех реализованных core workflows.
 - [x] CLI login и events/watch routes поверх authorization/update broker.
 - [x] Human output и стабильный compact JSON/JSONL; versioned error/exit-code contract.
-- [ ] Streaming, cancellation, signal-safe lease release.
+- [x] Streaming, cancellation, signal-safe lease release.
 - [ ] Secure TTY для OTP/2FA; secrets никогда не flags.
 - [ ] Agent skill: acquire -> discover -> workflow/call -> follow next_action -> release; ≤1500 tokens, без каталога API.
 

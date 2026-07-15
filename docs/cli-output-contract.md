@@ -8,8 +8,8 @@ telegram-cli [--output human|json|jsonl] <command...>
 
 Default — `human`; его формулировки не являются API. `TELEGRAM_OUTPUT` задаёт тот же
 default без дублирующих flags. `json` и `jsonl` для one-shot command выводят одну и ту же
-compact newline-terminated запись. Streaming slice продолжит `jsonl` несколькими records,
-не меняя envelope.
+compact newline-terminated запись. `events watch` продолжает JSONL несколькими records,
+не меняя envelope; explicit JSON делает один snapshot.
 
 Machine envelope version 1:
 
@@ -40,6 +40,7 @@ Stable exit codes:
 | 3 | Socket unavailable/unsafe или transport failure |
 | 4 | Structured daemon rejection |
 | 5 | Invalid daemon response или output failure |
+| 6 | Stream cancelled после lease cleanup; при closed pipe повторный output не пишется |
 
 Human errors идут в stderr, human success — в stdout. Machine envelope всегда идёт в
 stdout, включая structured errors; stderr не нужен для machine decisions.

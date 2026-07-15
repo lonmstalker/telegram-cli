@@ -23,5 +23,5 @@ records; cursor вне доступного окна явно выставляе
 Daemon хранит до 1024 metadata records. Raw update payload, message content, Web App data
 и authorization values в event protocol не входят. Если workflow применил updates внутри
 своей terminal chain, broker не реконструирует их задним числом, а публикует честный
-`gap` marker. Непрерывный JSONL stream, cancellation и signal-safe release принадлежат
-следующему Tasks-пункту P6; текущая команда является one-shot cursor route.
+`gap` marker. CLI human/JSONL watch теперь повторяет этот one-shot cursor route с heartbeat,
+cancellation и signal-safe release; explicit JSON сохраняет one-shot semantics.

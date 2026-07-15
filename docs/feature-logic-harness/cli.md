@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: CLI-first rule; limits: none.
 - SRC002: HARNESS.md; type: file; supports: full API/parity; limits: none.
-- SRC003: plans.md P6; type: file; supports: commands/acceptance; limits: stream/secure input pending.
+- SRC003: plans.md P6; type: file; supports: commands/acceptance; limits: secure input pending.
 
 ## TDLib API Coverage
 
@@ -66,8 +66,9 @@ Session, schema и raw call используют private daemon JSONL protocol. 
 lease-derived policy; CLI не зависит от core и не открывает DB. Hold пока выдаёт bounded
 lease без heartbeat loop. Login status использует typed authorization step без challenge
 values; one-shot events route переносит только sequence/kind/cursor/gap metadata. Human default
-и versioned compact JSON/JSONL с closed error/exit codes реализованы. Streaming, secure input
-и signal cleanup принадлежат следующим P6 slices.
+и versioned compact JSON/JSONL с closed error/exit codes реализованы. Human/JSONL watch
+поддерживает cursor streaming, heartbeat и release после signal/pipe cancellation. Secure
+input принадлежит следующему P6 slice.
 
 ## Scope
 
@@ -109,7 +110,7 @@ values; one-shot events route переносит только sequence/kind/curs
 ## State Model
 
 - Detached -> Attached -> Running/Streaming -> Released.
-- Interrupted stream releases lease unless explicit hold remains.
+- Interrupted human/JSONL watch releases его lease; explicit JSON snapshot оставляет hold caller-у.
 
 ## Operations and Data Model
 
@@ -158,8 +159,8 @@ values; one-shot events route переносит только sequence/kind/curs
 
 ## Coverage Notes
 
-- Kernel coverage: session, login status, full generated schema/raw-call, all implemented core workflow routes, cursor event metadata и versioned human/machine output implemented; remaining stream/cancellation/secure input modeled.
+- Kernel coverage: session, login status, full generated schema/raw-call, all implemented core workflow routes, cursor event stream/cancellation и versioned human/machine output implemented; remaining secure input modeled.
 - Modeled: full raw/workflow reachability contract.
-- Partial: session/login/schema/raw-call/workflow/events grammar и machine output golden implemented; streaming absent.
+- Partial: session/login/schema/raw-call/workflow/events streaming, cleanup и machine output golden implemented; secure login input absent.
 - Unknown: none blocking product intent.
 - Not applicable: TDLib domain semantics owned elsewhere.

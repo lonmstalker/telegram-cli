@@ -50,7 +50,7 @@
 
 ## Current records
 
-- Implementation: P0–P5 accepted; CLI routes и output contract закрыты, следующий — streaming/cancellation; см. [project-state.md](project-state.md).
+- Implementation: P0–P5 accepted; CLI routes/output/stream cleanup закрыты, следующий — secure TTY; см. [project-state.md](project-state.md).
 - Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -89,6 +89,7 @@
 - CLI workflow routes: [D-20260715-068](../decisions/decisions.md), [W-20260715-073](../logs/work.md), [`docs/cli-workflows.md`](../../docs/cli-workflows.md).
 - CLI login/events routes: [D-20260715-069](../decisions/decisions.md), [W-20260715-074](../logs/work.md), [`docs/cli-login-events.md`](../../docs/cli-login-events.md).
 - CLI output/exit contract: [D-20260715-070](../decisions/decisions.md), [W-20260715-075](../logs/work.md), [`docs/cli-output-contract.md`](../../docs/cli-output-contract.md).
+- CLI streaming/cancellation: [D-20260715-071](../decisions/decisions.md), [W-20260715-076](../logs/work.md), [`docs/cli-streaming.md`](../../docs/cli-streaming.md).
 
 ## Operating rules
 

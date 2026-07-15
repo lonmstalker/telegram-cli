@@ -3782,7 +3782,7 @@ pub static CAPABILITIES: &[CapabilityDescriptor] = &[
     CapabilityDescriptor { method: "leaveGroupCall", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "listenToAudio", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "loadActiveStories", disposition: CapabilityDisposition::DefaultDeny },
-    CapabilityDescriptor { method: "loadChats", disposition: CapabilityDisposition::DefaultDeny },
+    CapabilityDescriptor { method: "loadChats", disposition: CapabilityDisposition::Reviewed { risk: RiskClass::Read, accounts: &[AccountKind::RegularUser,], runtime_requirements: "AuthorizationState { state: Ready }", retry: RetryClass::SafeRead } },
     CapabilityDescriptor { method: "loadDirectMessagesChatTopics", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "loadGroupCallParticipants", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "loadQuickReplyShortcutMessages", disposition: CapabilityDisposition::DefaultDeny },

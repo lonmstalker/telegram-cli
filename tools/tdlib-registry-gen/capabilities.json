@@ -408,6 +408,15 @@
       "retry": "reconcile"
     },
     {
+      "method": "loadChats",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "safe_read"
+    },
+    {
       "method": "markChecklistTasksAsDone",
       "risk": "reversible_mutation",
       "accounts": [

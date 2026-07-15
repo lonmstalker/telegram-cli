@@ -6,8 +6,9 @@ use std::fmt;
 use std::time::Instant;
 
 use crate::registry::{
-    self, AccountKind, CapabilityDescriptor, CapabilityDisposition, RiskClass, SymbolDescriptor,
-    TdObject, ValidatedRequest, ValidationError, BUILTINS, CAPABILITIES, CONSTRUCTORS, TYPES,
+    self, AccountKind, BUILTINS, CAPABILITIES, CONSTRUCTORS, CapabilityDescriptor,
+    CapabilityDisposition, RiskClass, SymbolDescriptor, TYPES, TdObject, ValidatedRequest,
+    ValidationError,
 };
 use crate::runtime::CoreRuntime;
 use crate::transport::TransportError;
@@ -110,12 +111,25 @@ pub fn td_call(
     request: Value,
     deadline: Instant,
 ) -> Result<TdObject, RawApiError> {
+    td_call_with_boundary(runtime, policy, request, deadline).map(|(response, _)| response)
+}
+
+pub(crate) fn td_call_with_boundary(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    request: Value,
+    deadline: Instant,
+) -> Result<(TdObject, u64), RawApiError> {
     let request = ValidatedRequest::from_value(request).map_err(RawApiError::Validation)?;
     let method = request.descriptor();
     policy.authorize(method.name).map_err(RawApiError::Policy)?;
-    let response = runtime
+    let pending = runtime
         .transport()
-        .call_until(request.into_value(), deadline)
+        .request(request.into_value())
+        .map_err(RawApiError::Transport)?;
+    let boundary = pending.correlation_id();
+    let response = pending
+        .wait_until(deadline)
         .map_err(RawApiError::Transport)?;
     let response = TdObject::from_value(response).map_err(RawApiError::Validation)?;
     if response.descriptor().is_some_and(|actual| {
@@ -129,7 +143,7 @@ pub fn td_call(
             expected: method.result.name,
         });
     }
-    Ok(response)
+    Ok((response, boundary))
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

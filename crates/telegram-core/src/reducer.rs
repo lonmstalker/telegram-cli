@@ -48,6 +48,32 @@ pub struct MessageSendKey {
     pub old_message_id: i64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChatList {
+    Main,
+    Archive,
+    Folder(i32),
+}
+
+impl ChatList {
+    pub(crate) fn tdjson(self) -> Value {
+        match self {
+            Self::Main => serde_json::json!({"@type":"chatListMain"}),
+            Self::Archive => serde_json::json!({"@type":"chatListArchive"}),
+            Self::Folder(chat_folder_id) => {
+                serde_json::json!({"@type":"chatListFolder","chat_folder_id":chat_folder_id})
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChatListPosition {
+    pub chat_id: i64,
+    pub order: i64,
+    pub is_pinned: bool,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum MessageSendState {
     Acknowledged,
@@ -102,6 +128,40 @@ impl StateReducer {
 
     pub fn chat_online_member_count(&self, chat_id: i64) -> Option<(UpdateSequence, i32)> {
         self.chat_online_member_counts.get(&chat_id).copied()
+    }
+
+    pub fn chat_list_positions(
+        &self,
+        list: ChatList,
+    ) -> Result<Vec<ChatListPosition>, ReducerError> {
+        let list = list.tdjson();
+        let mut positions = Vec::new();
+        for (&chat_id, chat) in &self.chats {
+            let chat = object_ref(&chat.value, "chat")?;
+            let values = required_value(chat, "positions")?
+                .as_array()
+                .ok_or(ReducerError::InvalidField("positions"))?;
+            for position in values
+                .iter()
+                .filter(|position| position.get("list") == Some(&list))
+            {
+                let position = object_ref(position, "position")?;
+                let order = integer(position, "order")?;
+                if order != 0 {
+                    positions.push(ChatListPosition {
+                        chat_id,
+                        order,
+                        is_pinned: required_value(position, "is_pinned")?
+                            .as_bool()
+                            .ok_or(ReducerError::InvalidField("is_pinned"))?,
+                    });
+                }
+            }
+        }
+        positions.sort_unstable_by(|left, right| {
+            (right.order, right.chat_id).cmp(&(left.order, left.chat_id))
+        });
+        Ok(positions)
     }
 
     pub fn basic_group(&self, group_id: i64) -> Option<&VersionedValue> {

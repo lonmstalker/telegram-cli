@@ -6,9 +6,10 @@ use std::time::Instant;
 
 use serde_json::{Value, json};
 
-use crate::raw_api::{RawApiError, RawPolicy, td_call};
+use crate::raw_api::{RawApiError, RawPolicy, td_call, td_call_with_boundary};
+use crate::reducer::{ChatList, ChatListPosition, ReducerError};
 use crate::registry::TdObject;
-use crate::runtime::CoreRuntime;
+use crate::runtime::{CoreRuntime, RuntimeError};
 
 pub enum ChatTarget<'value> {
     Id(i64),
@@ -55,6 +56,18 @@ pub struct MembershipResult {
     pub raw: TdObject,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ChatListTerminal {
+    AllChatsLoaded,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ChatListSnapshot {
+    pub positions: Vec<ChatListPosition>,
+    pub load_calls: usize,
+    pub terminal: ChatListTerminal,
+}
+
 pub fn resolve(
     runtime: &CoreRuntime,
     policy: &RawPolicy,
@@ -75,6 +88,64 @@ pub fn ensure_membership(
     ensure_membership_with(target, |request| {
         td_call(runtime, policy, request, deadline)
     })
+}
+
+pub fn load_chat_list(
+    runtime: &mut CoreRuntime,
+    policy: &RawPolicy,
+    list: ChatList,
+    limit: i32,
+    deadline: Instant,
+) -> Result<ChatListSnapshot, ChatWorkflowError> {
+    if limit <= 0 {
+        return Err(ChatWorkflowError::InvalidLimit);
+    }
+    let load_calls = load_until_terminal(list.tdjson(), limit, |request| {
+        let (response, boundary) = td_call_with_boundary(runtime, policy, request, deadline)
+            .map_err(ChatWorkflowError::Call)?;
+        runtime
+            .apply_through_boundary(boundary, deadline)
+            .map_err(ChatWorkflowError::Runtime)?;
+        Ok(response)
+    })?;
+    Ok(ChatListSnapshot {
+        positions: runtime
+            .state()
+            .chat_list_positions(list)
+            .map_err(ChatWorkflowError::Reducer)?,
+        load_calls,
+        terminal: ChatListTerminal::AllChatsLoaded,
+    })
+}
+
+fn load_until_terminal(
+    list: Value,
+    limit: i32,
+    mut call: impl FnMut(Value) -> Result<TdObject, ChatWorkflowError>,
+) -> Result<usize, ChatWorkflowError> {
+    let mut load_calls = 0;
+    loop {
+        let response = call(json!({"@type":"loadChats","chat_list":list,"limit":limit}))?;
+        load_calls += 1;
+        match response.as_value()["@type"].as_str() {
+            Some("ok") => {}
+            Some("error") => {
+                let code = required_i64(response.as_value(), "code", "loadChats")?;
+                if code == 404 {
+                    return Ok(load_calls);
+                }
+                return Err(ChatWorkflowError::Tdlib {
+                    method: "loadChats",
+                    code: Some(code),
+                });
+            }
+            _ => {
+                return Err(ChatWorkflowError::UnexpectedResult {
+                    method: "loadChats",
+                });
+            }
+        }
+    }
 }
 
 fn resolve_with(
@@ -171,6 +242,8 @@ fn optional_nonzero_i64(
 #[derive(Debug)]
 pub enum ChatWorkflowError {
     Call(RawApiError),
+    Runtime(RuntimeError),
+    Reducer(ReducerError),
     Tdlib {
         method: &'static str,
         code: Option<i64>,
@@ -179,18 +252,28 @@ pub enum ChatWorkflowError {
         method: &'static str,
         field: &'static str,
     },
+    UnexpectedResult {
+        method: &'static str,
+    },
+    InvalidLimit,
 }
 
 impl fmt::Display for ChatWorkflowError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Call(error) => write!(formatter, "chat workflow call failed: {error}"),
+            Self::Runtime(error) => write!(formatter, "chat workflow runtime failed: {error}"),
+            Self::Reducer(error) => write!(formatter, "chat list cache failed: {error}"),
             Self::Tdlib { method, code } => {
                 write!(formatter, "TDLib `{method}` failed with code {code:?}")
             }
             Self::InvalidResult { method, field } => {
                 write!(formatter, "TDLib `{method}` result has invalid `{field}`")
             }
+            Self::UnexpectedResult { method } => {
+                write!(formatter, "TDLib `{method}` returned an unexpected result")
+            }
+            Self::InvalidLimit => formatter.write_str("chat list load limit must be positive"),
         }
     }
 }
@@ -199,7 +282,12 @@ impl Error for ChatWorkflowError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Call(error) => Some(error),
-            Self::Tdlib { .. } | Self::InvalidResult { .. } => None,
+            Self::Runtime(error) => Some(error),
+            Self::Reducer(error) => Some(error),
+            Self::Tdlib { .. }
+            | Self::InvalidResult { .. }
+            | Self::UnexpectedResult { .. }
+            | Self::InvalidLimit => None,
         }
     }
 }

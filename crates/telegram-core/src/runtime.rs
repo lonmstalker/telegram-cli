@@ -4,7 +4,7 @@ use std::fmt;
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::time::Instant;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::reducer::{AppliedUpdate, ReducerError, StateReducer};
 use crate::transport::{TdJsonBackend, TdJsonEvent, TdJsonTransport, TransportError};
@@ -118,6 +118,36 @@ impl CoreRuntime {
         }
     }
 
+    pub(crate) fn apply_through_boundary(
+        &mut self,
+        boundary: u64,
+        deadline: Instant,
+    ) -> Result<usize, RuntimeError> {
+        let mut applied = 0;
+        loop {
+            match self.events.recv_timeout(remaining(deadline)?) {
+                Ok(TdJsonEvent::Update(update)) => {
+                    self.reducer.apply(&update).map_err(RuntimeError::Reducer)?;
+                    applied += 1;
+                }
+                Ok(TdJsonEvent::ResponseBoundary { correlation_id })
+                    if correlation_id == boundary =>
+                {
+                    return Ok(applied);
+                }
+                Ok(TdJsonEvent::ResponseBoundary { .. }) => {}
+                Ok(TdJsonEvent::UnmatchedResponse { .. }) => {
+                    return Err(RuntimeError::UnexpectedRuntimeEvent);
+                }
+                Ok(TdJsonEvent::Fatal(error)) => return Err(RuntimeError::Transport(error)),
+                Err(RecvTimeoutError::Timeout) => return Err(RuntimeError::DeadlineExceeded),
+                Err(RecvTimeoutError::Disconnected) => {
+                    return Err(RuntimeError::EventStreamClosed);
+                }
+            }
+        }
+    }
+
     pub fn shutdown(self) -> Result<(), RuntimeError> {
         self.transport.shutdown().map_err(RuntimeError::Transport)
     }
@@ -133,6 +163,7 @@ pub enum RuntimeError {
     },
     InvalidStartupResponse(&'static str),
     UnexpectedStartupEvent,
+    UnexpectedRuntimeEvent,
     DeadlineExceeded,
     EventStreamClosed,
     Transport(TransportError),
@@ -156,6 +187,9 @@ impl fmt::Display for RuntimeError {
             }
             Self::UnexpectedStartupEvent => {
                 formatter.write_str("unexpected unmatched response during TDLib startup")
+            }
+            Self::UnexpectedRuntimeEvent => {
+                formatter.write_str("unexpected unmatched response during TDLib workflow")
             }
             Self::DeadlineExceeded => formatter.write_str("TDLib runtime deadline exceeded"),
             Self::EventStreamClosed => formatter.write_str("TDLib event stream closed"),
@@ -303,6 +337,7 @@ mod tests {
         incoming: VecDeque<String>,
         sent_types: Vec<String>,
         version: String,
+        load_calls: usize,
     }
 
     struct StartupBackend(StartupState);
@@ -314,6 +349,7 @@ mod tests {
                     incoming: VecDeque::new(),
                     sent_types: Vec::new(),
                     version,
+                    load_calls: 0,
                 })),
             };
             (Self(state.clone()), state)
@@ -377,6 +413,48 @@ mod tests {
                     json!({"@type":"error","code":400,"message":"not available","@extra":extra})
                         .to_string(),
                 ),
+                "loadChats" => {
+                    inner.load_calls += 1;
+                    if inner.load_calls <= 2 {
+                        let chat_id = i64::try_from(inner.load_calls + 1).unwrap();
+                        let order = i64::try_from(inner.load_calls * 10).unwrap();
+                        let list = request["chat_list"].clone();
+                        inner.incoming.push_back(
+                            json!({
+                                "@type":"updateNewChat",
+                                "chat":{
+                                    "@type":"chat",
+                                    "id":chat_id,
+                                    "positions":[],
+                                    "chat_lists":[list.clone()]
+                                }
+                            })
+                            .to_string(),
+                        );
+                        inner.incoming.push_back(
+                            json!({
+                                "@type":"updateChatPosition",
+                                "chat_id":chat_id,
+                                "position":{
+                                    "@type":"chatPosition",
+                                    "list":list,
+                                    "order":order,
+                                    "is_pinned":false,
+                                    "source":null
+                                }
+                            })
+                            .to_string(),
+                        );
+                        inner
+                            .incoming
+                            .push_back(json!({"@type":"ok","@extra":extra}).to_string());
+                    } else {
+                        inner.incoming.push_back(
+                            json!({"@type":"error","code":404,"message":"Not Found","@extra":extra})
+                                .to_string(),
+                        );
+                    }
+                }
                 _ => unreachable!(),
             }
             Ok(())
@@ -464,5 +542,37 @@ mod tests {
             state.inner.lock().unwrap().sent_types,
             ["setLogStream", "getOption"]
         );
+    }
+
+    #[test]
+    fn chat_list_repeats_loads_until_404_and_orders_position_updates() {
+        let identity = pinned_identity().unwrap();
+        let (backend, state) = StartupBackend::new(identity.version);
+        let mut runtime =
+            CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let policy = crate::raw_api::RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![crate::registry::RiskClass::Read],
+        );
+        let snapshot = crate::workflows::load_chat_list(
+            &mut runtime,
+            &policy,
+            crate::reducer::ChatList::Main,
+            100,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+
+        assert_eq!(snapshot.load_calls, 3);
+        assert_eq!(
+            snapshot
+                .positions
+                .iter()
+                .map(|position| (position.order, position.chat_id))
+                .collect::<Vec<_>>(),
+            [(20, 3), (10, 2)]
+        );
+        assert_eq!(state.inner.lock().unwrap().load_calls, 3);
+        runtime.shutdown().unwrap();
     }
 }

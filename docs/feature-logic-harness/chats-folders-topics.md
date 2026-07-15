@@ -61,8 +61,9 @@ Secret chats/user accounts, forum/admin operations and folder limits depend on a
 
 ## Live Verification Boundary
 
-Первый P4 slice реализует отдельные read-only `resolve` и explicit `ensure_membership` с
-mocked TDJSON behavior evidence. Cache wait/list/open/full-info и live evidence ещё отсутствуют.
+P4 реализует отдельные read-only `resolve`/explicit `ensure_membership` и chat-list loader:
+повторный `loadChats`, ordered position reduction и terminal только по TDLib `404`. Cache
+wait/open/full-info и live evidence ещё отсутствуют.
 
 ## Scope
 
@@ -153,7 +154,7 @@ mocked TDJSON behavior evidence. Cache wait/list/open/full-info и live evidence
 
 ## Coverage Notes
 
-- Kernel coverage: resolve/membership boundary implemented; list/topic/open lifecycle modeled.
+- Kernel coverage: resolve/membership boundary и list loading implemented; topic/open lifecycle modeled.
 - Modeled: completion and side-effect boundaries.
 - Partial: exact folder/topic method mapping.
 - Unknown: none blocking.

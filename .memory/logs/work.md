@@ -99,3 +99,14 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Decisions: [D-20260715-006](../decisions/decisions.md).
 - Problems: новых нет; [P-20260715-003](../problems/problems.md) не затронута.
 - Next: отдельным TDD-коммитом реализовать bounded offline generator и reviewed owner rules/overrides для 1010/1010 methods; не заявлять registry/codec/runtime parity раньше соответствующих gates.
+
+## [2026-07-15] work | W-20260715-010 | P0.4a bounded feature-owner generator
+
+- Цель: создать offline classification/publication boundary до ручного review полного 1010-method owner corpus, не превращая product CLI или schema parser в build tool.
+- Sources: [owner generator digest](../raw/2026-07-15-tdlib-feature-owner-generator.md), exact schema/parser evidence, `HARNESS.md`, `docs/tdlib-api-coverage.md` и independent architecture/rule/owner audits.
+- Actions: принято `D-20260715-007`; через red-green-refactor добавлены canonical `FeatureId`, isolated non-default `tdlib-registry-gen`, schema-bound rule/override validation, SHA-256 evidence, full-output-only coverage semantics, read-only check и bounded atomic generate. Reviewer P1 stale-snapshot race закрыт lease-before-input; path/temp P2 закрыты symlink/inode negative controls и owned-temp cleanup.
+- Verification: 16 generator tests и 14 core tests green; Clippy `-D warnings`, fmt, workspace contract с 4 negative controls и `git diff --check` green. Independent reviewer после corrections: `Approved`, findings отсутствуют. Tool однопоточный; scratch/process leftovers отсутствуют, build footprint остаётся bounded.
+- Decisions: [D-20260715-007](../decisions/decisions.md).
+- Problems: новых durable problems нет; [P-20260715-003](../problems/problems.md) не затронута.
+- Boundary: corpus policy/generated 1010 rows, capability/risk/retry и registry/codec/router/runtime parity не реализованы; parent P0 task и acceptance остаются open.
+- Next: отдельным reviewed TDD-коммитом добавить exact schema-bound owner policy, adversarial camel-name controls и canonical 1010/1010 artifact.

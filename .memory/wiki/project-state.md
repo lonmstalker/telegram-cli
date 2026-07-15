@@ -18,10 +18,11 @@
 - Global build lock наследуется всеми watchdog paths; gated handshake, recursive stale recovery и proof-backed finalization проверены parent/inspection `SIGKILL` controls. RSS/tree limits являются sampled thresholds, не kernel hard caps.
 - Native binary хранится в ignored content-addressed cache; Git хранит exact policy/recipe/provenance. Одна сборка помечена `reproducibility=not_verified`.
 - Strict Rust parser в `telegram-core` разбирает полный pinned corpus без сторонних dependencies: 2168 definitions = 9 builtins + 2159 object constructors, 1010 methods, 745 type families, 184 updates и 13 authorization states. Documentation сохраняется raw и structured, signatures canonical; input cap 2 MiB, type depth cap 32. Independent re-review — Approved.
+- Non-default `tdlib-registry-gen` отделён от product packages и реализует bounded deterministic owner rule engine: one-rule-per-feature candidate sets, reviewed set/signature hashes, exact overlap overrides и fail-closed coverage. `check` read-only; `generate` получает один fixed-temp lease до input snapshot, проверяет path/inode identity и публикует atomic rename. Independent re-review — Approved.
 
 ## Not implemented
 
-- Linux x86_64 TDLib artifact, feature-owner/classification manifest, generated schema registry, singleton daemon, рабочий CLI и MCP ещё не созданы; текущие binaries являются только fail-closed skeleton.
+- Linux x86_64 TDLib artifact, reviewed owner policy и 1010-row classification artifact, generated full schema registry, singleton daemon, рабочий product CLI и MCP ещё не созданы; текущие product binaries являются только fail-closed skeleton.
 - Stateful request-chain engine, retry/reconciliation, policy, metrics и agent skill остаются планом.
 
 ## Active boundary
@@ -46,3 +47,6 @@
 - [Strict schema parser/inventory digest](../raw/2026-07-15-tdlib-schema-parser-inventory.md)
 - [D-20260715-006](../decisions/decisions.md)
 - [W-20260715-009](../logs/work.md)
+- [TDLib owner generator digest](../raw/2026-07-15-tdlib-feature-owner-generator.md)
+- [D-20260715-007](../decisions/decisions.md)
+- [W-20260715-010](../logs/work.md)

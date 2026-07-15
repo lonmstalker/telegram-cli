@@ -12,7 +12,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 
-EXPECTED = {
+PRODUCT_PACKAGES = {
     "telegram-protocol": ("lib", set()),
     "telegram-core": ("lib", set()),
     "telegramd": ("bin", {"telegram-core", "telegram-protocol"}),
@@ -20,7 +20,11 @@ EXPECTED = {
     "telegram-mcp": ("bin", {"telegram-protocol"}),
     "telegram-webapp-runner": ("bin", {"telegram-protocol"}),
 }
-DEFAULT_MEMBERS = set(EXPECTED) - {"telegram-mcp"}
+TOOL_PACKAGES = {
+    "tdlib-registry-gen": ("bin", {"telegram-core"}),
+}
+EXPECTED = PRODUCT_PACKAGES | TOOL_PACKAGES
+DEFAULT_MEMBERS = set(PRODUCT_PACKAGES) - {"telegram-mcp"}
 EXPECTED_MANIFESTS = {
     "telegram-protocol": ROOT / "crates/telegram-protocol/Cargo.toml",
     "telegram-core": ROOT / "crates/telegram-core/Cargo.toml",
@@ -28,6 +32,7 @@ EXPECTED_MANIFESTS = {
     "telegram-cli": ROOT / "apps/telegram-cli/Cargo.toml",
     "telegram-mcp": ROOT / "apps/telegram-mcp/Cargo.toml",
     "telegram-webapp-runner": ROOT / "apps/telegram-webapp-runner/Cargo.toml",
+    "tdlib-registry-gen": ROOT / "tools/tdlib-registry-gen/Cargo.toml",
 }
 
 
@@ -70,10 +75,11 @@ def validate(metadata: dict[str, object]) -> list[str]:
             continue
 
         target_kinds = {kind for target in package["targets"] for kind in target["kind"]}
-        if target_kinds != {expected_kind}:
+        if len(package["targets"]) != 1 or target_kinds != {expected_kind}:
             errors.append(
-                f"{package_name}: ожидался единственный Cargo target kind "
-                f"`{expected_kind}`, получены {sorted(target_kinds)}"
+                f"{package_name}: ожидался один Cargo target kind "
+                f"`{expected_kind}`, получены {len(package['targets'])} targets "
+                f"с kinds {sorted(target_kinds)}"
             )
 
         manifest_path = Path(package["manifest_path"]).resolve()
@@ -122,6 +128,34 @@ def validate_negative_controls(metadata: dict[str, object]) -> list[str]:
     if not validate(wrong_manifest):
         errors.append("negative control: неверный manifest path не обнаружен")
 
+    tool_in_default = copy.deepcopy(metadata)
+    generator = next(
+        package
+        for package in tool_in_default["packages"]
+        if package["name"] == "tdlib-registry-gen"
+    )
+    tool_in_default["workspace_default_members"].append(generator["id"])
+    if not validate(tool_in_default):
+        errors.append("negative control: tooling package в default members не обнаружен")
+
+    product_depends_on_tool = copy.deepcopy(metadata)
+    cli = next(
+        package
+        for package in product_depends_on_tool["packages"]
+        if package["name"] == "telegram-cli"
+    )
+    generator_core_dependency = next(
+        dependency
+        for dependency in generator["dependencies"]
+        if dependency["name"] == "telegram-core"
+    )
+    forbidden_dependency = copy.deepcopy(generator_core_dependency)
+    forbidden_dependency["name"] = "tdlib-registry-gen"
+    forbidden_dependency["path"] = str(ROOT / "tools/tdlib-registry-gen")
+    cli["dependencies"].append(forbidden_dependency)
+    if not validate(product_depends_on_tool):
+        errors.append("negative control: product dependency на tool не обнаружена")
+
     return errors
 
 
@@ -147,7 +181,7 @@ def main() -> int:
             fail(error)
         return 1
 
-    print("workspace contract: ok (negative controls: 2)")
+    print("workspace contract: ok (negative controls: 4)")
     return 0
 
 

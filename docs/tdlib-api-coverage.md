@@ -1,6 +1,6 @@
 # Полнота TDLib API
 
-Статус: exact schema snapshot, strict Rust parser/inventory и macOS arm64 native artifact закреплены; Linux artifact, classified generated registry и runtime implementation ещё не созданы.
+Статус: exact schema snapshot, strict Rust parser/inventory, bounded owner-generator infrastructure и macOS arm64 native artifact закреплены; reviewed 1010-method owner policy/artifact, Linux artifact, classified full registry и runtime implementation ещё не созданы.
 
 ## Проверенный upstream baseline
 
@@ -13,10 +13,26 @@
 - Source: <https://github.com/tdlib/td/tree/07d3a0973f5113b0827a04d54a93aaaa9e288348>.
 - Local manifest: [`vendor/tdlib/manifest.json`](../vendor/tdlib/manifest.json); offline gate: `python3 scripts/check-tdlib-pin.py`.
 - Strict parser/inventory: [`crates/telegram-core/src/schema.rs`](../crates/telegram-core/src/schema.rs); corpus gate: `cargo test -p telegram-core --lib --jobs 2`.
+- Owner generator: [`tools/tdlib-registry-gen`](../tools/tdlib-registry-gen); package gate: `cargo test --offline -p tdlib-registry-gen --jobs 2`. Fixed corpus policy и generated artifact будут добавлены отдельной задачей.
 - macOS arm64 native provenance: [`vendor/tdlib/native-builds/aarch64-apple-darwin.json`](../vendor/tdlib/native-builds/aarch64-apple-darwin.json); local artifact gate: `python3 scripts/check-tdlib-native-pin.py --require-local-artifact`.
 - Current local artifact: 27 654 296 bytes, SHA-256 `5dbd30094b4fbfd35904e88d88e413f423ea7283bd81b34305eac31be6852e7e`; correction evidence: [reviewed rebuild digest](../.memory/raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md).
 
-Этот exact commit принят как initial production schema pin в `D-20260715-003`; переход на другой commit требует явного manifest/schema diff, parser gate и повторной классификации. Strict-subset parser/inventory принят в `D-20260715-006` и `W-20260715-009`; это schema evidence, а не доказательство generated registry/codec/router/runtime parity. Текущий macOS arm64 artifact и crash ownership доказаны correction checkpoint `W-20260715-008`; `W-20260715-007` остаётся историей первой pre-review build. Linux x86_64 artifact и classified generated registry остаются отдельными P0 gates. Одна reviewed macOS rebuild не считается доказательством bit-for-bit reproducibility; RSS/tree limits являются sampled watchdog thresholds.
+Этот exact commit принят как initial production schema pin в `D-20260715-003`; переход на другой commit требует явного manifest/schema diff, parser gate и повторной классификации. Strict-subset parser/inventory принят в `D-20260715-006` и `W-20260715-009`; bounded owner generator — в `D-20260715-007` и `W-20260715-010`. Ни parser, ни generator infrastructure без corpus policy/artifact не доказывают feature ownership, generated registry/codec/router или runtime parity. Текущий macOS arm64 artifact и crash ownership доказаны correction checkpoint `W-20260715-008`; `W-20260715-007` остаётся историей первой pre-review build. Linux x86_64 artifact и classified generated registry остаются отдельными P0 gates. Одна reviewed macOS rebuild не считается доказательством bit-for-bit reproducibility; RSS/tree limits являются sampled watchdog thresholds.
+
+## Feature-owner generator contract
+
+`tdlib-registry-gen` — отдельный non-default workspace tool, зависящий только от `telegram-core` среди local packages. Он не является product CLI и не открывает TDLib DB.
+
+- Input paths фиксированы: `vendor/tdlib/manifest.json`, `vendor/tdlib/td_api.tl`, `policy/tdlib-feature-owners.json`.
+- Output path фиксирован: `generated/tdlib-feature-owners.json`.
+- `check` строит expected bytes в памяти и только сравнивает их с output; filesystem не изменяется.
+- `generate` получает единственный fixed sibling temp до чтения inputs, поэтому cooperative writers не могут опубликовать устаревший snapshot. Publication использует `create_new`, open-handle/path identity checks, `sync_all`, atomic rename и parent-directory sync; cleanup удаляет только принадлежащий процессу temp inode.
+- Leaf symlinks для inputs/output и symlink output directory отклоняются. Это hardening cooperative build boundary, а не sandbox против процесса того же OS user, который уже может произвольно менять checkout.
+- Bounds: manifest 64 KiB, schema 2 MiB, policy 1 MiB, output 4 MiB, 2048 methods, 22 rules, 512 atoms, 1024 overrides. Tool однопоточный, не использует network, subprocesses или resident resources.
+
+Policy format не имеет priority/fallback semantics. На feature допускается один rule из положительных `exact`/`prefix`/`contains` atoms. Каждый raw match set закреплён exact method count и SHA-256 по method+canonical-signature evidence. Метод без candidates или с несколькими candidates без exact override блокирует весь manifest. Override допустим только для фактического overlap, обязан выбрать одного из exact candidates и закрепляет candidate set, signature hash и rationale. Dead atoms/rules, duplicate rules/overrides, stale/redundant overrides, unknown fields/features и schema drift fail closed.
+
+Canonical owner-only output содержит schema/policy/generator evidence, per-feature counts/hashes и sorted exact method rows с signature, owner source и candidate set. Он намеренно не содержит фиктивные capability/risk/retry/codec/router значения: эти поля и full registry parity остаются следующими P0/P3 gates. Пока `policy/tdlib-feature-owners.json` и 1010-row artifact не committed и не reviewed, команды package tool не являются доказательством corpus coverage.
 
 ## Что входит в coverage
 

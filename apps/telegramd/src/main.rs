@@ -41,7 +41,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     let (profile, database_directory) = profile_config()?;
     let ownership = ProfileDatabaseLock::acquire(profile, database_directory)?;
     let config = DaemonConfig::from_environment(&ownership)?;
-    let _approval_verifier = config
+    let approval_verifier = config
         .approval_public_key_hex()
         .map(ApprovalVerifier::from_hex)
         .transpose()?;
@@ -73,7 +73,8 @@ fn run() -> Result<(), Box<dyn Error>> {
         risk_scopes,
         Telemetry::default(),
     ))
-    .with_artifact_root(files_directory);
+    .with_artifact_root(files_directory)
+    .with_approval_verifier(approval_verifier);
     server.start_events_at(
         runtime
             .state()

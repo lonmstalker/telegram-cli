@@ -28,7 +28,8 @@
 - SRC001: product.md; type: file; supports: routine administration; limits: none.
 - SRC002: HARNESS.md; type: file; supports: policy/completion invariants; limits: none.
 - SRC003: pinned official schema; type: supplied; supports: group/channel method/update families; limits: source alone does not prove generated registry.
-- SRC004: plans.md P4/P7/P10; type: file; supports: workflow/live gates; limits: implementation absent.
+- SRC004: plans.md P4/P7/P10; type: file; supports: workflow/live gates; limits: live proof remains P10.
+- SRC005: `crates/telegram-core/src/workflows.rs`, `apps/telegramd/src/server.rs`; type: file; supports: membership separation, exact title plan/apply, external approval and update verification; limits: account-specific live rights untested.
 
 ## TDLib API Coverage
 
@@ -64,8 +65,8 @@ Owner/admin/member/bot capability matrix is explicit; cannot-get-members/statist
 Core отделяет read-only resolve/inspection от explicit `ensure_membership`, сохраняет pending
 join outcome и не join-ит private invite при cache miss. Members workflow проверяет
 `can_get_members`, продолжает короткие страницы и отмечает no-progress как partial.
-Live join/member query не выполнялись; будущие тесты используют disposable chats/channels
-и cleanup evidence.
+Live join/member/configuration не выполнялись; P10 использует disposable chats/channels,
+explicit owner confirmation для destructive moderation и cleanup evidence.
 
 ## Scope
 
@@ -157,9 +158,10 @@ Live join/member query не выполнялись; будущие тесты и
 
 ## Coverage Notes
 
-- Kernel coverage: resolve/membership dispatch boundary и read-only members pagination implemented;
-  rights/config/uncertainty modeled.
+- Kernel coverage: resolve/membership dispatch boundary, pending join и read-only members
+  pagination implemented; title config требует fresh right + exact external approval,
+  matching update и uncertain timeout.
 - Modeled: routine administration and moderation boundaries.
-- Partial: exact method classification and live matrix.
+- Partial: остальные методы используют generated raw/default-deny; live rights matrix — P10.
 - Unknown: account-specific available rights.
 - Not applicable: payment settlement.

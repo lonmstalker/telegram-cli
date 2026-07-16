@@ -6,11 +6,12 @@ use std::fs;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use telegram_core::approval::{ApprovalReceipt, ApprovalVerifier, PlanPreview};
 use telegram_core::authorization::{
     AuthorizationChallengeKind, AuthorizationError, AuthorizationInput, AuthorizationMachine,
     AuthorizationRequest, AuthorizationStep, ChallengeId, SensitiveString,
@@ -19,7 +20,7 @@ use telegram_core::raw_api::{
     self, PolicyError, RawApiError, SchemaDescription, SchemaSearchResult,
 };
 use telegram_core::reducer::{AppliedUpdate, CachedUpdateKind, ChatList};
-use telegram_core::registry::{AccountKind, SymbolKind};
+use telegram_core::registry::{AccountKind, SymbolKind, ValidatedRequest};
 use telegram_core::runtime::CoreRuntime;
 use telegram_core::workflows::{
     self, ChatSearchQuery, ChatTarget, ChatWorkflowError, DownloadQuery, ForumTopicsQuery,
@@ -28,7 +29,7 @@ use telegram_core::workflows::{
 };
 use telegram_protocol::{
     CommandErrorCode, DaemonRequest, DaemonResponse, EventKind, EventRecord, LeaseErrorCode,
-    LoginInput, LoginState,
+    LoginInput, LoginState, PlanApproval,
 };
 use zeroize::Zeroizing;
 
@@ -47,6 +48,8 @@ const WORKFLOWS: &[(&str, &str)] = &[
         "update_profile_name",
         r#"{"first_name":"Name","last_name":""}"#,
     ),
+    ("plan_chat_title", r#"{"chat_id":0,"title":"Title"}"#),
+    ("apply_chat_title", r#"{"chat_id":0,"title":"Title"}"#),
     ("resolve_chat", r#"{"kind":"id","chat_id":0}"#),
     ("ensure_membership", r#"{"kind":"chat_id","chat_id":0}"#),
     ("load_chat_list", r#"{"list":{"kind":"main"},"limit":100}"#),
@@ -105,6 +108,7 @@ pub struct LeaseServer {
     events: EventBuffer,
     authorization: AuthorizationBroker,
     artifact_root: Option<PathBuf>,
+    approval_verifier: Option<ApprovalVerifier>,
 }
 
 impl LeaseServer {
@@ -115,11 +119,17 @@ impl LeaseServer {
             events: EventBuffer::new(EVENT_BUFFER_CAPACITY),
             authorization: AuthorizationBroker::default(),
             artifact_root: None,
+            approval_verifier: None,
         }
     }
 
     pub fn with_artifact_root(mut self, root: PathBuf) -> Self {
         self.artifact_root = Some(root);
+        self
+    }
+
+    pub fn with_approval_verifier(mut self, verifier: Option<ApprovalVerifier>) -> Self {
+        self.approval_verifier = verifier;
         self
     }
 
@@ -329,10 +339,15 @@ impl LeaseServer {
                     description: describe(description),
                 },
             ),
+            DaemonRequest::TdPreview { request } => match plan_preview(request) {
+                Ok(preview) => DaemonResponse::TdPlanPreview { preview },
+                Err(code) => DaemonResponse::CommandError { code },
+            },
             DaemonRequest::TdCall {
                 lease_id,
                 principal,
                 request,
+                approval,
             } => {
                 let policy = match self.leases.raw_policy(
                     &lease_id,
@@ -345,6 +360,15 @@ impl LeaseServer {
                 };
                 let Some(runtime) = runtime else {
                     return runtime_unavailable();
+                };
+                let policy = match approved_policy(
+                    policy,
+                    approval,
+                    &request,
+                    self.approval_verifier.as_ref(),
+                ) {
+                    Ok(policy) => policy,
+                    Err(code) => return DaemonResponse::CommandError { code },
                 };
                 let deadline = now.checked_add(CALL_TIMEOUT).unwrap_or(now);
                 match raw_api::td_call(runtime, &policy, request, deadline) {
@@ -377,6 +401,7 @@ impl LeaseServer {
                 principal,
                 workflow,
                 input,
+                approval,
             } => {
                 let policy = match self.leases.raw_policy(
                     &lease_id,
@@ -393,11 +418,15 @@ impl LeaseServer {
                 let deadline = now.checked_add(CALL_TIMEOUT).unwrap_or(now);
                 let result = run_workflow(
                     runtime,
-                    &policy,
                     &workflow,
                     input,
-                    self.artifact_root.as_deref(),
-                    deadline,
+                    WorkflowContext {
+                        policy,
+                        approval,
+                        approval_verifier: self.approval_verifier.as_ref(),
+                        artifact_root: self.artifact_root.as_deref(),
+                        deadline,
+                    },
                 );
                 self.events.reconcile(
                     runtime
@@ -652,21 +681,37 @@ fn event_kind(kind: CachedUpdateKind) -> EventKind {
     }
 }
 
+struct WorkflowContext<'server> {
+    policy: telegram_core::raw_api::RawPolicy,
+    approval: Option<PlanApproval>,
+    approval_verifier: Option<&'server ApprovalVerifier>,
+    artifact_root: Option<&'server Path>,
+    deadline: Instant,
+}
+
 fn run_workflow(
     runtime: &mut CoreRuntime,
-    policy: &telegram_core::raw_api::RawPolicy,
     name: &str,
     input: Value,
-    artifact_root: Option<&Path>,
-    deadline: Instant,
+    context: WorkflowContext<'_>,
 ) -> Result<WorkflowOutput, WorkflowDispatchError> {
+    let WorkflowContext {
+        policy,
+        approval,
+        approval_verifier,
+        artifact_root,
+        deadline,
+    } = context;
+    if approval.is_some() && name != "apply_chat_title" {
+        return Err(WorkflowDispatchError::InvalidInput);
+    }
     match name {
         "user_profile" => {
             let input: UserProfileInput = parse(input)?;
             output(
                 workflows::user_profile(
                     runtime,
-                    policy,
+                    &policy,
                     input.target.as_core(),
                     input.include_full_info,
                     deadline,
@@ -678,7 +723,7 @@ fn run_workflow(
             let input: ProfileNameInput = parse(input)?;
             let result = workflows::update_profile_name(
                 runtime,
-                policy,
+                &policy,
                 &input.first_name,
                 &input.last_name,
                 deadline,
@@ -686,15 +731,44 @@ fn run_workflow(
             let complete = result.complete;
             output(result, complete)
         }
+        "plan_chat_title" => {
+            let input: ChatTitleInput = parse(input)?;
+            output(
+                workflows::plan_chat_title(runtime, input.chat_id, &input.title)?,
+                true,
+            )
+        }
+        "apply_chat_title" => {
+            let input: ChatTitleInput = parse(input)?;
+            let plan = workflows::plan_chat_title(runtime, input.chat_id, &input.title)?;
+            let policy = if plan.changed {
+                approved_policy(
+                    policy,
+                    approval,
+                    &json!({
+                        "@type": "setChatTitle",
+                        "chat_id": input.chat_id,
+                        "title": input.title,
+                    }),
+                    approval_verifier,
+                )
+                .map_err(WorkflowDispatchError::Approval)?
+            } else {
+                policy
+            };
+            let result = workflows::apply_chat_title(runtime, &policy, &plan, deadline)?;
+            let complete = result.complete;
+            output(result, complete)
+        }
         "resolve_chat" => {
             let input: TargetInput = parse(input)?;
-            let result = workflows::resolve(runtime, policy, input.target(), deadline)?;
+            let result = workflows::resolve(runtime, &policy, input.target(), deadline)?;
             let complete = matches!(result.state, workflows::ResolutionState::Chat { .. });
             output(result, complete)
         }
         "ensure_membership" => {
             let input: MembershipInput = parse(input)?;
-            let result = workflows::ensure_membership(runtime, policy, input.target(), deadline)?;
+            let result = workflows::ensure_membership(runtime, &policy, input.target(), deadline)?;
             let complete = result.state.complete();
             output(result, complete)
         }
@@ -703,7 +777,7 @@ fn run_workflow(
             output(
                 workflows::load_chat_list(
                     runtime,
-                    policy,
+                    &policy,
                     input.list.into(),
                     input.limit,
                     deadline,
@@ -715,7 +789,7 @@ fn run_workflow(
             let input: InspectInput = parse(input)?;
             let result = workflows::inspect_chat(
                 runtime,
-                policy,
+                &policy,
                 input.target.target(),
                 input.open,
                 deadline,
@@ -727,7 +801,7 @@ fn run_workflow(
             let input: ForumTopicsInput = parse(input)?;
             let result = workflows::forum_topics(
                 runtime,
-                policy,
+                &policy,
                 ForumTopicsQuery {
                     chat_id: input.chat_id,
                     query: &input.query,
@@ -743,7 +817,7 @@ fn run_workflow(
             let input: ForumTopicMutationInput = parse(input)?;
             let result = workflows::set_forum_topic_closed(
                 runtime,
-                policy,
+                &policy,
                 input.chat_id,
                 input.topic_id,
                 input.is_closed,
@@ -756,7 +830,7 @@ fn run_workflow(
             let input: HistoryInput = parse(input)?;
             let result = workflows::chat_history(
                 runtime,
-                policy,
+                &policy,
                 HistoryQuery {
                     chat_id: input.chat_id,
                     only_local: input.only_local,
@@ -772,7 +846,7 @@ fn run_workflow(
             let input: SearchInput = parse(input)?;
             let result = workflows::search_chat_messages(
                 runtime,
-                policy,
+                &policy,
                 ChatSearchQuery {
                     chat_id: input.chat_id,
                     query: &input.query,
@@ -788,7 +862,7 @@ fn run_workflow(
             let input: TextMessageInput = parse(input)?;
             let result = workflows::send_text_message(
                 runtime,
-                policy,
+                &policy,
                 input.chat_id,
                 &input.text,
                 deadline,
@@ -800,7 +874,7 @@ fn run_workflow(
             let input: MembersInput = parse(input)?;
             let result = workflows::supergroup_members(
                 runtime,
-                policy,
+                &policy,
                 MembersQuery {
                     supergroup_id: input.supergroup_id,
                     count: input.count,
@@ -815,7 +889,7 @@ fn run_workflow(
             let input: StatisticsInput = parse(input)?;
             let result = workflows::chat_statistics(
                 runtime,
-                policy,
+                &policy,
                 input.chat_id,
                 input.is_dark,
                 deadline,
@@ -825,7 +899,7 @@ fn run_workflow(
         }
         "resync_after_gap" => {
             let _: EmptyInput = parse(input)?;
-            let result = workflows::resync_after_gap(runtime, policy, deadline)?;
+            let result = workflows::resync_after_gap(runtime, &policy, deadline)?;
             let complete = result.complete;
             output(result, complete)
         }
@@ -833,7 +907,7 @@ fn run_workflow(
             let input: DownloadInput = parse(input)?;
             let result = workflows::download_file(
                 runtime,
-                policy,
+                &policy,
                 DownloadQuery {
                     file_id: input.file_id,
                     priority: input.priority,
@@ -849,7 +923,7 @@ fn run_workflow(
             let input: CancelDownloadInput = parse(input)?;
             let result = workflows::cancel_download(
                 runtime,
-                policy,
+                &policy,
                 input.file_id,
                 input.only_if_pending,
                 deadline,
@@ -859,7 +933,7 @@ fn run_workflow(
         }
         "upload_sticker_file" => {
             let input: UploadInput = parse(input)?;
-            let result = upload_sticker_file(runtime, policy, input, artifact_root, deadline)?;
+            let result = upload_sticker_file(runtime, &policy, input, artifact_root, deadline)?;
             let complete = result.complete;
             output(result, complete)
         }
@@ -867,7 +941,7 @@ fn run_workflow(
             let input: StartBotInput = parse(input)?;
             let result = workflows::start_bot(
                 runtime,
-                policy,
+                &policy,
                 input.bot_user_id,
                 input.chat_id,
                 &input.parameter,
@@ -880,7 +954,7 @@ fn run_workflow(
             let input: WebAppInput = parse(input)?;
             let mut lease = workflows::open_web_app(
                 runtime,
-                policy,
+                &policy,
                 WebAppRequest {
                     chat_id: input.chat_id,
                     bot_user_id: input.bot_user_id,
@@ -910,6 +984,67 @@ fn parse<T: DeserializeOwned>(input: Value) -> Result<T, WorkflowDispatchError> 
     serde_json::from_value(input).map_err(|_| WorkflowDispatchError::InvalidInput)
 }
 
+fn plan_preview(request: Value) -> Result<Value, CommandErrorCode> {
+    let request =
+        ValidatedRequest::from_value(request).map_err(|_| CommandErrorCode::InvalidTdjson)?;
+    let preview =
+        PlanPreview::for_request(&request).map_err(|_| CommandErrorCode::ApprovalDenied)?;
+    Ok(json!({
+        "method": preview.method,
+        "risk": preview.risk,
+        "retry": preview.retry,
+        "plan_hash": preview.hash.to_hex(),
+    }))
+}
+
+fn approved_policy(
+    policy: telegram_core::raw_api::RawPolicy,
+    approval: Option<PlanApproval>,
+    request: &Value,
+    verifier: Option<&ApprovalVerifier>,
+) -> Result<telegram_core::raw_api::RawPolicy, CommandErrorCode> {
+    let Some(approval) = approval else {
+        return Ok(policy);
+    };
+    let verifier = verifier.ok_or(CommandErrorCode::ApprovalDenied)?;
+    let request = ValidatedRequest::from_value(request.clone())
+        .map_err(|_| CommandErrorCode::InvalidTdjson)?;
+    let preview =
+        PlanPreview::for_request(&request).map_err(|_| CommandErrorCode::ApprovalDenied)?;
+    if approval.plan_hash != preview.hash.to_hex() {
+        return Err(CommandErrorCode::ApprovalDenied);
+    }
+    let nonce_hex = Zeroizing::new(approval.nonce.into_inner());
+    let signature_hex = Zeroizing::new(approval.signature.into_inner());
+    let nonce = decode_hex::<16>(&nonce_hex).ok_or(CommandErrorCode::ApprovalDenied)?;
+    let signature = decode_hex::<64>(&signature_hex).ok_or(CommandErrorCode::ApprovalDenied)?;
+    let receipt = ApprovalReceipt::new(preview.hash, approval.expires_at_unix, nonce, signature);
+    let approval = verifier
+        .verify(preview, receipt, SystemTime::now())
+        .map_err(|_| CommandErrorCode::ApprovalDenied)?;
+    Ok(policy.with_approval(approval))
+}
+
+fn decode_hex<const N: usize>(value: &str) -> Option<[u8; N]> {
+    if value.len() != N * 2 {
+        return None;
+    }
+    let mut decoded = [0; N];
+    for (target, pair) in decoded.iter_mut().zip(value.as_bytes().chunks_exact(2)) {
+        *target = (hex_digit(pair[0])? << 4) | hex_digit(pair[1])?;
+    }
+    Some(decoded)
+}
+
+fn hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
 struct WorkflowOutput {
     result: Value,
     complete: bool,
@@ -929,6 +1064,7 @@ fn output(
 enum WorkflowDispatchError {
     Unknown,
     InvalidInput,
+    Approval(CommandErrorCode),
     Core(ChatWorkflowError),
 }
 
@@ -967,6 +1103,13 @@ impl UserTargetInput {
 struct ProfileNameInput {
     first_name: String,
     last_name: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ChatTitleInput {
+    chat_id: i64,
+    title: String,
 }
 
 impl From<ChatWorkflowError> for WorkflowDispatchError {
@@ -1307,6 +1450,7 @@ fn workflow_error(error: WorkflowDispatchError) -> CommandErrorCode {
     match error {
         WorkflowDispatchError::Unknown => CommandErrorCode::WorkflowNotFound,
         WorkflowDispatchError::InvalidInput => CommandErrorCode::InvalidWorkflowInput,
+        WorkflowDispatchError::Approval(code) => code,
         WorkflowDispatchError::Core(ChatWorkflowError::Call(error)) => raw_error(error),
         WorkflowDispatchError::Core(ChatWorkflowError::PrerequisiteMissing { .. }) => {
             CommandErrorCode::WorkflowPrerequisiteMissing
@@ -1325,7 +1469,8 @@ fn workflow_error(error: WorkflowDispatchError) -> CommandErrorCode {
             | ChatWorkflowError::InvalidLimit
             | ChatWorkflowError::InvalidPageOptions
             | ChatWorkflowError::InvalidFileTransfer
-            | ChatWorkflowError::InvalidProfileInput,
+            | ChatWorkflowError::InvalidProfileInput
+            | ChatWorkflowError::InvalidChatConfiguration,
         ) => CommandErrorCode::InvalidWorkflowInput,
         WorkflowDispatchError::Core(_) => CommandErrorCode::WorkflowFailed,
     }
@@ -1485,6 +1630,23 @@ mod tests {
         assert!(results.as_array().unwrap().iter().any(|result| {
             result.get("name").and_then(Value::as_str) == Some("getChatStatistics")
         }));
+        assert!(matches!(
+            exchange(
+                &mut server,
+                &socket,
+                DaemonRequest::TdPreview {
+                    request: json!({
+                        "@type": "setChatTitle",
+                        "chat_id": 7,
+                        "title": "Title",
+                    }),
+                }
+            ),
+            DaemonResponse::TdPlanPreview { preview }
+                if preview["method"] == "setChatTitle"
+                    && preview["risk"] == "admin"
+                    && preview["plan_hash"].as_str().is_some_and(|hash| hash.len() == 64)
+        ));
         assert_eq!(
             exchange(&mut server, &socket, DaemonRequest::SchemaVersion),
             DaemonResponse::CommandError {
@@ -1612,6 +1774,7 @@ mod tests {
             let valid = match *name {
                 "user_profile" => parse::<UserProfileInput>(input).is_ok(),
                 "update_profile_name" => parse::<ProfileNameInput>(input).is_ok(),
+                "plan_chat_title" | "apply_chat_title" => parse::<ChatTitleInput>(input).is_ok(),
                 "resolve_chat" => parse::<TargetInput>(input).is_ok(),
                 "ensure_membership" => parse::<MembershipInput>(input).is_ok(),
                 "load_chat_list" => parse::<ChatListInput>(input).is_ok(),

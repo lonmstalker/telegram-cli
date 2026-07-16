@@ -756,6 +756,15 @@
       "retry": "convergent"
     },
     {
+      "method": "setChatTitle",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatMemberRight { target: chat_id, right: CanChangeInfo }",
+      "retry": "convergent"
+    },
+    {
       "method": "setChatLocation",
       "risk": "admin",
       "accounts": [

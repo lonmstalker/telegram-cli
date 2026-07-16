@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use telegram_protocol::{
     ClientErrorCode, DaemonRequest, DaemonResponse, LeaseErrorCode, LeaseId, LoginInput,
-    LoginState, MachineEnvelope, ProtectedString, RiskScope,
+    LoginState, MachineEnvelope, PlanApproval, ProtectedString, RiskScope,
 };
 use zeroize::{Zeroize, Zeroizing};
 
@@ -111,11 +111,25 @@ fn command(arguments: &[String], principal: String) -> Result<DaemonRequest, Cli
         [schema, describe, name] if schema == "schema" && describe == "describe" => {
             Ok(DaemonRequest::SchemaDescribe { name: name.clone() })
         }
+        [td, preview, request] if td == "td" && preview == "preview" => {
+            Ok(DaemonRequest::TdPreview {
+                request: parse_json(request)?,
+            })
+        }
         [td, call, lease_id, request] if td == "td" && call == "call" => {
             Ok(DaemonRequest::TdCall {
                 lease_id: LeaseId::new(lease_id.clone()),
                 principal,
                 request: parse_json(request)?,
+                approval: None,
+            })
+        }
+        [td, call, lease_id, request, approval] if td == "td" && call == "call" => {
+            Ok(DaemonRequest::TdCall {
+                lease_id: LeaseId::new(lease_id.clone()),
+                principal,
+                request: parse_json(request)?,
+                approval: Some(parse_approval(approval)?),
             })
         }
         [workflow, list] if workflow == "workflow" && list == "list" => {
@@ -132,6 +146,18 @@ fn command(arguments: &[String], principal: String) -> Result<DaemonRequest, Cli
                 principal,
                 workflow: name.clone(),
                 input: parse_json(input)?,
+                approval: None,
+            })
+        }
+        [workflow, run, lease_id, name, input, approval]
+            if workflow == "workflow" && run == "run" =>
+        {
+            Ok(DaemonRequest::WorkflowRun {
+                lease_id: LeaseId::new(lease_id.clone()),
+                principal,
+                workflow: name.clone(),
+                input: parse_json(input)?,
+                approval: Some(parse_approval(approval)?),
             })
         }
         [events, watch, lease_id] if events == "events" && watch == "watch" => {
@@ -650,6 +676,10 @@ fn parse_json(value: &str) -> Result<serde_json::Value, CliError> {
     serde_json::from_str(value).map_err(|_| CliError::new(ClientErrorCode::InvalidJson))
 }
 
+fn parse_approval(value: &str) -> Result<PlanApproval, CliError> {
+    serde_json::from_str(value).map_err(|_| CliError::new(ClientErrorCode::InvalidJson))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum OutputFormat {
     Human,
@@ -714,7 +744,7 @@ impl CliError {
     const fn message(self) -> &'static str {
         match self.code {
             ClientErrorCode::InvalidArguments => {
-                "usage: telegram-cli session ... | login [tty] | schema ... | td call <lease_id> <json> | workflow list|describe|run ... | events watch ..."
+                "usage: telegram-cli session ... | login [tty] | schema ... | td preview <json> | td call <lease_id> <json> [approval_json] | workflow list|describe|run ... | events watch ..."
             }
             ClientErrorCode::InvalidJson => "неверный JSON input",
             ClientErrorCode::InvalidOutputFormat => "output должен быть human, json или jsonl",
@@ -823,6 +853,7 @@ fn human_response(writer: &mut impl Write, response: &DaemonResponse) -> io::Res
             Ok(())
         }
         DaemonResponse::SchemaDescription { description } => pretty(writer, description),
+        DaemonResponse::TdPlanPreview { preview } => pretty(writer, preview),
         DaemonResponse::TdResult { result } => pretty(writer, result),
         DaemonResponse::WorkflowList { workflows } => {
             for workflow in workflows {
@@ -969,6 +1000,7 @@ mod tests {
                     "only_local": false,
                     "page": {"count": 1, "min_date": null, "page_limit": 100},
                 }),
+                approval: None,
             }
         );
         assert!(command(
@@ -999,6 +1031,24 @@ mod tests {
             command(
                 &[
                     "td".to_owned(),
+                    "preview".to_owned(),
+                    r#"{"@type":"setChatTitle","chat_id":7,"title":"Title"}"#.to_owned(),
+                ],
+                "cli".to_owned(),
+            )
+            .unwrap(),
+            DaemonRequest::TdPreview {
+                request: serde_json::json!({
+                    "@type": "setChatTitle",
+                    "chat_id": 7,
+                    "title": "Title",
+                }),
+            }
+        );
+        assert_eq!(
+            command(
+                &[
+                    "td".to_owned(),
                     "call".to_owned(),
                     "lease".to_owned(),
                     r#"{"@type":"getMe"}"#.to_owned(),
@@ -1010,6 +1060,7 @@ mod tests {
                 lease_id: LeaseId::new("lease".to_owned()),
                 principal: "cli".to_owned(),
                 request: serde_json::json!({"@type": "getMe"}),
+                approval: None,
             }
         );
         assert_eq!(

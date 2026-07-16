@@ -20,10 +20,22 @@ model-visible interfaces. При отсутствии public key dangerous reque
 один раз за daemon boot; выданный `ApprovedPlan` также consumable ровно одним matching
 request. Hash mismatch, expiry, повтор или forged signature fail closed до transport.
 
+## Wire path
+
+`telegram-cli td preview '<request-json>'` получает hash из daemon без TDLib dispatch.
+`td call ... '<approval-json>'` и approved workflow передают receipt в stable protocol;
+nonce/signature redacted в Debug и zeroized после decode. Daemon хранит verifier весь boot,
+а отсутствие configured public key даёт `approval_denied` для предъявленного receipt и
+`approval_required` для опасного вызова без receipt.
+
+Workflow approval не подписывает имя route: daemon восстанавливает exact TDLib request из
+strict typed input, проверяет тот же plan hash, а core расходует capability только внутри
+matching common `td_call`. Сейчас этот путь использует `apply_chat_title`.
+
 ## Durable boundary
 
 Approval разрешает dispatch, но не заменяет idempotency: execution сначала сохраняет
 operation `pending` в [durable journal](idempotency-journal.md). После crash exact operation
 становится `uncertain` и требует reconciliation, поэтому повторно переданная capability не
-разрешает blind duplicate. Wire receipt transport и protected operator UI принадлежат P6;
-P5 фиксирует verifier/policy trust boundary.
+разрешает blind duplicate. Protected operator UI остаётся внешним owner-controlled каналом;
+CLI/daemon не получают signing key.

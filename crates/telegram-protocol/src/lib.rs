@@ -98,10 +98,14 @@ pub enum DaemonRequest {
     SchemaDescribe {
         name: String,
     },
+    TdPreview {
+        request: Value,
+    },
     TdCall {
         lease_id: LeaseId,
         principal: String,
         request: Value,
+        approval: Option<PlanApproval>,
     },
     WorkflowList,
     WorkflowDescribe {
@@ -112,6 +116,7 @@ pub enum DaemonRequest {
         principal: String,
         workflow: String,
         input: Value,
+        approval: Option<PlanApproval>,
     },
     EventsWatch {
         lease_id: LeaseId,
@@ -167,6 +172,9 @@ pub enum DaemonResponse {
     SchemaDescription {
         description: Value,
     },
+    TdPlanPreview {
+        preview: Value,
+    },
     TdResult {
         result: Value,
     },
@@ -202,6 +210,25 @@ pub enum DaemonResponse {
     Error {
         code: LeaseErrorCode,
     },
+}
+
+#[derive(PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlanApproval {
+    pub plan_hash: String,
+    pub expires_at_unix: u64,
+    pub nonce: ProtectedString,
+    pub signature: ProtectedString,
+}
+
+impl fmt::Debug for PlanApproval {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PlanApproval")
+            .field("plan_hash", &self.plan_hash)
+            .field("expires_at_unix", &self.expires_at_unix)
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -478,6 +505,23 @@ mod tests {
         assert!(!format!("{request:?}").contains(canary));
 
         let mut wire = serde_json::to_string(&request).unwrap();
+        assert!(wire.contains(canary));
+        wire.zeroize();
+        assert!(wire.is_empty());
+    }
+
+    #[test]
+    fn approval_capability_is_wire_visible_but_debug_redacted() {
+        let canary = "ONE_SHOT_APPROVAL_CANARY";
+        let approval = PlanApproval {
+            plan_hash: "ab".repeat(32),
+            expires_at_unix: 7,
+            nonce: ProtectedString::new(canary.to_owned()),
+            signature: ProtectedString::new(canary.to_owned()),
+        };
+        assert!(!format!("{approval:?}").contains(canary));
+
+        let mut wire = serde_json::to_string(&approval).unwrap();
         assert!(wire.contains(canary));
         wire.zeroize();
         assert!(wire.is_empty());

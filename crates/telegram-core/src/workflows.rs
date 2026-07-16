@@ -9,10 +9,11 @@ use std::time::{Instant, SystemTime};
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 
+use crate::approval::PlanPreview;
 use crate::authorization::SensitiveString;
 use crate::raw_api::{td_call, td_call_with_boundary, RawApiError, RawPolicy};
 use crate::reducer::{ChatList, ChatListPosition, MessageSendKey, MessageSendState, ReducerError};
-use crate::registry::TdObject;
+use crate::registry::{RetryClass, RiskClass, TdObject, ValidatedRequest};
 use crate::runtime::{CoreRuntime, RuntimeError};
 use crate::transport::TransportError;
 
@@ -173,6 +174,35 @@ pub enum ProfileMutationOutcome {
 pub struct ProfileNameReceipt {
     pub user_id: i64,
     pub outcome: ProfileMutationOutcome,
+    pub sequence: Option<u64>,
+    pub complete: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ChatTitlePlan {
+    pub chat_id: i64,
+    pub current_title: String,
+    pub desired_title: String,
+    pub sequence: u64,
+    pub changed: bool,
+    pub risk: RiskClass,
+    pub retry: RetryClass,
+    pub plan_hash: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChatTitleOutcome {
+    AlreadyApplied,
+    Verified,
+    Uncertain,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ChatTitleReceipt {
+    pub chat_id: i64,
+    pub title: String,
+    pub outcome: ChatTitleOutcome,
     pub sequence: Option<u64>,
     pub complete: bool,
 }
@@ -657,6 +687,102 @@ pub fn update_profile_name(
                     sequence: None,
                     complete: false,
                 });
+            }
+            Err(error) => return Err(ChatWorkflowError::Runtime(error)),
+        }
+    }
+}
+
+pub fn plan_chat_title(
+    runtime: &CoreRuntime,
+    chat_id: i64,
+    desired_title: &str,
+) -> Result<ChatTitlePlan, ChatWorkflowError> {
+    require_resynced(runtime)?;
+    if !(1..=128).contains(&desired_title.chars().count()) {
+        return Err(ChatWorkflowError::InvalidChatConfiguration);
+    }
+    let chat = runtime
+        .state()
+        .chat(chat_id)
+        .ok_or(ChatWorkflowError::PrerequisiteMissing {
+            prerequisite: "chat",
+        })?;
+    if !required_bool(&chat.value["permissions"], "can_change_info", "chat")? {
+        return Err(ChatWorkflowError::CapabilityDenied {
+            capability: "can_change_info",
+        });
+    }
+    let current_title = required_string(&chat.value, "title", "chat")?.to_owned();
+    let preview = title_preview(chat_id, desired_title)?;
+    Ok(ChatTitlePlan {
+        chat_id,
+        changed: current_title != desired_title,
+        current_title,
+        desired_title: desired_title.to_owned(),
+        sequence: chat.sequence.get(),
+        risk: preview.risk,
+        retry: preview.retry,
+        plan_hash: preview.hash.to_hex(),
+    })
+}
+
+pub fn apply_chat_title(
+    runtime: &mut CoreRuntime,
+    policy: &RawPolicy,
+    plan: &ChatTitlePlan,
+    deadline: Instant,
+) -> Result<ChatTitleReceipt, ChatWorkflowError> {
+    require_resynced(runtime)?;
+    if !plan.changed {
+        return Ok(chat_title_receipt(
+            plan,
+            ChatTitleOutcome::AlreadyApplied,
+            Some(plan.sequence),
+        ));
+    }
+    let current = runtime
+        .state()
+        .chat(plan.chat_id)
+        .filter(|chat| {
+            chat.sequence.get() == plan.sequence
+                && chat.value["title"] == plan.current_title
+                && chat.value["permissions"]["can_change_info"] == true
+        })
+        .ok_or(ChatWorkflowError::PlanStale)?;
+    let preview = title_preview(plan.chat_id, &plan.desired_title)?;
+    if preview.hash.to_hex() != plan.plan_hash {
+        return Err(ChatWorkflowError::PlanStale);
+    }
+    let baseline = current.sequence.get();
+    expect_ok(
+        call_and_apply(
+            runtime,
+            policy,
+            "setChatTitle",
+            json!({
+                "@type":"setChatTitle",
+                "chat_id":plan.chat_id,
+                "title":plan.desired_title
+            }),
+            deadline,
+        )?,
+        "setChatTitle",
+    )?;
+    loop {
+        if let Some(chat) = runtime.state().chat(plan.chat_id).filter(|chat| {
+            chat.sequence.get() > baseline && chat.value["title"] == plan.desired_title
+        }) {
+            return Ok(chat_title_receipt(
+                plan,
+                ChatTitleOutcome::Verified,
+                Some(chat.sequence.get()),
+            ));
+        }
+        match runtime.next_event_until(deadline) {
+            Ok(_) => {}
+            Err(RuntimeError::DeadlineExceeded) => {
+                return Ok(chat_title_receipt(plan, ChatTitleOutcome::Uncertain, None));
             }
             Err(error) => return Err(ChatWorkflowError::Runtime(error)),
         }
@@ -2446,6 +2572,28 @@ fn matching_profile_name(
         .then_some(user.sequence.get())
 }
 
+fn title_preview(chat_id: i64, title: &str) -> Result<PlanPreview, ChatWorkflowError> {
+    let request = ValidatedRequest::from_value(
+        json!({"@type":"setChatTitle","chat_id":chat_id,"title":title}),
+    )
+    .map_err(|_| ChatWorkflowError::InvalidChatConfiguration)?;
+    PlanPreview::for_request(&request).map_err(|_| ChatWorkflowError::InvalidChatConfiguration)
+}
+
+fn chat_title_receipt(
+    plan: &ChatTitlePlan,
+    outcome: ChatTitleOutcome,
+    sequence: Option<u64>,
+) -> ChatTitleReceipt {
+    ChatTitleReceipt {
+        chat_id: plan.chat_id,
+        title: plan.desired_title.clone(),
+        outcome,
+        sequence,
+        complete: outcome != ChatTitleOutcome::Uncertain,
+    }
+}
+
 fn invoke(
     runtime: &CoreRuntime,
     policy: &RawPolicy,
@@ -2593,6 +2741,8 @@ pub enum ChatWorkflowError {
     InvalidPageOptions,
     InvalidFileTransfer,
     InvalidProfileInput,
+    InvalidChatConfiguration,
+    PlanStale,
     ResyncRequired {
         gap_after_sequence: Option<u64>,
     },
@@ -2631,6 +2781,10 @@ impl fmt::Display for ChatWorkflowError {
             Self::InvalidProfileInput => {
                 formatter.write_str("profile input is outside TDLib bounds")
             }
+            Self::InvalidChatConfiguration => {
+                formatter.write_str("chat configuration is outside TDLib bounds")
+            }
+            Self::PlanStale => formatter.write_str("chat configuration plan is stale"),
             Self::ResyncRequired { gap_after_sequence } => write!(
                 formatter,
                 "update state is gapped after sequence {gap_after_sequence:?}; resync is required"
@@ -2656,6 +2810,8 @@ impl Error for ChatWorkflowError {
             | Self::InvalidPageOptions
             | Self::InvalidFileTransfer
             | Self::InvalidProfileInput
+            | Self::InvalidChatConfiguration
+            | Self::PlanStale
             | Self::ResyncRequired { .. }
             | Self::NoResyncRequired => None,
         }
@@ -2671,6 +2827,7 @@ mod tests {
     use super::*;
     use crate::registry::{capability, CapabilityDisposition, RiskClass};
     use crate::transport::{BackendError, TdJsonBackend};
+    use ed25519_dalek::{Signer, SigningKey};
 
     fn object(value: Value) -> Result<TdObject, RawApiError> {
         Ok(TdObject::from_value(value).unwrap())
@@ -3286,7 +3443,7 @@ mod tests {
                     let updates = if self.snapshot_calls == 1 {
                         vec![json!({
                             "@type":"updateNewChat",
-                            "chat":{"@type":"chat","id":9,"has_protected_content":false,"positions":[],"chat_lists":[],"reply_markup_message_id":0}
+                            "chat":{"@type":"chat","id":9,"title":"Old title","permissions":{"@type":"chatPermissions","can_change_info":true},"has_protected_content":false,"positions":[],"chat_lists":[],"reply_markup_message_id":0}
                         })]
                     } else {
                         vec![json!({
@@ -3366,6 +3523,14 @@ mod tests {
                     }));
                     self.push(json!({"@type":"ok","@extra":extra}));
                 }
+                "setChatTitle" => {
+                    self.push(json!({
+                        "@type":"updateChatTitle",
+                        "chat_id":request["chat_id"],
+                        "title":request["title"]
+                    }));
+                    self.push(json!({"@type":"ok","@extra":extra}));
+                }
                 _ => unreachable!("unexpected test method {method}"),
             }
             Ok(())
@@ -3441,6 +3606,55 @@ mod tests {
             "getMe".to_owned(),
             "setName".to_owned(),
         ]));
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn chat_title_requires_exact_approval_and_matching_update() {
+        use crate::approval::{approval_payload, ApprovalReceipt, ApprovalVerifier};
+
+        let (backend, methods) = TerminalWorkflowBackend::new();
+        let mut runtime = CoreRuntime::start(backend, test_deadline()).unwrap();
+        let plan = plan_chat_title(&runtime, 9, "New title").unwrap();
+        assert!(plan.changed);
+
+        let request = ValidatedRequest::from_value(json!({
+            "@type":"setChatTitle","chat_id":9,"title":"New title"
+        }))
+        .unwrap();
+        let preview = PlanPreview::for_request(&request).unwrap();
+        assert_eq!(plan.plan_hash, preview.hash.to_hex());
+        let signing = SigningKey::from_bytes(&[9; 32]);
+        let verifier = ApprovalVerifier::new(signing.verifying_key().to_bytes()).unwrap();
+        let expires = (SystemTime::now() + Duration::from_secs(60))
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let nonce = [4; 16];
+        let signature = signing
+            .sign(&approval_payload(preview.hash, expires, nonce))
+            .to_bytes();
+        let approval = verifier
+            .verify(
+                preview,
+                ApprovalReceipt::new(preview.hash, expires, nonce, signature),
+                SystemTime::now(),
+            )
+            .unwrap();
+        let policy = RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![RiskClass::Admin],
+        )
+        .with_approval(approval);
+
+        let receipt = apply_chat_title(&mut runtime, &policy, &plan, test_deadline()).unwrap();
+        assert_eq!(receipt.outcome, ChatTitleOutcome::Verified);
+        assert!(receipt.complete);
+        assert!(methods
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|method| method == "setChatTitle"));
         runtime.shutdown().unwrap();
     }
 

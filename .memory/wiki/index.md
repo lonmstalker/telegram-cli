@@ -32,6 +32,7 @@
 - [F008 chat/folder/topic workflows](../../docs/forum-topic-workflow.md)
 - [F009 message workflows](../../docs/message-workflow.md)
 - [F010 file/media workflows](../../docs/file-transfer-workflow.md)
+- [F011 groups/channels/moderation workflows](../../docs/chat-administration-workflow.md)
 - [Current project state](project-state.md)
 
 ## Memory streams
@@ -56,7 +57,7 @@
 
 ## Current records
 
-- Implementation: P0–P6 accepted; P7/F007–F010 закрыты, следующий — F011; см. [project-state.md](project-state.md).
+- Implementation: P0–P6 accepted; P7/F007–F011 закрыты, следующий — F012; см. [project-state.md](project-state.md).
 - Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -102,6 +103,7 @@
 - F008 chat/folder/topic pagination/reconciliation: [D-20260715-075](../decisions/decisions.md), [W-20260715-080](../logs/work.md), [`docs/forum-topic-workflow.md`](../../docs/forum-topic-workflow.md).
 - F009 message read/send safety: [D-20260715-076](../decisions/decisions.md), [W-20260715-081](../logs/work.md), [`docs/message-workflow.md`](../../docs/message-workflow.md).
 - F010 file terminal/path safety: [D-20260715-077](../decisions/decisions.md), [W-20260715-082](../logs/work.md), [`docs/file-transfer-workflow.md`](../../docs/file-transfer-workflow.md).
+- F011 exact-plan chat administration: [D-20260715-078](../decisions/decisions.md), [W-20260715-083](../logs/work.md), [`docs/chat-administration-workflow.md`](../../docs/chat-administration-workflow.md).
 
 ## Operating rules
 

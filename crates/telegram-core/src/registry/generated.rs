@@ -4024,7 +4024,7 @@ pub static CAPABILITIES: &[CapabilityDescriptor] = &[
     CapabilityDescriptor { method: "setChatProfileAccentColor", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "setChatSlowModeDelay", disposition: CapabilityDisposition::Reviewed { risk: RiskClass::Admin, accounts: &[AccountKind::RegularUser,], runtime_requirements: "ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanRestrictMembers }", retry: RetryClass::Convergent } },
     CapabilityDescriptor { method: "setChatTheme", disposition: CapabilityDisposition::DefaultDeny },
-    CapabilityDescriptor { method: "setChatTitle", disposition: CapabilityDisposition::DefaultDeny },
+    CapabilityDescriptor { method: "setChatTitle", disposition: CapabilityDisposition::Reviewed { risk: RiskClass::Admin, accounts: &[AccountKind::RegularUser,], runtime_requirements: "ChatMemberRight { target: chat_id, right: CanChangeInfo }", retry: RetryClass::Convergent } },
     CapabilityDescriptor { method: "setCloseFriends", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "setCommands", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "setCustomEmojiStickerSetThumbnail", disposition: CapabilityDisposition::DefaultDeny },

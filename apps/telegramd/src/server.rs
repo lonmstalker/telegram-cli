@@ -25,7 +25,7 @@ use telegram_core::runtime::CoreRuntime;
 use telegram_core::workflows::{
     self, ChatSearchQuery, ChatTarget, ChatWorkflowError, CustomEmojiSetAction, DownloadQuery,
     ForumTopicsQuery, HistoryQuery, InputFileSource, MembersQuery, MembershipTarget, PageOptions,
-    StickerFormat, UserTarget, WebAppMode, WebAppRequest,
+    StickerFormat, StoryAction, StoryPrivacy, UserTarget, WebAppMode, WebAppRequest,
 };
 use telegram_protocol::{
     CommandErrorCode, DaemonRequest, DaemonResponse, EventKind, EventRecord, LeaseErrorCode,
@@ -101,6 +101,16 @@ const WORKFLOWS: &[(&str, &str)] = &[
         "apply_custom_emoji_set",
         r#"{"action":"create","user_id":1,"title":"Disposable","name":"codex_disposable","format":"webp","sticker_file_id":1,"emojis":"🧪","needs_repainting":false}"#,
     ),
+    (
+        "plan_story_mutation",
+        r#"{"action":"post_photo","chat_id":1,"photo_file_id":1,"caption":"","privacy":{"kind":"selected_users","user_ids":[1]},"active_period":86400,"is_posted_to_chat_page":false,"protect_content":true}"#,
+    ),
+    (
+        "apply_story_mutation",
+        r#"{"action":"post_photo","chat_id":1,"photo_file_id":1,"caption":"","privacy":{"kind":"selected_users","user_ids":[1]},"active_period":86400,"is_posted_to_chat_page":false,"protect_content":true}"#,
+    ),
+    ("inspect_group_call", r#"{"group_call_id":1}"#),
+    ("leave_group_call", r#"{"group_call_id":1}"#),
     (
         "start_bot",
         r#"{"bot_user_id":0,"chat_id":0,"parameter":""}"#,
@@ -813,7 +823,11 @@ fn run_workflow(
         web_app_artifacts,
         deadline,
     } = context;
-    if approval.is_some() && name != "apply_chat_title" && name != "apply_custom_emoji_set" {
+    if approval.is_some()
+        && name != "apply_chat_title"
+        && name != "apply_custom_emoji_set"
+        && name != "apply_story_mutation"
+    {
         return Err(WorkflowDispatchError::InvalidInput);
     }
     match name {
@@ -1059,6 +1073,34 @@ fn run_workflow(
             let policy = approved_policy(policy, approval, &request, approval_verifier)
                 .map_err(WorkflowDispatchError::Approval)?;
             let result = workflows::apply_custom_emoji_set(runtime, &policy, action, deadline)?;
+            let complete = result.complete;
+            output(result, complete)
+        }
+        "plan_story_mutation" => {
+            let input: StoryMutationInput = parse(input)?;
+            output(workflows::plan_story_mutation(input.as_core())?, true)
+        }
+        "apply_story_mutation" => {
+            let input: StoryMutationInput = parse(input)?;
+            let action = input.as_core();
+            let request = workflows::story_mutation_request(action)?;
+            let policy = approved_policy(policy, approval, &request, approval_verifier)
+                .map_err(WorkflowDispatchError::Approval)?;
+            let result = workflows::apply_story_mutation(runtime, &policy, action, deadline)?;
+            let complete = result.complete;
+            output(result, complete)
+        }
+        "inspect_group_call" => {
+            let input: GroupCallInput = parse(input)?;
+            output(
+                workflows::inspect_group_call(runtime, &policy, input.group_call_id, deadline)?,
+                true,
+            )
+        }
+        "leave_group_call" => {
+            let input: GroupCallInput = parse(input)?;
+            let result =
+                workflows::leave_group_call(runtime, &policy, input.group_call_id, deadline)?;
             let complete = result.complete;
             output(result, complete)
         }
@@ -1570,6 +1612,81 @@ impl CustomEmojiSetInput {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
+enum StoryMutationInput {
+    PostPhoto {
+        chat_id: i64,
+        photo_file_id: i32,
+        caption: String,
+        privacy: StoryPrivacyInput,
+        active_period: i32,
+        is_posted_to_chat_page: bool,
+        protect_content: bool,
+    },
+    Delete {
+        story_poster_chat_id: i64,
+        story_id: i32,
+    },
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum StoryPrivacyInput {
+    Everyone { except_user_ids: Vec<i64> },
+    Contacts { except_user_ids: Vec<i64> },
+    CloseFriends,
+    SelectedUsers { user_ids: Vec<i64> },
+}
+
+impl StoryMutationInput {
+    fn as_core(&self) -> StoryAction<'_> {
+        match self {
+            Self::PostPhoto {
+                chat_id,
+                photo_file_id,
+                caption,
+                privacy,
+                active_period,
+                is_posted_to_chat_page,
+                protect_content,
+            } => StoryAction::PostPhoto {
+                chat_id: *chat_id,
+                photo_file_id: *photo_file_id,
+                caption,
+                privacy: privacy.as_core(),
+                active_period: *active_period,
+                is_posted_to_chat_page: *is_posted_to_chat_page,
+                protect_content: *protect_content,
+            },
+            Self::Delete {
+                story_poster_chat_id,
+                story_id,
+            } => StoryAction::Delete {
+                story_poster_chat_id: *story_poster_chat_id,
+                story_id: *story_id,
+            },
+        }
+    }
+}
+
+impl StoryPrivacyInput {
+    fn as_core(&self) -> StoryPrivacy<'_> {
+        match self {
+            Self::Everyone { except_user_ids } => StoryPrivacy::Everyone(except_user_ids),
+            Self::Contacts { except_user_ids } => StoryPrivacy::Contacts(except_user_ids),
+            Self::CloseFriends => StoryPrivacy::CloseFriends,
+            Self::SelectedUsers { user_ids } => StoryPrivacy::SelectedUsers(user_ids),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GroupCallInput {
+    group_call_id: i32,
+}
+
 impl From<StickerFormatInput> for StickerFormat {
     fn from(value: StickerFormatInput) -> Self {
         match value {
@@ -1759,6 +1876,8 @@ fn workflow_error(error: WorkflowDispatchError) -> CommandErrorCode {
             | ChatWorkflowError::InvalidPageOptions
             | ChatWorkflowError::InvalidFileTransfer
             | ChatWorkflowError::InvalidStickerSetMutation
+            | ChatWorkflowError::InvalidStoryMutation
+            | ChatWorkflowError::InvalidGroupCall
             | ChatWorkflowError::InvalidProfileInput
             | ChatWorkflowError::InvalidChatConfiguration
             | ChatWorkflowError::InvalidBotInteraction,
@@ -2118,6 +2237,10 @@ mod tests {
                 "plan_custom_emoji_set" | "apply_custom_emoji_set" => {
                     parse::<CustomEmojiSetInput>(input).is_ok()
                 }
+                "plan_story_mutation" | "apply_story_mutation" => {
+                    parse::<StoryMutationInput>(input).is_ok()
+                }
+                "inspect_group_call" | "leave_group_call" => parse::<GroupCallInput>(input).is_ok(),
                 "start_bot" | "start_bot_and_wait_reply" => parse::<StartBotInput>(input).is_ok(),
                 "click_bot_callback" => parse::<BotCallbackInput>(input).is_ok(),
                 "open_web_app" | "prepare_web_app_handoff" => parse::<WebAppInput>(input).is_ok(),

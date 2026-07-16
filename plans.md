@@ -256,7 +256,10 @@ flowchart LR
 - [x] F012 bots/testing.
 - [x] F013 Mini Apps.
 - [x] F014 stickers/custom emoji.
-- [ ] F015 stories/calls/live; F016 account settings; F017 Business; F018 payments/digital assets.
+- [x] F015 stories/calls/live.
+- [ ] F016 account settings.
+- [ ] F017 Business.
+- [ ] F018 payments/digital assets.
 - [ ] F019 statistics/resources; F020 platform utilities; F021 reliability как сквозной contract; F022 agent skill.
 
 Acceptance: критерии соответствующего harness-файла выполнены и подтверждены тестами — зачем: harness уже описывает intended behavior; дублировать его в плане — расхождение двух источников.

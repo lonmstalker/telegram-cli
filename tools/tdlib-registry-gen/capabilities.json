@@ -182,6 +182,15 @@
       "retry": "reconcile"
     },
     {
+      "method": "deleteStory",
+      "risk": "destructive",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "StoryCapability { target: story_poster_chat_id, story: story_id, capability: CanBeDeleted }",
+      "retry": "reconcile"
+    },
+    {
       "method": "cancelDownloadFile",
       "risk": "reversible_mutation",
       "accounts": [
@@ -317,6 +326,15 @@
       "retry": "safe_read"
     },
     {
+      "method": "getChatActiveStories",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKnown { target: chat_id }",
+      "retry": "safe_read"
+    },
+    {
       "method": "getChatHistory",
       "risk": "read",
       "accounts": [
@@ -390,6 +408,15 @@
       "retry": "safe_read"
     },
     {
+      "method": "getGroupCall",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "GroupCallKnown { target: group_call_id }",
+      "retry": "safe_read"
+    },
+    {
       "method": "getFile",
       "risk": "read",
       "accounts": [
@@ -435,6 +462,15 @@
         "regular_user"
       ],
       "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getStory",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKnown { target: story_poster_chat_id }",
       "retry": "safe_read"
     },
     {
@@ -732,6 +768,24 @@
       ],
       "runtime_requirements": "ChatKnown { target: chat_id } AND MessageDatabaseEnabled",
       "retry": "safe_read"
+    },
+    {
+      "method": "leaveGroupCall",
+      "risk": "presence",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "GroupCallProperty { group_call: group_call_id, property: IsJoined }",
+      "retry": "convergent"
+    },
+    {
+      "method": "postStory",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatStoryRight { target: chat_id, right: CanPostStories } AND UploadedFile { target: content.photo }",
+      "retry": "reconcile"
     },
     {
       "method": "searchPublicChat",

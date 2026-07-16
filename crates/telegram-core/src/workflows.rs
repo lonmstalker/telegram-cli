@@ -392,6 +392,89 @@ pub struct StickerSetMutationReceipt {
     pub freshness: Freshness,
 }
 
+#[derive(Clone, Copy)]
+pub enum StoryPrivacy<'value> {
+    Everyone(&'value [i64]),
+    Contacts(&'value [i64]),
+    CloseFriends,
+    SelectedUsers(&'value [i64]),
+}
+
+#[derive(Clone, Copy)]
+pub enum StoryAction<'value> {
+    PostPhoto {
+        chat_id: i64,
+        photo_file_id: i32,
+        caption: &'value str,
+        privacy: StoryPrivacy<'value>,
+        active_period: i32,
+        is_posted_to_chat_page: bool,
+        protect_content: bool,
+    },
+    Delete {
+        story_poster_chat_id: i64,
+        story_id: i32,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StoryMutationKind {
+    PostPhoto,
+    Delete,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct StoryMutationPlan {
+    pub action: StoryMutationKind,
+    pub story_poster_chat_id: i64,
+    pub story_id: Option<i32>,
+    pub risk: RiskClass,
+    pub retry: RetryClass,
+    pub plan_hash: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StoryMutationOutcome {
+    Verified,
+    Uncertain,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct StoryMutationReceipt {
+    pub action: StoryMutationKind,
+    pub story_poster_chat_id: i64,
+    pub story_id: Option<i32>,
+    pub candidate_story_ids: Vec<i32>,
+    pub outcome: StoryMutationOutcome,
+    pub cleanup_verified: bool,
+    pub complete: bool,
+    pub observed_at: SystemTime,
+    pub freshness: Freshness,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GroupCallLeaveOutcome {
+    AlreadyLeft,
+    Verified,
+    Uncertain,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct GroupCallReceipt {
+    pub group_call_id: i32,
+    pub is_active: bool,
+    pub is_joined: bool,
+    pub need_rejoin: bool,
+    pub outcome: Option<GroupCallLeaveOutcome>,
+    pub cleanup_verified: bool,
+    pub complete: bool,
+    pub observed_at: SystemTime,
+    pub freshness: Freshness,
+}
+
 #[derive(Clone, PartialEq, Serialize)]
 pub struct FileTransferReceipt {
     pub file: Value,
@@ -1199,6 +1282,107 @@ pub fn apply_custom_emoji_set(
     })
 }
 
+pub fn plan_story_mutation(
+    action: StoryAction<'_>,
+) -> Result<StoryMutationPlan, ChatWorkflowError> {
+    let request = story_mutation_request(action)?;
+    let request = ValidatedRequest::from_value(request)
+        .map_err(|_| ChatWorkflowError::InvalidStoryMutation)?;
+    let preview =
+        PlanPreview::for_request(&request).map_err(|_| ChatWorkflowError::InvalidStoryMutation)?;
+    Ok(StoryMutationPlan {
+        action: action.kind(),
+        story_poster_chat_id: action.chat_id(),
+        story_id: action.story_id(),
+        risk: preview.risk,
+        retry: preview.retry,
+        plan_hash: preview.hash.to_hex(),
+    })
+}
+
+pub fn story_mutation_request(action: StoryAction<'_>) -> Result<Value, ChatWorkflowError> {
+    action.validate()?;
+    Ok(match action {
+        StoryAction::PostPhoto {
+            chat_id,
+            photo_file_id,
+            caption,
+            privacy,
+            active_period,
+            is_posted_to_chat_page,
+            protect_content,
+        } => json!({
+            "@type":"postStory",
+            "chat_id":chat_id,
+            "content":{
+                "@type":"inputStoryContentPhoto",
+                "photo":{"@type":"inputFileId","id":photo_file_id},
+                "added_sticker_file_ids":[]
+            },
+            "areas":null,
+            "caption":{"@type":"formattedText","text":caption,"entities":[]},
+            "privacy_settings":privacy.tdjson(),
+            "album_ids":[],
+            "active_period":active_period,
+            "from_story_full_id":null,
+            "is_posted_to_chat_page":is_posted_to_chat_page,
+            "protect_content":protect_content
+        }),
+        StoryAction::Delete {
+            story_poster_chat_id,
+            story_id,
+        } => json!({
+            "@type":"deleteStory",
+            "story_poster_chat_id":story_poster_chat_id,
+            "story_id":story_id
+        }),
+    })
+}
+
+pub fn apply_story_mutation(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    action: StoryAction<'_>,
+    deadline: Instant,
+) -> Result<StoryMutationReceipt, ChatWorkflowError> {
+    require_resynced(runtime)?;
+    story_mutation_with(action, |method, request| {
+        invoke(runtime, policy, method, request, deadline)
+    })
+}
+
+pub fn inspect_group_call(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    group_call_id: i32,
+    deadline: Instant,
+) -> Result<GroupCallReceipt, ChatWorkflowError> {
+    require_resynced(runtime)?;
+    group_call_state(
+        invoke(
+            runtime,
+            policy,
+            "getGroupCall",
+            json!({"@type":"getGroupCall","group_call_id":group_call_id}),
+            deadline,
+        )?
+        .as_value(),
+        None,
+    )
+}
+
+pub fn leave_group_call(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    group_call_id: i32,
+    deadline: Instant,
+) -> Result<GroupCallReceipt, ChatWorkflowError> {
+    require_resynced(runtime)?;
+    leave_group_call_with(group_call_id, |method, request| {
+        invoke(runtime, policy, method, request, deadline)
+    })
+}
+
 pub fn cancel_download(
     runtime: &CoreRuntime,
     policy: &RawPolicy,
@@ -1679,7 +1863,7 @@ fn custom_emoji_set_with(
         CustomEmojiSetAction::Create {
             sticker_file_id, ..
         } => {
-            require_uploaded_sticker(sticker_file_id, &mut call)?;
+            require_uploaded_file(sticker_file_id, &mut call)?;
             create_custom_emoji_set(action, sticker_file_id, &mut call)
         }
         CustomEmojiSetAction::Add {
@@ -1687,7 +1871,7 @@ fn custom_emoji_set_with(
             sticker_file_id,
             ..
         } => {
-            require_uploaded_sticker(sticker_file_id, &mut call)?;
+            require_uploaded_file(sticker_file_id, &mut call)?;
             add_custom_emoji_sticker(action, set_id, sticker_file_id, &mut call)
         }
         CustomEmojiSetAction::Delete { set_id, .. } => {
@@ -1868,7 +2052,7 @@ fn delete_custom_emoji_set(
     Ok(sticker_set_receipt(action, Some(set_id), 0, outcome))
 }
 
-fn require_uploaded_sticker(
+fn require_uploaded_file(
     file_id: i32,
     call: &mut impl FnMut(&'static str, Value) -> Result<TdObject, ChatWorkflowError>,
 ) -> Result<(), ChatWorkflowError> {
@@ -1878,7 +2062,7 @@ fn require_uploaded_sticker(
     }
     if !file_complete(file.as_value(), FileDirection::Upload)? {
         return Err(ChatWorkflowError::PrerequisiteMissing {
-            prerequisite: "uploaded_sticker_file",
+            prerequisite: "uploaded_file",
         });
     }
     Ok(())
@@ -1976,6 +2160,315 @@ fn response_timed_out(error: &ChatWorkflowError) -> bool {
         error,
         ChatWorkflowError::Call(RawApiError::Transport(TransportError::ResponseTimeout))
     )
+}
+
+impl StoryAction<'_> {
+    fn validate(self) -> Result<(), ChatWorkflowError> {
+        if self.chat_id() <= 0 || self.story_id().is_some_and(|story_id| story_id <= 0) {
+            return Err(ChatWorkflowError::InvalidStoryMutation);
+        }
+        if let Self::PostPhoto {
+            photo_file_id,
+            caption,
+            privacy,
+            active_period,
+            ..
+        } = self
+        {
+            if photo_file_id <= 0
+                || caption.chars().count() > 1024
+                || !matches!(active_period, 21_600 | 43_200 | 86_400 | 172_800)
+                || !privacy.valid()
+            {
+                return Err(ChatWorkflowError::InvalidStoryMutation);
+            }
+        }
+        Ok(())
+    }
+
+    fn kind(self) -> StoryMutationKind {
+        match self {
+            Self::PostPhoto { .. } => StoryMutationKind::PostPhoto,
+            Self::Delete { .. } => StoryMutationKind::Delete,
+        }
+    }
+
+    fn chat_id(self) -> i64 {
+        match self {
+            Self::PostPhoto { chat_id, .. } => chat_id,
+            Self::Delete {
+                story_poster_chat_id,
+                ..
+            } => story_poster_chat_id,
+        }
+    }
+
+    fn story_id(self) -> Option<i32> {
+        match self {
+            Self::PostPhoto { .. } => None,
+            Self::Delete { story_id, .. } => Some(story_id),
+        }
+    }
+}
+
+impl StoryPrivacy<'_> {
+    fn valid(self) -> bool {
+        match self {
+            Self::Everyone(excluded) | Self::Contacts(excluded) => {
+                excluded.iter().all(|user_id| *user_id > 0)
+            }
+            Self::CloseFriends => true,
+            Self::SelectedUsers(user_ids) => {
+                !user_ids.is_empty() && user_ids.iter().all(|user_id| *user_id > 0)
+            }
+        }
+    }
+
+    fn tdjson(self) -> Value {
+        match self {
+            Self::Everyone(except_user_ids) => json!({
+                "@type":"storyPrivacySettingsEveryone",
+                "except_user_ids":except_user_ids
+            }),
+            Self::Contacts(except_user_ids) => json!({
+                "@type":"storyPrivacySettingsContacts",
+                "except_user_ids":except_user_ids
+            }),
+            Self::CloseFriends => json!({"@type":"storyPrivacySettingsCloseFriends"}),
+            Self::SelectedUsers(user_ids) => json!({
+                "@type":"storyPrivacySettingsSelectedUsers",
+                "user_ids":user_ids
+            }),
+        }
+    }
+}
+
+fn story_mutation_with(
+    action: StoryAction<'_>,
+    mut call: impl FnMut(&'static str, Value) -> Result<TdObject, ChatWorkflowError>,
+) -> Result<StoryMutationReceipt, ChatWorkflowError> {
+    action.validate()?;
+    match action {
+        StoryAction::PostPhoto { photo_file_id, .. } => {
+            require_uploaded_file(photo_file_id, &mut call)?;
+            let story = match call("postStory", story_mutation_request(action)?) {
+                Ok(story) => story,
+                Err(error) if response_timed_out(&error) => {
+                    let candidates =
+                        active_story_ids(action.chat_id(), &mut call).unwrap_or_default();
+                    return Ok(story_receipt(
+                        action,
+                        None,
+                        candidates,
+                        StoryMutationOutcome::Uncertain,
+                    ));
+                }
+                Err(error) => return Err(error),
+            };
+            let story_id = story_identity(story.as_value(), action.chat_id())?;
+            match call(
+                "getStory",
+                json!({
+                    "@type":"getStory",
+                    "story_poster_chat_id":action.chat_id(),
+                    "story_id":story_id,
+                    "only_local":false
+                }),
+            ) {
+                Ok(story) => {
+                    let verified = story_identity(story.as_value(), action.chat_id())? == story_id
+                        && !required_bool(story.as_value(), "is_being_posted", "getStory")?;
+                    Ok(story_receipt(
+                        action,
+                        Some(story_id),
+                        vec![story_id],
+                        if verified {
+                            StoryMutationOutcome::Verified
+                        } else {
+                            StoryMutationOutcome::Uncertain
+                        },
+                    ))
+                }
+                Err(error) if response_timed_out(&error) => Ok(story_receipt(
+                    action,
+                    Some(story_id),
+                    vec![story_id],
+                    StoryMutationOutcome::Uncertain,
+                )),
+                Err(error) => Err(error),
+            }
+        }
+        StoryAction::Delete { story_id, .. } => {
+            let story = call(
+                "getStory",
+                json!({
+                    "@type":"getStory",
+                    "story_poster_chat_id":action.chat_id(),
+                    "story_id":story_id,
+                    "only_local":false
+                }),
+            )?;
+            let _ = story_identity(story.as_value(), action.chat_id())?;
+            if !required_bool(story.as_value(), "can_be_deleted", "getStory")? {
+                return Err(ChatWorkflowError::CapabilityDenied {
+                    capability: "can_delete_story",
+                });
+            }
+            let confirmed = match call("deleteStory", story_mutation_request(action)?) {
+                Ok(response) => {
+                    expect_ok(response, "deleteStory")?;
+                    true
+                }
+                Err(error) if response_timed_out(&error) => false,
+                Err(error) => return Err(error),
+            };
+            let candidates =
+                active_story_ids(action.chat_id(), &mut call).unwrap_or_else(|_| vec![story_id]);
+            Ok(story_receipt(
+                action,
+                Some(story_id),
+                candidates.clone(),
+                if confirmed && !candidates.contains(&story_id) {
+                    StoryMutationOutcome::Verified
+                } else {
+                    StoryMutationOutcome::Uncertain
+                },
+            ))
+        }
+    }
+}
+
+fn story_identity(story: &Value, poster_chat_id: i64) -> Result<i32, ChatWorkflowError> {
+    if story["@type"] != "story"
+        || required_i64(story, "poster_chat_id", "story")? != poster_chat_id
+    {
+        return Err(ChatWorkflowError::UnexpectedResult { method: "story" });
+    }
+    required_i32(story, "id", "story")
+}
+
+fn active_story_ids(
+    chat_id: i64,
+    call: &mut impl FnMut(&'static str, Value) -> Result<TdObject, ChatWorkflowError>,
+) -> Result<Vec<i32>, ChatWorkflowError> {
+    let active = call(
+        "getChatActiveStories",
+        json!({"@type":"getChatActiveStories","chat_id":chat_id}),
+    )?;
+    if active.as_value()["@type"] != "chatActiveStories"
+        || required_i64(active.as_value(), "chat_id", "getChatActiveStories")? != chat_id
+    {
+        return Err(ChatWorkflowError::UnexpectedResult {
+            method: "getChatActiveStories",
+        });
+    }
+    active.as_value()["stories"]
+        .as_array()
+        .ok_or(ChatWorkflowError::InvalidResult {
+            method: "getChatActiveStories",
+            field: "stories",
+        })?
+        .iter()
+        .map(|story| required_i32(story, "story_id", "getChatActiveStories"))
+        .collect()
+}
+
+fn story_receipt(
+    action: StoryAction<'_>,
+    story_id: Option<i32>,
+    candidate_story_ids: Vec<i32>,
+    outcome: StoryMutationOutcome,
+) -> StoryMutationReceipt {
+    let complete = outcome == StoryMutationOutcome::Verified;
+    StoryMutationReceipt {
+        action: action.kind(),
+        story_poster_chat_id: action.chat_id(),
+        story_id,
+        candidate_story_ids,
+        outcome,
+        cleanup_verified: action.kind() == StoryMutationKind::Delete && complete,
+        complete,
+        observed_at: SystemTime::now(),
+        freshness: Freshness::ServerSnapshot,
+    }
+}
+
+fn leave_group_call_with(
+    group_call_id: i32,
+    mut call: impl FnMut(&'static str, Value) -> Result<TdObject, ChatWorkflowError>,
+) -> Result<GroupCallReceipt, ChatWorkflowError> {
+    if group_call_id <= 0 {
+        return Err(ChatWorkflowError::InvalidGroupCall);
+    }
+    let before = call(
+        "getGroupCall",
+        json!({"@type":"getGroupCall","group_call_id":group_call_id}),
+    )?;
+    let before = group_call_state(before.as_value(), None)?;
+    if !before.is_joined {
+        return group_call_state(
+            &json!({
+                "@type":"groupCall","id":group_call_id,"is_active":before.is_active,
+                "is_joined":false,"need_rejoin":before.need_rejoin
+            }),
+            Some(GroupCallLeaveOutcome::AlreadyLeft),
+        );
+    }
+    match call(
+        "leaveGroupCall",
+        json!({"@type":"leaveGroupCall","group_call_id":group_call_id}),
+    ) {
+        Ok(response) => expect_ok(response, "leaveGroupCall")?,
+        Err(error) if response_timed_out(&error) => {}
+        Err(error) => return Err(error),
+    }
+    match call(
+        "getGroupCall",
+        json!({"@type":"getGroupCall","group_call_id":group_call_id}),
+    ) {
+        Ok(after) => {
+            let joined = required_bool(after.as_value(), "is_joined", "getGroupCall")?;
+            group_call_state(
+                after.as_value(),
+                Some(if joined {
+                    GroupCallLeaveOutcome::Uncertain
+                } else {
+                    GroupCallLeaveOutcome::Verified
+                }),
+            )
+        }
+        Err(error) if response_timed_out(&error) => Ok(GroupCallReceipt {
+            outcome: Some(GroupCallLeaveOutcome::Uncertain),
+            cleanup_verified: false,
+            complete: false,
+            ..before
+        }),
+        Err(error) => Err(error),
+    }
+}
+
+fn group_call_state(
+    call: &Value,
+    outcome: Option<GroupCallLeaveOutcome>,
+) -> Result<GroupCallReceipt, ChatWorkflowError> {
+    if call["@type"] != "groupCall" {
+        return Err(ChatWorkflowError::UnexpectedResult {
+            method: "getGroupCall",
+        });
+    }
+    let is_joined = required_bool(call, "is_joined", "getGroupCall")?;
+    let complete = !matches!(outcome, Some(GroupCallLeaveOutcome::Uncertain));
+    Ok(GroupCallReceipt {
+        group_call_id: required_i32(call, "id", "getGroupCall")?,
+        is_active: required_bool(call, "is_active", "getGroupCall")?,
+        is_joined,
+        need_rejoin: required_bool(call, "need_rejoin", "getGroupCall")?,
+        outcome,
+        cleanup_verified: outcome.is_some() && !is_joined && complete,
+        complete,
+        observed_at: SystemTime::now(),
+        freshness: Freshness::ServerSnapshot,
+    })
 }
 
 impl WebAppMode {
@@ -3532,6 +4025,8 @@ pub enum ChatWorkflowError {
     InvalidPageOptions,
     InvalidFileTransfer,
     InvalidStickerSetMutation,
+    InvalidStoryMutation,
+    InvalidGroupCall,
     InvalidProfileInput,
     InvalidChatConfiguration,
     InvalidBotInteraction,
@@ -3574,6 +4069,10 @@ impl fmt::Display for ChatWorkflowError {
             Self::InvalidStickerSetMutation => {
                 formatter.write_str("custom emoji set mutation is outside TDLib bounds")
             }
+            Self::InvalidStoryMutation => {
+                formatter.write_str("story mutation is outside TDLib bounds")
+            }
+            Self::InvalidGroupCall => formatter.write_str("group call identifier is invalid"),
             Self::InvalidProfileInput => {
                 formatter.write_str("profile input is outside TDLib bounds")
             }
@@ -3609,6 +4108,8 @@ impl Error for ChatWorkflowError {
             | Self::InvalidPageOptions
             | Self::InvalidFileTransfer
             | Self::InvalidStickerSetMutation
+            | Self::InvalidStoryMutation
+            | Self::InvalidGroupCall
             | Self::InvalidProfileInput
             | Self::InvalidChatConfiguration
             | Self::InvalidBotInteraction
@@ -4200,6 +4701,102 @@ mod tests {
         assert_eq!(deleted.outcome, StickerSetMutationOutcome::Verified);
         assert!(deleted.cleanup_verified);
         assert!(deleted.complete);
+    }
+
+    #[test]
+    fn story_and_group_call_lifecycles_reread_before_terminal_claims() {
+        let story = |is_being_posted: bool| {
+            json!({
+                "@type":"story","id":9,"poster_chat_id":7,
+                "is_being_posted":is_being_posted,"can_be_deleted":true
+            })
+        };
+        let post = StoryAction::PostPhoto {
+            chat_id: 7,
+            photo_file_id: 6,
+            caption: "test",
+            privacy: StoryPrivacy::SelectedUsers(&[8]),
+            active_period: 86_400,
+            is_posted_to_chat_page: false,
+            protect_content: true,
+        };
+        assert_eq!(plan_story_mutation(post).unwrap().risk, RiskClass::Admin);
+        let posted = story_mutation_with(post, |method, _| {
+            workflow_object(match method {
+                "getFile" => json!({
+                    "@type":"file","id":6,
+                    "remote":{"@type":"remoteFile","is_uploading_completed":true}
+                }),
+                "postStory" => story(true),
+                "getStory" => story(false),
+                _ => unreachable!(),
+            })
+        })
+        .unwrap();
+        assert_eq!(posted.story_id, Some(9));
+        assert_eq!(posted.outcome, StoryMutationOutcome::Verified);
+
+        let mut posts = 0;
+        let uncertain = story_mutation_with(post, |method, _| match method {
+            "getFile" => workflow_object(json!({
+                "@type":"file","id":6,
+                "remote":{"@type":"remoteFile","is_uploading_completed":true}
+            })),
+            "postStory" => {
+                posts += 1;
+                Err(ChatWorkflowError::Call(RawApiError::Transport(
+                    TransportError::ResponseTimeout,
+                )))
+            }
+            "getChatActiveStories" => workflow_object(json!({
+                "@type":"chatActiveStories","chat_id":7,
+                "stories":[{"@type":"storyInfo","story_id":9}]
+            })),
+            _ => unreachable!(),
+        })
+        .unwrap();
+        assert_eq!(posts, 1);
+        assert_eq!(uncertain.candidate_story_ids, [9]);
+        assert!(!uncertain.complete);
+
+        let delete = StoryAction::Delete {
+            story_poster_chat_id: 7,
+            story_id: 9,
+        };
+        assert_eq!(
+            plan_story_mutation(delete).unwrap().risk,
+            RiskClass::Destructive
+        );
+        let deleted = story_mutation_with(delete, |method, _| {
+            workflow_object(match method {
+                "getStory" => story(false),
+                "deleteStory" => json!({"@type":"ok"}),
+                "getChatActiveStories" => {
+                    json!({"@type":"chatActiveStories","chat_id":7,"stories":[]})
+                }
+                _ => unreachable!(),
+            })
+        })
+        .unwrap();
+        assert!(deleted.cleanup_verified);
+
+        let mut reads = 0;
+        let left = leave_group_call_with(4, |method, _| match method {
+            "getGroupCall" => {
+                reads += 1;
+                workflow_object(json!({
+                    "@type":"groupCall","id":4,"is_active":true,
+                    "is_joined":reads == 1,"need_rejoin":false
+                }))
+            }
+            "leaveGroupCall" => Err(ChatWorkflowError::Call(RawApiError::Transport(
+                TransportError::ResponseTimeout,
+            ))),
+            _ => unreachable!(),
+        })
+        .unwrap();
+        assert_eq!(left.outcome, Some(GroupCallLeaveOutcome::Verified));
+        assert!(left.cleanup_verified);
     }
 
     #[test]

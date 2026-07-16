@@ -28,7 +28,8 @@
 - SRC001: product.md; type: file; supports: full TDLib and routine operations; limits: none.
 - SRC002: HARNESS.md; type: file; supports: async proof and policy dimensions; limits: none.
 - SRC003: pinned official schema; type: supplied; supports: story/call/group-call families; limits: source alone does not prove generated registry.
-- SRC004: plans.md P4/P7/P10; type: file; supports: terminal updates and live gate; limits: implementation absent.
+- SRC004: plans.md P4/P7/P10; type: file; supports: terminal updates and live gate; limits: live fixtures remain P10.
+- SRC005: `crates/telegram-core/src/workflows.rs`, `apps/telegramd/src/server.rs`; type: file; supports: typed photo-story plan/apply, active-story reconciliation and group-call inspect/leave cleanup; limits: tgcalls join adapter remains Q001.
 
 ## TDLib API Coverage
 
@@ -38,7 +39,7 @@
 
 ## Request Graph
 
-`resolve peer/chat -> fetch current state -> validate capability/privacy/rights -> prepare media/protocol -> submit start/join/publish/control -> consume ordered updates -> prove terminal state -> leave/close resources`.
+`prepare photo via F010 -> typed plan/approval -> post/delete once -> fresh story reread`; existing group calls use `get -> leave once -> get` until cleanup is proved. Join signaling stays inside the future media adapter.
 
 ## Completion Proof
 
@@ -46,7 +47,9 @@ Request acknowledgement is partial. Completion requires method-specific state: p
 
 ## Cache and Update Semantics
 
-Call and participant state is update-led and ordered. Story lists are paginated snapshots with freshness metadata; gaps force resync before terminal claims.
+Curated story mutation uses fresh `getStory/getChatActiveStories`; group-call cleanup uses
+fresh `getGroupCall`. Shared update gap blocks both before dispatch. Join/participant updates
+remain lossless generated raw data until Q001 supplies an adapter consumer.
 
 ## Retry and Reconciliation
 
@@ -54,7 +57,9 @@ Reads may retry within deadline. Publish/start/join/control operations reconcile
 
 ## CLI/MCP Exposure
 
-CLI/MCP expose lifecycle operations and event streams. Real-time payloads, encryption material and media sockets remain outside model-visible JSON.
+CLI exposes typed story plan/apply and group-call inspect/leave. Real-time payloads,
+encryption material and media sockets remain outside model-visible JSON; remote MCP follows
+the same boundary later.
 
 ## Permissions and Account Capabilities
 
@@ -62,7 +67,9 @@ Check user/chat type, story privacy, posting/admin rights, call availability, pa
 
 ## Live Verification Boundary
 
-No live story/call mutation has been performed. Live tests require consenting test peers/channels and deterministic teardown.
+Synthetic tests prove story publish reread, lost-response candidate reconciliation,
+delete cleanup and leave-after-timeout probe. No live story/call mutation has been performed;
+P10 requires consenting test peers/channels and deterministic teardown.
 
 ## Scope
 
@@ -140,9 +147,9 @@ No live story/call mutation has been performed. Live tests require consenting te
 ## Scenario Cells
 
 - SC001 - Group call join stalls
-  - Dimensions: D001, D002; Workflow/entity anchor: GroupCallRef; Scenario: join request returns but active update misses deadline; Expected behavior: partial/uncertain, reconcile then leave resources; Related contracts: C001-C002; Related invariants: I002-I003; Why this matters: resource safety; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: GroupCallRef; Scenario: join request returns but active update misses deadline; Expected behavior: partial/uncertain, reconcile then leave resources; Related contracts: C001-C002; Related invariants: I002-I003; Why this matters: resource safety; Status: cleanup implemented synthetic; join adapter modeled.
 - SC002 - Story publish response lost
-  - Dimensions: D001, D002; Workflow/entity anchor: StoryRef; Scenario: timeout after upload; Expected behavior: reread owned stories before retry; Related contracts: C003; Related invariants: I001; Why this matters: duplicate prevention; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: StoryRef; Scenario: timeout after upload; Expected behavior: reread owned stories before retry; Related contracts: C003; Related invariants: I001; Why this matters: duplicate prevention; Status: implemented synthetic.
 
 ## Assumptions
 
@@ -154,8 +161,9 @@ No live story/call mutation has been performed. Live tests require consenting te
 
 ## Coverage Notes
 
-- Kernel coverage: states, evidence and cleanup modeled.
-- Modeled: full method families at domain level.
-- Partial: exact mapping and live media adapter.
+- Kernel coverage: typed photo-story plan/apply/reconciliation/delete cleanup and existing
+  group-call inspect/leave cleanup implemented.
+- Modeled: join/media, private-call and remaining story/live controls stay generated raw/default-deny.
+- Partial: live fixtures and tgcalls adapter.
 - Unknown: test fixture topology.
 - Not applicable: payment flows.

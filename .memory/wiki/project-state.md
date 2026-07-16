@@ -9,7 +9,7 @@
 - Pinned schema: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`; 1010 functions, 2168 definitions, 184 updates, 13 auth states; gate `scripts/check-tdlib-pin.py`.
 - Strict schema parser в `telegram-core::schema` (12 тестов, без внешних dependencies).
 - macOS arm64 и Linux x86_64 `tdjson` с provenance в content-addressed cache; общий gate `scripts/check-tdlib-native-pin.py`, локальная проверка обоих artifacts — с `--require-local-artifact`.
-- Ручное capability-ревью: 112 reviewed и 898 default-deny методов сохранены в canonical data table и `docs/capability-notes.md`. Recognizer engine удалён ([D-20260715-035](../decisions/decisions.md)); классификация — данные с default-deny.
+- Ручное capability-ревью: 118 reviewed и 892 default-deny методов сохранены в canonical data table и `docs/capability-notes.md`. Recognizer engine удалён ([D-20260715-035](../decisions/decisions.md)); классификация — данные с default-deny.
 - Свежий protected live gate существующей зашифрованной сессии прошёл `WaitTdlibParameters -> Ready -> getMe -> close -> Closed` без нового login input; `.env.local` contract (mode `0600`, protected loader) соблюдён.
 - Canonical GitHub remote: `https://github.com/lonmstalker/telegram-cli.git` (public, принято пользователем).
 - P0 accepted: `tg-analytics@e35c54ce213aa170fb0b411eab614485424b3e60` audited from clean archive (97 tests); phase-neutral patterns перенесены, runtime contracts распределены по owner-фазам в `docs/tg-analytics-reuse.md`.
@@ -65,10 +65,11 @@
 - Шестой подпункт P7/F012 закрыт: pre-action sequence и exact bot/chat фильтр коррелируют redacted reply; callback payload остаётся в core, timeout/uncertainty не повторяются ([D-20260715-079](../decisions/decisions.md)).
 - Седьмой подпункт P7/F013 закрыт: owner/TTL one-shot handle держит init data в daemon memory, runner передаёт URL adapter только по stdin и отделяет browser counters от Telegram proof ([D-20260715-080](../decisions/decisions.md)).
 - Восьмой подпункт P7/F014 закрыт: typed custom-emoji plan/apply требует terminal uploaded file и exact approval; create/add перечитывают inventory, delete подтверждает cleanup освобождённым именем ([D-20260715-081](../decisions/decisions.md)).
+- Девятый подпункт P7/F015 закрыт: photo-story post/delete используют exact approval и fresh reread; existing group-call inspect/leave доказывает cleanup без model-visible join payload ([D-20260715-082](../decisions/decisions.md)).
 
 ## Not implemented
 
-- Оставшиеся подпункты P7/F015–F022 и фазы P8–P10: domain workflows, optional MCP, packaging и live acceptance.
+- Оставшиеся подпункты P7/F016–F022 и фазы P8–P10: domain workflows, optional MCP, packaging и live acceptance.
 
 ## Active boundary
 
@@ -77,4 +78,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: P7/F015–F018 stories/calls/live, account settings, Business и payments/digital assets.
+- Следующий implementation boundary: P7/F016 account settings.

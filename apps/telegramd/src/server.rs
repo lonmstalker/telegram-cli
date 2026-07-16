@@ -128,6 +128,15 @@ const WORKFLOWS: &[(&str, &str)] = &[
         "send_business_text",
         r#"{"connection_id":"connection-id","chat_id":1,"text":"hello"}"#,
     ),
+    ("star_balance", "{}"),
+    (
+        "plan_star_invoice_payment",
+        r#"{"invoice_name":"invoice-name"}"#,
+    ),
+    (
+        "apply_star_invoice_payment",
+        r#"{"invoice_name":"invoice-name"}"#,
+    ),
     (
         "start_bot",
         r#"{"bot_user_id":0,"chat_id":0,"parameter":""}"#,
@@ -856,6 +865,7 @@ fn run_workflow(
         && name != "apply_custom_emoji_set"
         && name != "apply_story_mutation"
         && name != "apply_terminate_session"
+        && name != "apply_star_invoice_payment"
     {
         return Err(WorkflowDispatchError::InvalidInput);
     }
@@ -1188,6 +1198,44 @@ fn run_workflow(
                 &input.connection_id,
                 input.chat_id,
                 &input.text,
+                deadline,
+            )?;
+            let complete = result.complete;
+            output(result, complete)
+        }
+        "star_balance" => {
+            let _: EmptyInput = parse(input)?;
+            output(workflows::star_balance(runtime, &policy, deadline)?, true)
+        }
+        "plan_star_invoice_payment" => {
+            let input: StarInvoiceInput = parse(input)?;
+            output(
+                workflows::plan_star_invoice_payment(
+                    runtime,
+                    &policy,
+                    &input.invoice_name,
+                    deadline,
+                )?,
+                true,
+            )
+        }
+        "apply_star_invoice_payment" => {
+            let input: StarInvoiceInput = parse(input)?;
+            let plan = workflows::plan_star_invoice_payment(
+                runtime,
+                &policy,
+                &input.invoice_name,
+                deadline,
+            )?;
+            let request =
+                workflows::star_invoice_payment_request(&input.invoice_name, plan.payment_form_id)?;
+            let policy = approved_policy(policy, approval, &request, approval_verifier)
+                .map_err(WorkflowDispatchError::Approval)?;
+            let result = workflows::apply_star_invoice_payment(
+                runtime,
+                &policy,
+                &plan,
+                &input.invoice_name,
                 deadline,
             )?;
             let complete = result.complete;
@@ -1860,6 +1908,12 @@ struct BusinessMessageInput {
     text: String,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StarInvoiceInput {
+    invoice_name: String,
+}
+
 impl From<StickerFormatInput> for StickerFormat {
     fn from(value: StickerFormatInput) -> Self {
         match value {
@@ -2424,6 +2478,10 @@ mod tests {
                 }
                 "business_connection" => parse::<BusinessConnectionInput>(input).is_ok(),
                 "send_business_text" => parse::<BusinessMessageInput>(input).is_ok(),
+                "star_balance" => parse::<EmptyInput>(input).is_ok(),
+                "plan_star_invoice_payment" | "apply_star_invoice_payment" => {
+                    parse::<StarInvoiceInput>(input).is_ok()
+                }
                 "start_bot" | "start_bot_and_wait_reply" => parse::<StartBotInput>(input).is_ok(),
                 "click_bot_callback" => parse::<BotCallbackInput>(input).is_ok(),
                 "open_web_app" | "prepare_web_app_handoff" => parse::<WebAppInput>(input).is_ok(),

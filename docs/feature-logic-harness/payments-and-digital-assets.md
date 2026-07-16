@@ -29,6 +29,7 @@
 - SRC002: HARNESS.md; type: file; supports: financial/destructive dimensions and secret boundary; limits: none.
 - SRC003: pinned official schema; type: supplied; supports: payment/Stars/gift/Passport method families; limits: source alone does not prove generated registry.
 - SRC004: plans.md P5/P7; type: file; supports: plan hash/idempotency/reconciliation; limits: implementation absent.
+- SRC005: `crates/telegram-core/src/workflows.rs`, `apps/telegramd/src/server.rs`; type: file; supports: redacted Stars balance and exact approved Stars-invoice payment with ledger reconciliation; limits: provider/card/Passport consumers intentionally absent.
 
 ## TDLib API Coverage
 
@@ -46,7 +47,8 @@ A client response is insufficient for value transfer. Completion requires author
 
 ## Cache and Update Semantics
 
-Balances, subscriptions, gifts and payment forms are short-lived snapshots. Writes invalidate them immediately; stale values are never used to approve amount/recipient.
+Curated Stars balance/form/ledger всегда читаются с сервера. Apply повторно строит plan по
+fresh form и ещё раз читает balance перед dispatch; долгоживущий payment cache отсутствует.
 
 ## Retry and Reconciliation
 
@@ -54,7 +56,8 @@ Financial writes never automatically retry after dispatch uncertainty. Persist i
 
 ## CLI/MCP Exposure
 
-Reads and previews are available. Payment credentials, Passport data and approval tokens use isolated providers; remote MCP returns opaque handles and redacted results.
+Balance/preview/apply доступны через typed workflow. Curated apply поддерживает только Stars
+invoice с `credentials=null`; card/order/Passport/provider secrets не имеют ordinary JSON route.
 
 ## Permissions and Account Capabilities
 
@@ -62,7 +65,8 @@ Check account type, Premium/Stars/region/provider availability, terms acceptance
 
 ## Live Verification Boundary
 
-No financial, gift, subscription or Passport operation was performed. Fake backend is required before any approved sandbox/live test.
+Synthetic backend покрывает balance, exact plan, lost response, ledger confirmation и
+verification URL redaction. Live financial/gift/subscription/Passport operation не выполнялась.
 
 ## Scope
 
@@ -139,9 +143,9 @@ No financial, gift, subscription or Passport operation was performed. Fake backe
 ## Scenario Cells
 
 - SC001 - Inspect Stars balance
-  - Dimensions: D001, D002; Workflow/entity anchor: AssetBalance; Scenario: read-only request; Expected behavior: fresh timestamped result, no approval; Related contracts: C002; Related invariants: I002; Why this matters: analytics; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: AssetBalance; Scenario: read-only request; Expected behavior: fresh timestamped result, no approval; Related contracts: C002; Related invariants: I002; Why this matters: analytics; Status: implemented synthetic.
 - SC002 - Payment provider timeout
-  - Dimensions: D001, D002; Workflow/entity anchor: ReconciliationRecord; Scenario: approved submit loses response; Expected behavior: pending/uncertain, query receipt/status, never resubmit automatically; Related contracts: C001-C003; Related invariants: I001-I003; Why this matters: prevent double charge; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: ReconciliationRecord; Scenario: approved Stars submit loses response; Expected behavior: query ledger, confirm only exact new transaction, never resubmit automatically; Related contracts: C001-C003; Related invariants: I001-I003; Why this matters: prevent double charge; Status: implemented synthetic.
 
 ## Assumptions
 
@@ -153,8 +157,8 @@ No financial, gift, subscription or Passport operation was performed. Fake backe
 
 ## Coverage Notes
 
-- Kernel coverage: financial and identity boundaries modeled.
-- Modeled: complete domain families.
-- Partial: exact mapping, providers and live fixtures.
+- Kernel coverage: fresh Stars balance and Stars-only exact-plan payment/reconciliation implemented.
+- Modeled: card/provider/gift/Premium/Passport/affiliate families stay generated raw/default-deny.
+- Partial: protected providers and approved live fixtures.
 - Unknown: approved financial test topology.
 - Not applicable: media codec behavior.

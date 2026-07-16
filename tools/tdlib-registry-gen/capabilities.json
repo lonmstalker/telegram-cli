@@ -1,6 +1,34 @@
 {
   "reviewed": [
     {
+      "method": "getStarTransactions",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "StarOwner { target: owner_id }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getPaymentForm",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "Invoice { target: input_invoice, state: Payable }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "sendPaymentForm",
+      "risk": "financial",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "PaymentForm { target: payment_form_id, state: Fresh } AND ExactExternalApproval",
+      "retry": "reconcile"
+    },
+    {
       "method": "getBusinessConnection",
       "risk": "read",
       "accounts": [

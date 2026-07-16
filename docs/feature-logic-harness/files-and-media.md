@@ -28,7 +28,7 @@
 - SRC001: product.md; type: file; supports: local/server boundary; limits: none.
 - SRC002: HARNESS.md; type: file; supports: secret/path dimensions; limits: none.
 - SRC003: pinned official schema; type: supplied; supports: file/media method/update families; limits: source alone does not prove generated registry.
-- SRC004: plans.md P7/P9; type: file; supports: packaging/path gates; limits: implementation absent.
+- SRC004: plans.md P7/P9 и `telegram_core::workflows`; type: file/code; supports: terminal transfer, cancellation и path gates; limits: remote artifact provider deferred.
 
 ## TDLib API Coverage
 
@@ -64,7 +64,8 @@ File access follows Telegram/chat rights, protected content and local filesystem
 ## Live Verification Boundary
 
 Synthetic runtime test proves async `downloadFile` remains pending until matching
-`updateFile.local.is_downloading_completed`; no live transfer has been executed.
+`updateFile.local.is_downloading_completed`, verifies known size and reconciles cancel
+after timeout. Daemon path test rejects outside/symlink escape. No live transfer executed.
 
 ## Scope
 
@@ -155,9 +156,8 @@ Synthetic runtime test proves async `downloadFile` remains pending until matchin
 
 ## Coverage Notes
 
-- Kernel coverage: typed async download, ordered terminal update and global gap/resync
-  blocking implemented; path/resume behavior remains modeled.
-- Modeled: file lifecycle and cross-surface semantics.
-- Partial: upload families beyond sticker prerequisite, artifact backend, resume/gap and live transfer.
+- Kernel coverage: typed async download/upload, terminal size proof, offset resume, desired-state cancel, gap blocking и local root confinement implemented.
+- Modeled: preliminary/generated/import/download-manager families remain universal raw/default-deny paths.
+- Partial: remote artifact backend Q001, protected-content/live transfer fixtures.
 - Unknown: server quota defaults.
 - Not applicable: Telegram account authorization.

@@ -2,9 +2,10 @@
 
 use std::collections::VecDeque;
 use std::fmt;
+use std::fs;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use serde::de::DeserializeOwned;
@@ -81,6 +82,10 @@ const WORKFLOWS: &[(&str, &str)] = &[
         r#"{"file_id":0,"priority":1,"offset":0,"limit":0}"#,
     ),
     (
+        "cancel_download",
+        r#"{"file_id":0,"only_if_pending":false}"#,
+    ),
+    (
         "upload_sticker_file",
         r#"{"user_id":0,"format":"webp","source":{"kind":"id","id":0}}"#,
     ),
@@ -99,6 +104,7 @@ pub struct LeaseServer {
     ready: bool,
     events: EventBuffer,
     authorization: AuthorizationBroker,
+    artifact_root: Option<PathBuf>,
 }
 
 impl LeaseServer {
@@ -108,7 +114,13 @@ impl LeaseServer {
             ready: true,
             events: EventBuffer::new(EVENT_BUFFER_CAPACITY),
             authorization: AuthorizationBroker::default(),
+            artifact_root: None,
         }
+    }
+
+    pub fn with_artifact_root(mut self, root: PathBuf) -> Self {
+        self.artifact_root = Some(root);
+        self
     }
 
     pub fn set_ready(&mut self, ready: bool) {
@@ -379,7 +391,14 @@ impl LeaseServer {
                     return runtime_unavailable();
                 };
                 let deadline = now.checked_add(CALL_TIMEOUT).unwrap_or(now);
-                let result = run_workflow(runtime, &policy, &workflow, input, deadline);
+                let result = run_workflow(
+                    runtime,
+                    &policy,
+                    &workflow,
+                    input,
+                    self.artifact_root.as_deref(),
+                    deadline,
+                );
                 self.events.reconcile(
                     runtime
                         .state()
@@ -638,6 +657,7 @@ fn run_workflow(
     policy: &telegram_core::raw_api::RawPolicy,
     name: &str,
     input: Value,
+    artifact_root: Option<&Path>,
     deadline: Instant,
 ) -> Result<WorkflowOutput, WorkflowDispatchError> {
     match name {
@@ -825,16 +845,21 @@ fn run_workflow(
             let complete = result.complete;
             output(result, complete)
         }
-        "upload_sticker_file" => {
-            let input: UploadInput = parse(input)?;
-            let result = workflows::upload_sticker_file(
+        "cancel_download" => {
+            let input: CancelDownloadInput = parse(input)?;
+            let result = workflows::cancel_download(
                 runtime,
                 policy,
-                input.user_id,
-                input.format.into(),
-                input.source.as_core(),
+                input.file_id,
+                input.only_if_pending,
                 deadline,
             )?;
+            let complete = result.complete;
+            output(result, complete)
+        }
+        "upload_sticker_file" => {
+            let input: UploadInput = parse(input)?;
+            let result = upload_sticker_file(runtime, policy, input, artifact_root, deadline)?;
             let complete = result.complete;
             output(result, complete)
         }
@@ -900,6 +925,7 @@ fn output(
     })
 }
 
+#[derive(Debug)]
 enum WorkflowDispatchError {
     Unknown,
     InvalidInput,
@@ -1107,6 +1133,13 @@ struct DownloadInput {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct CancelDownloadInput {
+    file_id: i32,
+    only_if_pending: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct UploadInput {
     user_id: i64,
     format: StickerFormatInput,
@@ -1150,23 +1183,88 @@ enum FileSourceInput {
     },
 }
 
-impl FileSourceInput {
-    fn as_core(&self) -> InputFileSource<'_> {
-        match self {
-            Self::Id { id } => InputFileSource::Id(*id),
-            Self::Remote { id } => InputFileSource::Remote(id),
-            Self::Local { path } => InputFileSource::Local(path),
-            Self::Generated {
-                original_path,
-                conversion,
-                expected_size,
-            } => InputFileSource::Generated {
-                original_path,
-                conversion,
-                expected_size: *expected_size,
-            },
+fn upload_sticker_file(
+    runtime: &mut CoreRuntime,
+    policy: &telegram_core::raw_api::RawPolicy,
+    input: UploadInput,
+    artifact_root: Option<&Path>,
+    deadline: Instant,
+) -> Result<workflows::FileTransferReceipt, WorkflowDispatchError> {
+    let UploadInput {
+        user_id,
+        format,
+        source,
+    } = input;
+    let format = format.into();
+    let receipt = match source {
+        FileSourceInput::Id { id } => workflows::upload_sticker_file(
+            runtime,
+            policy,
+            user_id,
+            format,
+            InputFileSource::Id(id),
+            deadline,
+        ),
+        FileSourceInput::Remote { id } => workflows::upload_sticker_file(
+            runtime,
+            policy,
+            user_id,
+            format,
+            InputFileSource::Remote(&id),
+            deadline,
+        ),
+        FileSourceInput::Local { path } => {
+            let path = scoped_artifact_path(artifact_root, &path)?;
+            workflows::upload_sticker_file(
+                runtime,
+                policy,
+                user_id,
+                format,
+                InputFileSource::Local(&path),
+                deadline,
+            )
         }
+        FileSourceInput::Generated {
+            original_path,
+            conversion,
+            expected_size,
+        } => {
+            let original_path = scoped_artifact_path(artifact_root, &original_path)?;
+            workflows::upload_sticker_file(
+                runtime,
+                policy,
+                user_id,
+                format,
+                InputFileSource::Generated {
+                    original_path: &original_path,
+                    conversion: &conversion,
+                    expected_size,
+                },
+                deadline,
+            )
+        }
+    }?;
+    Ok(receipt)
+}
+
+fn scoped_artifact_path(
+    root: Option<&Path>,
+    path: &Path,
+) -> Result<PathBuf, WorkflowDispatchError> {
+    let root = root.ok_or(WorkflowDispatchError::InvalidInput)?;
+    if !root.is_absolute() || !path.is_absolute() {
+        return Err(WorkflowDispatchError::InvalidInput);
     }
+    let root = fs::canonicalize(root).map_err(|_| WorkflowDispatchError::InvalidInput)?;
+    let path = fs::canonicalize(path).map_err(|_| WorkflowDispatchError::InvalidInput)?;
+    if !path.starts_with(&root)
+        || !fs::metadata(&path)
+            .map(|metadata| metadata.is_file())
+            .unwrap_or(false)
+    {
+        return Err(WorkflowDispatchError::InvalidInput);
+    }
+    Ok(path)
 }
 
 #[derive(Deserialize)]
@@ -1486,6 +1584,28 @@ mod tests {
     }
 
     #[test]
+    fn artifact_paths_are_confined_to_the_daemon_root() {
+        use std::os::unix::fs::symlink;
+
+        let (root, _) = temporary_scope();
+        let artifacts = root.join("artifacts");
+        let outside = root.join("outside.bin");
+        fs::create_dir_all(&artifacts).unwrap();
+        fs::write(artifacts.join("inside.bin"), b"inside").unwrap();
+        fs::write(&outside, b"outside").unwrap();
+        symlink(&outside, artifacts.join("escape.bin")).unwrap();
+
+        assert_eq!(
+            scoped_artifact_path(Some(&artifacts), &artifacts.join("inside.bin")).unwrap(),
+            fs::canonicalize(artifacts.join("inside.bin")).unwrap()
+        );
+        assert!(scoped_artifact_path(Some(&artifacts), &outside).is_err());
+        assert!(scoped_artifact_path(Some(&artifacts), &artifacts.join("escape.bin")).is_err());
+        assert!(scoped_artifact_path(None, &artifacts.join("inside.bin")).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn every_discoverable_workflow_example_matches_its_input_contract() {
         for (name, _) in WORKFLOWS {
             let input = workflow_input_example(name).unwrap();
@@ -1505,6 +1625,7 @@ mod tests {
                 "chat_statistics" => parse::<StatisticsInput>(input).is_ok(),
                 "resync_after_gap" => parse::<EmptyInput>(input).is_ok(),
                 "download_file" => parse::<DownloadInput>(input).is_ok(),
+                "cancel_download" => parse::<CancelDownloadInput>(input).is_ok(),
                 "upload_sticker_file" => parse::<UploadInput>(input).is_ok(),
                 "start_bot" => parse::<StartBotInput>(input).is_ok(),
                 "open_web_app" => parse::<WebAppInput>(input).is_ok(),

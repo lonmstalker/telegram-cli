@@ -66,12 +66,14 @@ fn run() -> Result<(), Box<dyn Error>> {
     let readiness = lifecycle::reach_ready(&mut runtime, &config, &database_key, &ownership)?;
     let risk_scopes = config.risk_scopes().collect::<Vec<_>>();
     let expected_user_id = config.expected_user_id();
+    let files_directory = config.files_directory().to_owned();
     drop(database_key);
     drop(config);
     let mut server = LeaseServer::new(LeaseManager::with_telemetry(
         risk_scopes,
         Telemetry::default(),
-    ));
+    ))
+    .with_artifact_root(files_directory);
     server.start_events_at(
         runtime
             .state()

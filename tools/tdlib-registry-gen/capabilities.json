@@ -146,6 +146,15 @@
       "retry": "convergent"
     },
     {
+      "method": "cancelDownloadFile",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "FileKnown { target: file_id }",
+      "retry": "convergent"
+    },
+    {
       "method": "disableAllSupergroupUsernames",
       "risk": "admin",
       "accounts": [
@@ -333,6 +342,15 @@
         "bot"
       ],
       "runtime_requirements": "ChatKnown { target: chat_id }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getFile",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "FileKnown { target: file_id }",
       "retry": "safe_read"
     },
     {

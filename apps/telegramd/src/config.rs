@@ -10,11 +10,11 @@ use std::time::Duration;
 
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use telegram_core::NativeTdJson;
 use telegram_core::authorization::SensitiveString;
 use telegram_core::database_key::{
     DatabaseKey, DatabaseKeyError, DatabaseKeySource, TdlibParameters,
 };
+use telegram_core::NativeTdJson;
 use telegram_protocol::RiskScope;
 
 use crate::ownership::ProfileDatabaseLock;
@@ -139,6 +139,10 @@ impl DaemonConfig {
 
     pub fn expected_user_id(&self) -> Option<i64> {
         self.expected_user_id
+    }
+
+    pub fn files_directory(&self) -> &Path {
+        &self.files_directory
     }
 
     pub fn idle_timeout(&self) -> Duration {

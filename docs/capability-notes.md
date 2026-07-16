@@ -35,7 +35,7 @@ Canonical machine-readable source после P3 —
 - Generator создаёт descriptor для каждого pinned method. Reviewed rows получают эти
   поля, остальные — только `DefaultDeny` без угаданной классификации.
 
-## Reviewed contracts (102)
+## Reviewed contracts (104)
 
 | Method | Accounts | Runtime requirements |
 |---|---|---|
@@ -44,6 +44,7 @@ Canonical machine-readable source после P3 —
 | `approveSuggestedPost` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeApproved }` |
 | `banGroupCallParticipants` | regular_user, bot | `GroupCallKind { group_call: group_call_id, kind: Unbound } AND GroupCallProperty { group_call: group_call_id, property: IsOwned }` |
 | `checkChatInviteLink` | regular_user | `AuthorizationState { state: Ready }` |
+| `cancelDownloadFile` | regular_user | `FileKnown { target: file_id }` |
 | `closeChat` | regular_user | `ChatKnown { target: chat_id }` |
 | `closeWebApp` | regular_user | `WebAppLaunchKnown { launch: web_app_launch_id }` |
 | `createChatInviteLink` | regular_user, bot | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers })` |
@@ -75,6 +76,7 @@ Canonical machine-readable source после P3 —
 | `getCurrentState` | regular_user | `AuthorizationState { state: Ready }` |
 | `getForumTopic` | regular_user, bot | `ChatKnown { target: chat_id }` |
 | `getForumTopics` | regular_user, bot | `ChatKnown { target: chat_id }` |
+| `getFile` | regular_user | `FileKnown { target: file_id }` |
 | `getMe` | regular_user, bot | `AuthorizationState { state: Ready }` |
 | `getMessageAuthor` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetAuthor }` |
 | `getMessageEmbeddingCode` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetEmbeddingCode }` |

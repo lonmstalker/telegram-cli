@@ -303,9 +303,25 @@ pub struct FileTransferReceipt {
     pub file: Value,
     pub sequence: Option<u64>,
     pub source: TerminalSource,
+    pub size_verified: bool,
     pub complete: bool,
     pub observed_at: SystemTime,
     pub freshness: Freshness,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransferCancellationOutcome {
+    AlreadyStopped,
+    Verified,
+    Uncertain,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct TransferCancellationReceipt {
+    pub file_id: i32,
+    pub outcome: TransferCancellationOutcome,
+    pub complete: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -872,6 +888,19 @@ pub fn upload_sticker_file(
     )
 }
 
+pub fn cancel_download(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    file_id: i32,
+    only_if_pending: bool,
+    deadline: Instant,
+) -> Result<TransferCancellationReceipt, ChatWorkflowError> {
+    require_resynced(runtime)?;
+    cancel_download_with(file_id, only_if_pending, |method, request| {
+        invoke(runtime, policy, method, request, deadline)
+    })
+}
+
 pub fn start_bot(
     runtime: &mut CoreRuntime,
     policy: &RawPolicy,
@@ -1235,7 +1264,7 @@ fn wait_file_terminal(
         }
     })?;
     if file_complete(&response, direction)? {
-        return Ok(file_receipt(response, None, TerminalSource::Response));
+        return file_receipt(response, None, TerminalSource::Response, direction);
     }
     loop {
         if let Some(file) = runtime
@@ -1244,11 +1273,12 @@ fn wait_file_terminal(
             .filter(|file| file.sequence.get() > baseline_sequence)
         {
             if file_complete(&file.value, direction)? {
-                return Ok(file_receipt(
+                return file_receipt(
                     file.value.clone(),
                     Some(file.sequence.get()),
                     TerminalSource::OrderedUpdate,
-                ));
+                    direction,
+                );
             }
         }
         runtime
@@ -1265,17 +1295,103 @@ fn file_complete(file: &Value, direction: FileDirection) -> Result<bool, ChatWor
     required_bool(part, field, "file transfer")
 }
 
-fn file_receipt(file: Value, sequence: Option<u64>, source: TerminalSource) -> FileTransferReceipt {
-    FileTransferReceipt {
+fn file_receipt(
+    file: Value,
+    sequence: Option<u64>,
+    source: TerminalSource,
+    direction: FileDirection,
+) -> Result<FileTransferReceipt, ChatWorkflowError> {
+    let size_verified = file_size_verified(&file, direction)?;
+    Ok(FileTransferReceipt {
         file,
         sequence,
         source,
+        size_verified,
         complete: true,
         observed_at: SystemTime::now(),
         freshness: match source {
             TerminalSource::Response => Freshness::ServerSnapshot,
             TerminalSource::OrderedUpdate => Freshness::OrderedUpdate,
         },
+    })
+}
+
+fn file_size_verified(file: &Value, direction: FileDirection) -> Result<bool, ChatWorkflowError> {
+    let size = required_i64(file, "size", "file transfer")?;
+    let expected = if size > 0 {
+        size
+    } else {
+        required_i64(file, "expected_size", "file transfer")?
+    };
+    if expected == 0 {
+        return Ok(false);
+    }
+    let (part, field) = match direction {
+        FileDirection::Download => (&file["local"], "downloaded_size"),
+        FileDirection::Upload => (&file["remote"], "uploaded_size"),
+    };
+    if required_i64(part, field, "file transfer")? < expected {
+        return Err(ChatWorkflowError::InvalidResult {
+            method: "file transfer",
+            field: "terminal_size",
+        });
+    }
+    Ok(true)
+}
+
+fn cancel_download_with(
+    file_id: i32,
+    only_if_pending: bool,
+    mut call: impl FnMut(&'static str, Value) -> Result<TdObject, ChatWorkflowError>,
+) -> Result<TransferCancellationReceipt, ChatWorkflowError> {
+    let request = || json!({"@type":"getFile","file_id":file_id});
+    let active = |file: TdObject| {
+        if file.as_value()["@type"] != "file" {
+            return Err(ChatWorkflowError::UnexpectedResult { method: "getFile" });
+        }
+        required_bool(
+            &file.as_value()["local"],
+            "is_downloading_active",
+            "getFile",
+        )
+    };
+    if !call("getFile", request()).and_then(active)? {
+        return Ok(transfer_cancellation_receipt(
+            file_id,
+            TransferCancellationOutcome::AlreadyStopped,
+        ));
+    }
+    match call(
+        "cancelDownloadFile",
+        json!({
+            "@type":"cancelDownloadFile",
+            "file_id":file_id,
+            "only_if_pending":only_if_pending
+        }),
+    ) {
+        Ok(response) => expect_ok(response, "cancelDownloadFile")?,
+        Err(ChatWorkflowError::Call(RawApiError::Transport(TransportError::ResponseTimeout))) => {}
+        Err(error) => return Err(error),
+    }
+    let outcome = match call("getFile", request()).and_then(active) {
+        Ok(false) => TransferCancellationOutcome::Verified,
+        Ok(true)
+        | Err(ChatWorkflowError::Call(RawApiError::Transport(TransportError::ResponseTimeout))) => {
+            TransferCancellationOutcome::Uncertain
+        }
+        Err(error) => return Err(error),
+    };
+    Ok(transfer_cancellation_receipt(file_id, outcome))
+}
+
+fn transfer_cancellation_receipt(
+    file_id: i32,
+    outcome: TransferCancellationOutcome,
+) -> TransferCancellationReceipt {
+    TransferCancellationReceipt {
+        file_id,
+        outcome,
+        complete: outcome != TransferCancellationOutcome::Uncertain,
     }
 }
 
@@ -2996,6 +3112,36 @@ mod tests {
     }
 
     #[test]
+    fn cancel_download_probes_desired_state_after_timeout() {
+        let mut reads = 0;
+        let receipt = cancel_download_with(5, false, |method, _| match method {
+            "getFile" => {
+                reads += 1;
+                workflow_object(json!({
+                    "@type":"file",
+                    "local":{"@type":"localFile","is_downloading_active":reads == 1}
+                }))
+            }
+            "cancelDownloadFile" => Err(ChatWorkflowError::Call(RawApiError::Transport(
+                TransportError::ResponseTimeout,
+            ))),
+            _ => unreachable!(),
+        })
+        .unwrap();
+
+        assert_eq!(receipt.outcome, TransferCancellationOutcome::Verified);
+        assert!(receipt.complete);
+        assert!(file_size_verified(
+            &json!({
+                "size":10,"expected_size":10,
+                "local":{"downloaded_size":9},"remote":{"uploaded_size":0}
+            }),
+            FileDirection::Download,
+        )
+        .is_err());
+    }
+
+    #[test]
     fn statistics_follow_async_lineage_to_terminal_graph() {
         let mut calls = Vec::new();
         let result = chat_statistics_with(7, false, true, 13, |method, request| {
@@ -3151,12 +3297,12 @@ mod tests {
                     self.push(json!({"@type":"updates","updates":updates,"@extra":extra}));
                 }
                 "downloadFile" => {
-                    self.push(json!({"@type":"file","id":5,"local":{"@type":"localFile","is_downloading_completed":false},"remote":{"@type":"remoteFile","is_uploading_completed":true},"@extra":extra}));
-                    self.push(json!({"@type":"updateFile","file":{"@type":"file","id":5,"local":{"@type":"localFile","is_downloading_completed":true},"remote":{"@type":"remoteFile","is_uploading_completed":true}}}));
+                    self.push(json!({"@type":"file","id":5,"size":10,"expected_size":10,"local":{"@type":"localFile","is_downloading_completed":false,"downloaded_size":0},"remote":{"@type":"remoteFile","is_uploading_completed":true,"uploaded_size":10},"@extra":extra}));
+                    self.push(json!({"@type":"updateFile","file":{"@type":"file","id":5,"size":10,"expected_size":10,"local":{"@type":"localFile","is_downloading_completed":true,"downloaded_size":10},"remote":{"@type":"remoteFile","is_uploading_completed":true,"uploaded_size":10}}}));
                 }
                 "uploadStickerFile" => {
-                    self.push(json!({"@type":"file","id":6,"local":{"@type":"localFile","is_downloading_completed":true},"remote":{"@type":"remoteFile","is_uploading_completed":false},"@extra":extra}));
-                    self.push(json!({"@type":"updateFile","file":{"@type":"file","id":6,"local":{"@type":"localFile","is_downloading_completed":true},"remote":{"@type":"remoteFile","is_uploading_completed":true}}}));
+                    self.push(json!({"@type":"file","id":6,"size":20,"expected_size":20,"local":{"@type":"localFile","is_downloading_completed":true,"downloaded_size":20},"remote":{"@type":"remoteFile","is_uploading_completed":false,"uploaded_size":0},"@extra":extra}));
+                    self.push(json!({"@type":"updateFile","file":{"@type":"file","id":6,"size":20,"expected_size":20,"local":{"@type":"localFile","is_downloading_completed":true,"downloaded_size":20},"remote":{"@type":"remoteFile","is_uploading_completed":true,"uploaded_size":20}}}));
                 }
                 "sendBotStartMessage" => {
                     self.push(json!({"@type":"message","id":-7,"chat_id":9,"@extra":extra}));
@@ -3326,6 +3472,7 @@ mod tests {
         .unwrap();
         assert_eq!(download.source, TerminalSource::OrderedUpdate);
         assert_eq!(download.file["id"], 5);
+        assert!(download.size_verified);
 
         let upload = upload_sticker_file(
             &mut runtime,
@@ -3338,6 +3485,7 @@ mod tests {
         .unwrap();
         assert_eq!(upload.source, TerminalSource::OrderedUpdate);
         assert_eq!(upload.file["id"], 6);
+        assert!(upload.size_verified);
 
         let bot = start_bot(&mut runtime, &policy, 8, 9, "", test_deadline()).unwrap();
         assert!(bot.complete);

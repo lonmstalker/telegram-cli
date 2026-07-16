@@ -335,6 +335,15 @@
       "retry": "safe_read"
     },
     {
+      "method": "getCallbackQueryAnswer",
+      "risk": "send",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKnown { target: chat_id } AND MessageKnown { target: chat_id, message: message_id }",
+      "retry": "never"
+    },
+    {
       "method": "getForumTopic",
       "risk": "read",
       "accounts": [

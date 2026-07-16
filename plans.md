@@ -253,7 +253,7 @@ flowchart LR
 - [x] F009 messages/search.
 - [x] F010 files/media.
 - [x] F011 groups/channels/moderation.
-- [ ] F012 bots/testing.
+- [x] F012 bots/testing.
 - [ ] F013 Mini Apps.
 - [ ] F014 stickers/custom emoji.
 - [ ] F015 stories/calls/live; F016 account settings; F017 Business; F018 payments/digital assets.

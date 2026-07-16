@@ -9,7 +9,7 @@
 - Pinned schema: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`; 1010 functions, 2168 definitions, 184 updates, 13 auth states; gate `scripts/check-tdlib-pin.py`.
 - Strict schema parser в `telegram-core::schema` (12 тестов, без внешних dependencies).
 - macOS arm64 и Linux x86_64 `tdjson` с provenance в content-addressed cache; общий gate `scripts/check-tdlib-native-pin.py`, локальная проверка обоих artifacts — с `--require-local-artifact`.
-- Ручное capability-ревью: 105 reviewed и 905 default-deny методов сохранены в canonical data table и `docs/capability-notes.md`. Recognizer engine удалён ([D-20260715-035](../decisions/decisions.md)); классификация — данные с default-deny.
+- Ручное capability-ревью: 106 reviewed и 904 default-deny методов сохранены в canonical data table и `docs/capability-notes.md`. Recognizer engine удалён ([D-20260715-035](../decisions/decisions.md)); классификация — данные с default-deny.
 - Свежий protected live gate существующей зашифрованной сессии прошёл `WaitTdlibParameters -> Ready -> getMe -> close -> Closed` без нового login input; `.env.local` contract (mode `0600`, protected loader) соблюдён.
 - Canonical GitHub remote: `https://github.com/lonmstalker/telegram-cli.git` (public, принято пользователем).
 - P0 accepted: `tg-analytics@e35c54ce213aa170fb0b411eab614485424b3e60` audited from clean archive (97 tests); phase-neutral patterns перенесены, runtime contracts распределены по owner-фазам в `docs/tg-analytics-reuse.md`.
@@ -62,10 +62,11 @@
 - Третий подпункт P7/F009 закрыт: history/search не меняют read state без explicit flag, protected content редактируется, а text send завершается matching send update или uncertain без повтора ([D-20260715-076](../decisions/decisions.md)).
 - Четвёртый подпункт P7/F010 закрыт: file transfer ждёт terminal update и сверяет известный размер; cancel reconciles state, local/generated path confined to daemon files root ([D-20260715-077](../decisions/decisions.md)).
 - Пятый подпункт P7/F011 закрыт: fresh right + exact external plan защищают title configuration; matching update доказывает completion, а membership/pending/no-progress boundaries переиспользуют existing workflows ([D-20260715-078](../decisions/decisions.md)).
+- Шестой подпункт P7/F012 закрыт: pre-action sequence и exact bot/chat фильтр коррелируют redacted reply; callback payload остаётся в core, timeout/uncertainty не повторяются ([D-20260715-079](../decisions/decisions.md)).
 
 ## Not implemented
 
-- Оставшиеся подпункты P7/F012–F022 и фазы P8–P10: domain workflows, optional MCP, packaging и live acceptance.
+- Оставшиеся подпункты P7/F013–F022 и фазы P8–P10: domain workflows, optional MCP, packaging и live acceptance.
 
 ## Active boundary
 
@@ -74,4 +75,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: P7/F012 bots/testing.
+- Следующий implementation boundary: P7/F013 Mini Apps.

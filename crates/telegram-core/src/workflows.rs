@@ -371,6 +371,55 @@ pub struct BotStartReceipt {
     pub observed_at: SystemTime,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct BotReplySummary {
+    pub message_id: i64,
+    pub chat_id: i64,
+    pub sender_user_id: i64,
+    pub content_type: String,
+    pub callback_button_count: usize,
+    pub content_redacted: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum BotTestOutcome {
+    Passed { reply: BotReplySummary },
+    TriggerFailed,
+    TriggerUncertain,
+    ReplyTimedOut,
+    Gap,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct BotTestReceipt {
+    pub boundary_sequence: u64,
+    pub trigger_old_message_id: i64,
+    pub sent_message_id: Option<i64>,
+    pub outcome: BotTestOutcome,
+    pub passed: bool,
+    pub complete: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum CallbackOutcome {
+    Answered {
+        text_present: bool,
+        show_alert: bool,
+        url_present: bool,
+    },
+    BotTimedOut,
+    Uncertain,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct CallbackReceipt {
+    pub outcome: CallbackOutcome,
+    pub passed: bool,
+    pub complete: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct TextMessageReceipt {
     pub old_message_id: Option<i64>,
@@ -1062,6 +1111,121 @@ pub fn start_bot(
         old_message_id: required_i64(response.as_value(), "id", "sendBotStartMessage")?,
     };
     wait_message_send(runtime, key, deadline)
+}
+
+pub fn start_bot_and_wait_reply(
+    runtime: &mut CoreRuntime,
+    policy: &RawPolicy,
+    bot_user_id: i64,
+    chat_id: i64,
+    parameter: &str,
+    deadline: Instant,
+) -> Result<BotTestReceipt, ChatWorkflowError> {
+    require_resynced(runtime)?;
+    let boundary_sequence = runtime
+        .state()
+        .last_sequence()
+        .map(crate::reducer::UpdateSequence::get)
+        .unwrap_or_default();
+    let trigger = start_bot(runtime, policy, bot_user_id, chat_id, parameter, deadline)?;
+    let sent_message_id = match &trigger.outcome {
+        BotStartOutcome::Succeeded { message } => {
+            Some(required_i64(message, "id", "sendBotStartMessage")?)
+        }
+        BotStartOutcome::Failed { .. } => {
+            return Ok(bot_test_receipt(
+                boundary_sequence,
+                trigger.old_message_id,
+                None,
+                BotTestOutcome::TriggerFailed,
+            ));
+        }
+        BotStartOutcome::Uncertain => {
+            return Ok(bot_test_receipt(
+                boundary_sequence,
+                trigger.old_message_id,
+                None,
+                BotTestOutcome::TriggerUncertain,
+            ));
+        }
+    };
+    loop {
+        if runtime.state().gap().is_some() {
+            return Ok(bot_test_receipt(
+                boundary_sequence,
+                trigger.old_message_id,
+                sent_message_id,
+                BotTestOutcome::Gap,
+            ));
+        }
+        if let Some(reply) = bot_reply_after(runtime, boundary_sequence, chat_id, bot_user_id) {
+            return Ok(bot_test_receipt(
+                boundary_sequence,
+                trigger.old_message_id,
+                sent_message_id,
+                BotTestOutcome::Passed { reply },
+            ));
+        }
+        match runtime.next_event_until(deadline) {
+            Ok(_) => {}
+            Err(RuntimeError::DeadlineExceeded) => {
+                return Ok(bot_test_receipt(
+                    boundary_sequence,
+                    trigger.old_message_id,
+                    sent_message_id,
+                    BotTestOutcome::ReplyTimedOut,
+                ));
+            }
+            Err(error) => return Err(ChatWorkflowError::Runtime(error)),
+        }
+    }
+}
+
+pub fn click_bot_callback(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    chat_id: i64,
+    message_id: i64,
+    row: usize,
+    column: usize,
+    deadline: Instant,
+) -> Result<CallbackReceipt, ChatWorkflowError> {
+    require_resynced(runtime)?;
+    let data = callback_button_data(runtime, chat_id, message_id, row, column)
+        .ok_or(ChatWorkflowError::InvalidBotInteraction)?;
+    let response = match td_call(
+        runtime,
+        policy,
+        json!({
+            "@type": "getCallbackQueryAnswer",
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "payload": {"@type": "callbackQueryPayloadData", "data": data},
+        }),
+        deadline,
+    ) {
+        Ok(response) => response,
+        Err(RawApiError::Transport(TransportError::ResponseTimeout)) => {
+            return Ok(callback_receipt(CallbackOutcome::Uncertain));
+        }
+        Err(error) => return Err(ChatWorkflowError::Call(error)),
+    };
+    if response.as_value()["@type"] == "error" && response.as_value()["code"] == 502 {
+        return Ok(callback_receipt(CallbackOutcome::BotTimedOut));
+    }
+    let response = checked_response("getCallbackQueryAnswer", response)?;
+    if response.as_value()["@type"] != "callbackQueryAnswer" {
+        return Err(ChatWorkflowError::UnexpectedResult {
+            method: "getCallbackQueryAnswer",
+        });
+    }
+    Ok(callback_receipt(CallbackOutcome::Answered {
+        text_present: !required_string(response.as_value(), "text", "getCallbackQueryAnswer")?
+            .is_empty(),
+        show_alert: required_bool(response.as_value(), "show_alert", "getCallbackQueryAnswer")?,
+        url_present: !required_string(response.as_value(), "url", "getCallbackQueryAnswer")?
+            .is_empty(),
+    }))
 }
 
 pub fn send_text_message(
@@ -2572,6 +2736,104 @@ fn matching_profile_name(
         .then_some(user.sequence.get())
 }
 
+fn bot_reply_after(
+    runtime: &CoreRuntime,
+    boundary_sequence: u64,
+    chat_id: i64,
+    bot_user_id: i64,
+) -> Option<BotReplySummary> {
+    runtime
+        .state()
+        .unknown_updates()
+        .iter()
+        .find(|update| {
+            update.sequence.get() > boundary_sequence
+                && update.value["@type"] == "updateNewMessage"
+                && update.value["message"]["chat_id"] == chat_id
+                && update.value["message"]["is_outgoing"] == false
+                && update.value["message"]["sender_id"]["@type"] == "messageSenderUser"
+                && update.value["message"]["sender_id"]["user_id"] == bot_user_id
+        })
+        .and_then(|update| {
+            let message = &update.value["message"];
+            Some(BotReplySummary {
+                message_id: message["id"].as_i64()?,
+                chat_id,
+                sender_user_id: bot_user_id,
+                content_type: message["content"]["@type"].as_str()?.to_owned(),
+                callback_button_count: callback_button_count(message),
+                content_redacted: true,
+            })
+        })
+}
+
+fn callback_button_count(message: &Value) -> usize {
+    message["reply_markup"]["rows"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_array)
+        .flatten()
+        .filter(|button| button["type"]["@type"] == "inlineKeyboardButtonTypeCallback")
+        .count()
+}
+
+fn callback_button_data(
+    runtime: &CoreRuntime,
+    chat_id: i64,
+    message_id: i64,
+    row: usize,
+    column: usize,
+) -> Option<String> {
+    let message = runtime
+        .state()
+        .unknown_updates()
+        .iter()
+        .rev()
+        .find_map(|update| {
+            (update.value["@type"] == "updateNewMessage"
+                && update.value["message"]["chat_id"] == chat_id
+                && update.value["message"]["id"] == message_id)
+                .then_some(&update.value["message"])
+        })?;
+    let button = message["reply_markup"]["rows"]
+        .as_array()?
+        .get(row)?
+        .as_array()?
+        .get(column)?;
+    (button["type"]["@type"] == "inlineKeyboardButtonTypeCallback")
+        .then(|| button["type"]["data"].as_str().map(str::to_owned))?
+}
+
+fn bot_test_receipt(
+    boundary_sequence: u64,
+    trigger_old_message_id: i64,
+    sent_message_id: Option<i64>,
+    outcome: BotTestOutcome,
+) -> BotTestReceipt {
+    let passed = matches!(outcome, BotTestOutcome::Passed { .. });
+    let complete = !matches!(
+        outcome,
+        BotTestOutcome::TriggerUncertain | BotTestOutcome::Gap
+    );
+    BotTestReceipt {
+        boundary_sequence,
+        trigger_old_message_id,
+        sent_message_id,
+        outcome,
+        passed,
+        complete,
+    }
+}
+
+fn callback_receipt(outcome: CallbackOutcome) -> CallbackReceipt {
+    CallbackReceipt {
+        passed: matches!(outcome, CallbackOutcome::Answered { .. }),
+        complete: outcome != CallbackOutcome::Uncertain,
+        outcome,
+    }
+}
+
 fn title_preview(chat_id: i64, title: &str) -> Result<PlanPreview, ChatWorkflowError> {
     let request = ValidatedRequest::from_value(
         json!({"@type":"setChatTitle","chat_id":chat_id,"title":title}),
@@ -2742,6 +3004,7 @@ pub enum ChatWorkflowError {
     InvalidFileTransfer,
     InvalidProfileInput,
     InvalidChatConfiguration,
+    InvalidBotInteraction,
     PlanStale,
     ResyncRequired {
         gap_after_sequence: Option<u64>,
@@ -2784,6 +3047,9 @@ impl fmt::Display for ChatWorkflowError {
             Self::InvalidChatConfiguration => {
                 formatter.write_str("chat configuration is outside TDLib bounds")
             }
+            Self::InvalidBotInteraction => {
+                formatter.write_str("bot interaction is outside the recorded reply")
+            }
             Self::PlanStale => formatter.write_str("chat configuration plan is stale"),
             Self::ResyncRequired { gap_after_sequence } => write!(
                 formatter,
@@ -2811,6 +3077,7 @@ impl Error for ChatWorkflowError {
             | Self::InvalidFileTransfer
             | Self::InvalidProfileInput
             | Self::InvalidChatConfiguration
+            | Self::InvalidBotInteraction
             | Self::PlanStale
             | Self::ResyncRequired { .. }
             | Self::NoResyncRequired => None,
@@ -3465,6 +3732,28 @@ mod tests {
                     self.push(json!({"@type":"message","id":-7,"chat_id":9,"@extra":extra}));
                     self.push(json!({"@type":"updateMessageSendAcknowledged","chat_id":9,"message_id":-7}));
                     self.push(json!({"@type":"updateMessageSendSucceeded","message":{"@type":"message","id":10,"chat_id":9},"old_message_id":-7}));
+                    self.push(json!({
+                        "@type":"updateNewMessage",
+                        "message":{
+                            "@type":"message",
+                            "id":20,
+                            "chat_id":9,
+                            "sender_id":{"@type":"messageSenderUser","user_id":8},
+                            "is_outgoing":false,
+                            "content":{"@type":"messageText","text":{"@type":"formattedText","text":"PRIVATE_BOT_REPLY_CANARY","entities":[]}},
+                            "reply_markup":{"@type":"replyMarkupInlineKeyboard","rows":[[
+                                {"@type":"inlineKeyboardButton","text":"ok","type":{"@type":"inlineKeyboardButtonTypeCallback","data":"b2s="}},
+                                {"@type":"inlineKeyboardButton","text":"timeout","type":{"@type":"inlineKeyboardButtonTypeCallback","data":"dGltZW91dA=="}}
+                            ]]}
+                        }
+                    }));
+                }
+                "getCallbackQueryAnswer" => {
+                    if request["payload"]["data"] == "dGltZW91dA==" {
+                        self.push(json!({"@type":"error","code":502,"message":"BOT_RESPONSE_TIMEOUT","@extra":extra}));
+                    } else {
+                        self.push(json!({"@type":"callbackQueryAnswer","text":"done","show_alert":false,"url":"","@extra":extra}));
+                    }
                 }
                 "sendMessage" => {
                     if !self.drop_send_message_response {
@@ -3761,6 +4050,54 @@ mod tests {
                 "openWebApp",
                 "closeWebApp"
             ]
+        );
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn bot_test_correlates_redacted_reply_and_clicks_recorded_callback_once() {
+        let (backend, methods) = TerminalWorkflowBackend::new();
+        let mut runtime = CoreRuntime::start(backend, test_deadline()).unwrap();
+        let policy = RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![RiskClass::Send],
+        );
+
+        let run =
+            start_bot_and_wait_reply(&mut runtime, &policy, 8, 9, "", test_deadline()).unwrap();
+        let BotTestOutcome::Passed { reply } = &run.outcome else {
+            panic!("expected correlated bot reply")
+        };
+        assert_eq!(reply.message_id, 20);
+        assert_eq!(reply.content_type, "messageText");
+        assert_eq!(reply.callback_button_count, 2);
+        assert!(run.passed && run.complete);
+        assert!(!serde_json::to_string(&run)
+            .unwrap()
+            .contains("PRIVATE_BOT_REPLY_CANARY"));
+
+        let answered = click_bot_callback(&runtime, &policy, 9, 20, 0, 0, test_deadline()).unwrap();
+        assert!(answered.passed && answered.complete);
+        assert!(matches!(
+            answered.outcome,
+            CallbackOutcome::Answered {
+                text_present: true,
+                show_alert: false,
+                url_present: false,
+            }
+        ));
+        let timeout = click_bot_callback(&runtime, &policy, 9, 20, 0, 1, test_deadline()).unwrap();
+        assert_eq!(timeout.outcome, CallbackOutcome::BotTimedOut);
+        assert!(!timeout.passed);
+        assert!(timeout.complete);
+        assert_eq!(
+            methods
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|method| method.as_str() == "getCallbackQueryAnswer")
+                .count(),
+            2
         );
         runtime.shutdown().unwrap();
     }

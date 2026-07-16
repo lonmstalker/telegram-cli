@@ -28,7 +28,8 @@
 - SRC001: product.md; type: file; supports: bot testing use case; limits: none.
 - SRC002: HARNESS.md; type: file; supports: full API/policy; limits: none.
 - SRC003: pinned official schema; type: supplied; supports: bot method/update families; limits: source alone does not prove generated registry.
-- SRC004: plans.md P4/P7/P10; type: file; supports: terminal/callback tests; limits: implementation absent.
+- SRC004: plans.md P4/P7/P10; type: file; supports: terminal/callback tests; limits: live proof remains P10.
+- SRC005: `crates/telegram-core/src/workflows.rs`, `apps/telegramd/src/server.rs`; type: file; supports: pre-action boundary, terminal start, redacted reply correlation and recorded-button callback; limits: declarative spec and live target remain open.
 
 ## TDLib API Coverage
 
@@ -62,10 +63,9 @@ User-side testing and bot-account methods differ. Owner-only BotFather/managed-b
 
 ## Live Verification Boundary
 
-Synthetic runtime test proves `sendBotStartMessage` waits through acknowledgement for
-matching send succeeded/failed state; timeout remains uncertain. It does not claim a bot
-reply. No live messages/callbacks were sent; P10 requires disposable/test bot scenarios
-and exact cleanup.
+Synthetic runtime test proves terminal start, exact subsequent bot/chat reply correlation,
+content redaction, recorded-button callback and explicit TDLib bot timeout. No live
+messages/callbacks were sent; P10 requires disposable/test bot scenarios and exact cleanup.
 
 ## Scope
 
@@ -156,8 +156,9 @@ and exact cleanup.
 
 ## Coverage Notes
 
-- Kernel coverage: typed start trigger and terminal send correlation implemented;
-  incoming reply/callback/assertion/cleanup remain modeled.
+- Kernel coverage: typed terminal start, pre-action boundary, incoming reply correlation,
+  redacted assertion result and recorded-button callback implemented; exact artifact IDs
+  define cleanup ownership.
 - Modeled: core bot testing flow.
 - Partial: bot-account/managed-bot ownership matrix.
 - Unknown: canonical test spec.

@@ -97,6 +97,14 @@ const WORKFLOWS: &[(&str, &str)] = &[
         r#"{"bot_user_id":0,"chat_id":0,"parameter":""}"#,
     ),
     (
+        "start_bot_and_wait_reply",
+        r#"{"bot_user_id":0,"chat_id":0,"parameter":""}"#,
+    ),
+    (
+        "click_bot_callback",
+        r#"{"chat_id":0,"message_id":0,"row":0,"column":0}"#,
+    ),
+    (
         "open_web_app",
         r#"{"chat_id":0,"bot_user_id":0,"button_url":"https://example.invalid","application_name":"main","mode":"compact"}"#,
     ),
@@ -950,6 +958,33 @@ fn run_workflow(
             let complete = result.complete;
             output(result, complete)
         }
+        "start_bot_and_wait_reply" => {
+            let input: StartBotInput = parse(input)?;
+            let result = workflows::start_bot_and_wait_reply(
+                runtime,
+                &policy,
+                input.bot_user_id,
+                input.chat_id,
+                &input.parameter,
+                deadline,
+            )?;
+            let complete = result.complete;
+            output(result, complete)
+        }
+        "click_bot_callback" => {
+            let input: BotCallbackInput = parse(input)?;
+            let result = workflows::click_bot_callback(
+                runtime,
+                &policy,
+                input.chat_id,
+                input.message_id,
+                input.row,
+                input.column,
+                deadline,
+            )?;
+            let complete = result.complete;
+            output(result, complete)
+        }
         "open_web_app" => {
             let input: WebAppInput = parse(input)?;
             let mut lease = workflows::open_web_app(
@@ -1420,6 +1455,15 @@ struct StartBotInput {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct BotCallbackInput {
+    chat_id: i64,
+    message_id: i64,
+    row: usize,
+    column: usize,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct WebAppInput {
     chat_id: i64,
     bot_user_id: i64,
@@ -1470,7 +1514,8 @@ fn workflow_error(error: WorkflowDispatchError) -> CommandErrorCode {
             | ChatWorkflowError::InvalidPageOptions
             | ChatWorkflowError::InvalidFileTransfer
             | ChatWorkflowError::InvalidProfileInput
-            | ChatWorkflowError::InvalidChatConfiguration,
+            | ChatWorkflowError::InvalidChatConfiguration
+            | ChatWorkflowError::InvalidBotInteraction,
         ) => CommandErrorCode::InvalidWorkflowInput,
         WorkflowDispatchError::Core(_) => CommandErrorCode::WorkflowFailed,
     }
@@ -1790,7 +1835,8 @@ mod tests {
                 "download_file" => parse::<DownloadInput>(input).is_ok(),
                 "cancel_download" => parse::<CancelDownloadInput>(input).is_ok(),
                 "upload_sticker_file" => parse::<UploadInput>(input).is_ok(),
-                "start_bot" => parse::<StartBotInput>(input).is_ok(),
+                "start_bot" | "start_bot_and_wait_reply" => parse::<StartBotInput>(input).is_ok(),
+                "click_bot_callback" => parse::<BotCallbackInput>(input).is_ok(),
                 "open_web_app" => parse::<WebAppInput>(input).is_ok(),
                 _ => false,
             };

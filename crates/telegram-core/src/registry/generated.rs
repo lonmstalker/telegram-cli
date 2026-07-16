@@ -3470,7 +3470,7 @@ pub static CAPABILITIES: &[CapabilityDescriptor] = &[
     CapabilityDescriptor { method: "getBusinessConnectedBot", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "getBusinessConnection", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "getBusinessFeatures", disposition: CapabilityDisposition::DefaultDeny },
-    CapabilityDescriptor { method: "getCallbackQueryAnswer", disposition: CapabilityDisposition::DefaultDeny },
+    CapabilityDescriptor { method: "getCallbackQueryAnswer", disposition: CapabilityDisposition::Reviewed { risk: RiskClass::Send, accounts: &[AccountKind::RegularUser,], runtime_requirements: "ChatKnown { target: chat_id } AND MessageKnown { target: chat_id, message: message_id }", retry: RetryClass::Never } },
     CapabilityDescriptor { method: "getCallbackQueryMessage", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "getChat", disposition: CapabilityDisposition::Reviewed { risk: RiskClass::Read, accounts: &[AccountKind::RegularUser,], runtime_requirements: "AuthorizationState { state: Ready }", retry: RetryClass::SafeRead } },
     CapabilityDescriptor { method: "getChatActiveStories", disposition: CapabilityDisposition::DefaultDeny },

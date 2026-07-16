@@ -35,7 +35,7 @@ Canonical machine-readable source после P3 —
 - Generator создаёт descriptor для каждого pinned method. Reviewed rows получают эти
   поля, остальные — только `DefaultDeny` без угаданной классификации.
 
-## Reviewed contracts (100)
+## Reviewed contracts (102)
 
 | Method | Accounts | Runtime requirements |
 |---|---|---|
@@ -111,6 +111,7 @@ Canonical machine-readable source после P3 —
 | `searchPublicChat` | regular_user | `AuthorizationState { state: Ready }` |
 | `sendBotStartMessage` | regular_user | `ChatKnown { target: chat_id } AND BotUserKnown { target: bot_user_id }` |
 | `sendGroupCallMessage` | regular_user, bot | `GroupCallProperty { group_call: group_call_id, property: CanSendMessages }` |
+| `sendMessage` | regular_user, bot | `ChatKnown { target: chat_id }` |
 | `setName` | regular_user | `AuthorizationState { state: Ready }` |
 | `setChatDescription` | regular_user, bot | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatMemberRight { target: chat_id, right: CanChangeInfo }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatMemberRight { target: chat_id, right: CanChangeInfo }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatMemberRight { target: chat_id, right: CanChangeInfo })` |
 | `setChatLocation` | regular_user | `SupergroupFullInfoProperty { target: chat_id, property: CanSetLocation }` |
@@ -139,6 +140,7 @@ Canonical machine-readable source после P3 —
 | `toggleVideoChatMuteNewParticipants` | regular_user, bot | `GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanToggleMuteNewParticipants }` |
 | `upgradeBasicGroupChatToSupergroupChat` | regular_user | `ChatKind { target: chat_id, kind: BasicGroup } AND ChatOwner { target: chat_id }` |
 | `uploadStickerFile` | regular_user, bot | `AuthorizationState { state: Ready } AND ScopedLocalOrRemoteFile { target: sticker }` |
+| `viewMessages` | regular_user | `ChatKnown { target: chat_id }` |
 
 ## Recognized but unclassified (116)
 

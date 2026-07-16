@@ -7,9 +7,9 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use serde::Deserialize;
 use serde::de::DeserializeOwned;
-use serde_json::{Value, json};
+use serde::Deserialize;
+use serde_json::{json, Value};
 use telegram_core::authorization::{
     AuthorizationChallengeKind, AuthorizationError, AuthorizationInput, AuthorizationMachine,
     AuthorizationRequest, AuthorizationStep, ChallengeId, SensitiveString,
@@ -63,12 +63,13 @@ const WORKFLOWS: &[(&str, &str)] = &[
     ),
     (
         "chat_history",
-        r#"{"chat_id":0,"only_local":false,"page":{"count":100,"min_date":null,"page_limit":100}}"#,
+        r#"{"chat_id":0,"only_local":false,"mark_read":false,"page":{"count":100,"min_date":null,"page_limit":100}}"#,
     ),
     (
         "search_chat_messages",
-        r#"{"chat_id":0,"query":"","page":{"count":100,"min_date":null,"page_limit":100}}"#,
+        r#"{"chat_id":0,"query":"","mark_read":false,"page":{"count":100,"min_date":null,"page_limit":100}}"#,
     ),
+    ("send_text_message", r#"{"chat_id":0,"text":"hello"}"#),
     (
         "supergroup_members",
         r#"{"supergroup_id":0,"count":100,"page_limit":100}"#,
@@ -739,6 +740,7 @@ fn run_workflow(
                 HistoryQuery {
                     chat_id: input.chat_id,
                     only_local: input.only_local,
+                    mark_read: input.mark_read,
                     page: input.page.into(),
                 },
                 deadline,
@@ -754,8 +756,21 @@ fn run_workflow(
                 ChatSearchQuery {
                     chat_id: input.chat_id,
                     query: &input.query,
+                    mark_read: input.mark_read,
                     page: input.page.into(),
                 },
+                deadline,
+            )?;
+            let complete = result.complete;
+            output(result, complete)
+        }
+        "send_text_message" => {
+            let input: TextMessageInput = parse(input)?;
+            let result = workflows::send_text_message(
+                runtime,
+                policy,
+                input.chat_id,
+                &input.text,
                 deadline,
             )?;
             let complete = result.complete;
@@ -1042,6 +1057,7 @@ impl From<PageInput> for PageOptions {
 struct HistoryInput {
     chat_id: i64,
     only_local: bool,
+    mark_read: bool,
     page: PageInput,
 }
 
@@ -1050,7 +1066,15 @@ struct HistoryInput {
 struct SearchInput {
     chat_id: i64,
     query: String,
+    mark_read: bool,
     page: PageInput,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TextMessageInput {
+    chat_id: i64,
+    text: String,
 }
 
 #[derive(Deserialize)]
@@ -1389,18 +1413,17 @@ mod tests {
                 input_example: json!({
                     "chat_id": 0,
                     "only_local": false,
+                    "mark_read": false,
                     "page": {"count": 100, "min_date": null, "page_limit": 100},
                 }),
             }
         );
-        assert!(
-            parse::<TargetInput>(json!({
-                "kind": "id",
-                "chat_id": 7,
-                "unexpected": true,
-            }))
-            .is_err()
-        );
+        assert!(parse::<TargetInput>(json!({
+            "kind": "id",
+            "chat_id": 7,
+            "unexpected": true,
+        }))
+        .is_err());
         assert_eq!(server.leases.active_count(), 0);
 
         drop(socket);
@@ -1477,6 +1500,7 @@ mod tests {
                 "set_forum_topic_closed" => parse::<ForumTopicMutationInput>(input).is_ok(),
                 "chat_history" => parse::<HistoryInput>(input).is_ok(),
                 "search_chat_messages" => parse::<SearchInput>(input).is_ok(),
+                "send_text_message" => parse::<TextMessageInput>(input).is_ok(),
                 "supergroup_members" => parse::<MembersInput>(input).is_ok(),
                 "chat_statistics" => parse::<StatisticsInput>(input).is_ok(),
                 "resync_after_gap" => parse::<EmptyInput>(input).is_ok(),

@@ -7,10 +7,10 @@ use std::path::Path;
 use std::time::{Instant, SystemTime};
 
 use serde::Serialize;
-use serde_json::{Map, Value, json};
+use serde_json::{json, Map, Value};
 
 use crate::authorization::SensitiveString;
-use crate::raw_api::{RawApiError, RawPolicy, td_call, td_call_with_boundary};
+use crate::raw_api::{td_call, td_call_with_boundary, RawApiError, RawPolicy};
 use crate::reducer::{ChatList, ChatListPosition, MessageSendKey, MessageSendState, ReducerError};
 use crate::registry::TdObject;
 use crate::runtime::{CoreRuntime, RuntimeError};
@@ -187,12 +187,14 @@ pub struct PageOptions {
 pub struct HistoryQuery {
     pub chat_id: i64,
     pub only_local: bool,
+    pub mark_read: bool,
     pub page: PageOptions,
 }
 
 pub struct ChatSearchQuery<'query> {
     pub chat_id: i64,
     pub query: &'query str,
+    pub mark_read: bool,
     pub page: PageOptions,
 }
 
@@ -211,6 +213,7 @@ pub struct MessagePage {
     pub pages: usize,
     pub next_from_message_id: Option<i64>,
     pub boundary: PageBoundary,
+    pub content_redacted: bool,
     pub complete: bool,
 }
 
@@ -316,6 +319,15 @@ pub enum BotStartOutcome {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct BotStartReceipt {
     pub old_message_id: i64,
+    pub outcome: BotStartOutcome,
+    pub source: Option<TerminalSource>,
+    pub complete: bool,
+    pub observed_at: SystemTime,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct TextMessageReceipt {
+    pub old_message_id: Option<i64>,
     pub outcome: BotStartOutcome,
     pub source: Option<TerminalSource>,
     pub complete: bool,
@@ -641,9 +653,16 @@ pub fn chat_history(
     query: HistoryQuery,
     deadline: Instant,
 ) -> Result<MessagePage, ChatWorkflowError> {
-    chat_history_with(query, |request| {
+    require_resynced(runtime)?;
+    let mark_read = query.mark_read;
+    let chat_id = query.chat_id;
+    let protected_content = chat_has_protected_content(runtime, chat_id)?;
+    let mut result = chat_history_with(query, |request| {
         invoke(runtime, policy, "getChatHistory", request, deadline)
-    })
+    })?;
+    redact_message_content(protected_content, &mut result);
+    mark_message_page_read(runtime, policy, chat_id, mark_read, &result, deadline)?;
+    Ok(result)
 }
 
 pub fn search_chat_messages(
@@ -652,9 +671,16 @@ pub fn search_chat_messages(
     query: ChatSearchQuery<'_>,
     deadline: Instant,
 ) -> Result<MessagePage, ChatWorkflowError> {
-    search_chat_messages_with(query, |request| {
+    require_resynced(runtime)?;
+    let mark_read = query.mark_read;
+    let chat_id = query.chat_id;
+    let protected_content = chat_has_protected_content(runtime, chat_id)?;
+    let mut result = search_chat_messages_with(query, |request| {
         invoke(runtime, policy, "searchChatMessages", request, deadline)
-    })
+    })?;
+    redact_message_content(protected_content, &mut result);
+    mark_message_page_read(runtime, policy, chat_id, mark_read, &result, deadline)?;
+    Ok(result)
 }
 
 pub fn supergroup_members(
@@ -883,6 +909,68 @@ pub fn start_bot(
     wait_message_send(runtime, key, deadline)
 }
 
+pub fn send_text_message(
+    runtime: &mut CoreRuntime,
+    policy: &RawPolicy,
+    chat_id: i64,
+    text: &str,
+    deadline: Instant,
+) -> Result<TextMessageReceipt, ChatWorkflowError> {
+    require_resynced(runtime)?;
+    let request = json!({
+        "@type":"sendMessage",
+        "chat_id":chat_id,
+        "topic_id":null,
+        "reply_to":null,
+        "options":null,
+        "reply_markup":null,
+        "input_message_content":{
+            "@type":"inputMessageText",
+            "text":{"@type":"formattedText","text":text,"entities":[]},
+            "link_preview_options":null,
+            "clear_draft":false
+        }
+    });
+    let (response, boundary) = match td_call_with_boundary(runtime, policy, request, deadline) {
+        Ok(value) => value,
+        Err(RawApiError::Transport(TransportError::ResponseTimeout)) => {
+            return Ok(text_message_receipt(
+                None,
+                BotStartOutcome::Uncertain,
+                false,
+            ));
+        }
+        Err(error) => return Err(ChatWorkflowError::Call(error)),
+    };
+    let response = checked_response("sendMessage", response)?;
+    if response.as_value()["@type"] != "message" {
+        return Err(ChatWorkflowError::UnexpectedResult {
+            method: "sendMessage",
+        });
+    }
+    let key = MessageSendKey {
+        chat_id: required_i64(response.as_value(), "chat_id", "sendMessage")?,
+        old_message_id: required_i64(response.as_value(), "id", "sendMessage")?,
+    };
+    match runtime.apply_through_boundary(boundary, deadline) {
+        Ok(_) => {}
+        Err(RuntimeError::DeadlineExceeded) => {
+            return Ok(text_message_receipt(
+                Some(key.old_message_id),
+                BotStartOutcome::Uncertain,
+                false,
+            ));
+        }
+        Err(error) => return Err(ChatWorkflowError::Runtime(error)),
+    }
+    let receipt = wait_message_send(runtime, key, deadline)?;
+    Ok(text_message_receipt(
+        Some(receipt.old_message_id),
+        receipt.outcome,
+        receipt.complete,
+    ))
+}
+
 pub fn open_web_app<'runtime>(
     runtime: &'runtime mut CoreRuntime,
     policy: &'runtime RawPolicy,
@@ -1061,6 +1149,64 @@ fn last_sequence(runtime: &CoreRuntime) -> u64 {
         .unwrap_or(0)
 }
 
+fn mark_message_page_read(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    chat_id: i64,
+    mark_read: bool,
+    page: &MessagePage,
+    deadline: Instant,
+) -> Result<(), ChatWorkflowError> {
+    if !mark_read || !page.complete || page.messages.is_empty() {
+        return Ok(());
+    }
+    let message_ids = page
+        .messages
+        .iter()
+        .map(|message| required_i64(message, "id", "message page"))
+        .collect::<Result<Vec<_>, _>>()?;
+    expect_ok(
+        invoke(
+            runtime,
+            policy,
+            "viewMessages",
+            json!({
+                "@type":"viewMessages",
+                "chat_id":chat_id,
+                "message_ids":message_ids,
+                "source":null,
+                "force_read":true
+            }),
+            deadline,
+        )?,
+        "viewMessages",
+    )
+}
+
+fn chat_has_protected_content(
+    runtime: &CoreRuntime,
+    chat_id: i64,
+) -> Result<bool, ChatWorkflowError> {
+    let chat = runtime
+        .state()
+        .chat(chat_id)
+        .ok_or(ChatWorkflowError::PrerequisiteMissing {
+            prerequisite: "chat",
+        })?;
+    required_bool(&chat.value, "has_protected_content", "chat")
+}
+
+fn redact_message_content(protected: bool, page: &mut MessagePage) {
+    if !protected {
+        return;
+    }
+    for message in &mut page.messages {
+        let content_type = message["content"]["@type"].clone();
+        message["content"] = json!({"@type":content_type,"redacted":true});
+    }
+    page.content_redacted = true;
+}
+
 fn require_resynced(runtime: &CoreRuntime) -> Result<(), ChatWorkflowError> {
     match runtime.state().gap() {
         Some(gap) => Err(ChatWorkflowError::ResyncRequired {
@@ -1180,6 +1326,20 @@ fn bot_start_receipt(
     complete: bool,
 ) -> BotStartReceipt {
     BotStartReceipt {
+        old_message_id,
+        outcome,
+        source: complete.then_some(TerminalSource::OrderedUpdate),
+        complete,
+        observed_at: SystemTime::now(),
+    }
+}
+
+fn text_message_receipt(
+    old_message_id: Option<i64>,
+    outcome: BotStartOutcome,
+    complete: bool,
+) -> TextMessageReceipt {
+    TextMessageReceipt {
         old_message_id,
         outcome,
         source: complete.then_some(TerminalSource::OrderedUpdate),
@@ -1810,6 +1970,7 @@ fn message_page(
         pages,
         next_from_message_id,
         boundary,
+        content_redacted: false,
         complete: boundary != PageBoundary::NoProgress,
     }
 }
@@ -2392,7 +2553,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::registry::{CapabilityDisposition, RiskClass, capability};
+    use crate::registry::{capability, CapabilityDisposition, RiskClass};
     use crate::transport::{BackendError, TdJsonBackend};
 
     fn object(value: Value) -> Result<TdObject, RawApiError> {
@@ -2548,6 +2709,7 @@ mod tests {
             HistoryQuery {
                 chat_id: 7,
                 only_local: false,
+                mark_read: false,
                 page: PageOptions {
                     count: 3,
                     min_date: None,
@@ -2593,6 +2755,7 @@ mod tests {
             ChatSearchQuery {
                 chat_id: 7,
                 query: "query",
+                mark_read: false,
                 page: PageOptions {
                     count: 10,
                     min_date: None,
@@ -2631,6 +2794,7 @@ mod tests {
             ChatSearchQuery {
                 chat_id: 7,
                 query: "query",
+                mark_read: false,
                 page: options,
             },
             |_| {
@@ -2654,6 +2818,7 @@ mod tests {
             ChatSearchQuery {
                 chat_id: 7,
                 query: "query",
+                mark_read: false,
                 page: PageOptions {
                     min_date: None,
                     ..options
@@ -2811,6 +2976,26 @@ mod tests {
     }
 
     #[test]
+    fn protected_message_content_is_redacted() {
+        let mut page = message_page(
+            vec![json!({
+                "@type":"message","id":1,
+                "content":{"@type":"messageText","text":"PROTECTED_CONTENT_CANARY"}
+            })],
+            1,
+            None,
+            PageBoundary::Exhausted,
+        );
+
+        redact_message_content(true, &mut page);
+        assert!(page.content_redacted);
+        assert_eq!(page.messages[0]["content"]["@type"], "messageText");
+        assert!(!serde_json::to_string(&page)
+            .unwrap()
+            .contains("PROTECTED_CONTENT_CANARY"));
+    }
+
+    #[test]
     fn statistics_follow_async_lineage_to_terminal_graph() {
         let mut calls = Vec::new();
         let result = chat_statistics_with(7, false, true, 13, |method, request| {
@@ -2910,6 +3095,7 @@ mod tests {
         incoming: VecDeque<String>,
         methods: Arc<Mutex<Vec<String>>>,
         snapshot_calls: usize,
+        drop_send_message_response: bool,
     }
 
     impl TerminalWorkflowBackend {
@@ -2920,6 +3106,7 @@ mod tests {
                     incoming: VecDeque::new(),
                     methods: Arc::clone(&methods),
                     snapshot_calls: 0,
+                    drop_send_message_response: false,
                 },
                 methods,
             )
@@ -2951,7 +3138,10 @@ mod tests {
                 "getCurrentState" => {
                     self.snapshot_calls += 1;
                     let updates = if self.snapshot_calls == 1 {
-                        Vec::new()
+                        vec![json!({
+                            "@type":"updateNewChat",
+                            "chat":{"@type":"chat","id":9,"has_protected_content":false,"positions":[],"chat_lists":[],"reply_markup_message_id":0}
+                        })]
                     } else {
                         vec![json!({
                             "@type":"updateNewChat",
@@ -2972,6 +3162,22 @@ mod tests {
                     self.push(json!({"@type":"message","id":-7,"chat_id":9,"@extra":extra}));
                     self.push(json!({"@type":"updateMessageSendAcknowledged","chat_id":9,"message_id":-7}));
                     self.push(json!({"@type":"updateMessageSendSucceeded","message":{"@type":"message","id":10,"chat_id":9},"old_message_id":-7}));
+                }
+                "sendMessage" => {
+                    if !self.drop_send_message_response {
+                        self.push(json!({"@type":"message","id":-8,"chat_id":9,"@extra":extra}));
+                        self.push(json!({"@type":"updateMessageSendSucceeded","message":{"@type":"message","id":11,"chat_id":9},"old_message_id":-8}));
+                    }
+                }
+                "getChatHistory" => {
+                    self.push(json!({"@type":"messages","total_count":1,"messages":[
+                        {"@type":"message","id":12,"chat_id":9,"date":10}
+                    ],"@extra":extra}));
+                }
+                "viewMessages" => {
+                    assert_eq!(request["message_ids"], json!([12]));
+                    assert_eq!(request["force_read"], true);
+                    self.push(json!({"@type":"ok","@extra":extra}));
                 }
                 "openWebApp" => {
                     self.push(json!({"@type":"webAppInfo","launch_id":11,"url":{"@type":"webAppUrl","url":"https://example.invalid/?tgWebAppData=secret","require_same_origin":true},"@extra":extra}));
@@ -3137,6 +3343,28 @@ mod tests {
         assert!(bot.complete);
         assert!(matches!(bot.outcome, BotStartOutcome::Succeeded { .. }));
 
+        let sent = send_text_message(&mut runtime, &policy, 9, "hello", test_deadline()).unwrap();
+        assert!(sent.complete);
+        assert!(matches!(sent.outcome, BotStartOutcome::Succeeded { .. }));
+
+        let history = chat_history(
+            &runtime,
+            &policy,
+            HistoryQuery {
+                chat_id: 9,
+                only_local: false,
+                mark_read: true,
+                page: PageOptions {
+                    count: 1,
+                    min_date: None,
+                    page_limit: 100,
+                },
+            },
+            test_deadline(),
+        )
+        .unwrap();
+        assert!(history.complete);
+
         let mut web_app = open_web_app(
             &mut runtime,
             &policy,
@@ -3165,9 +3393,45 @@ mod tests {
                 "downloadFile",
                 "uploadStickerFile",
                 "sendBotStartMessage",
+                "sendMessage",
+                "getChatHistory",
+                "viewMessages",
                 "openWebApp",
                 "closeWebApp"
             ]
+        );
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn send_timeout_is_uncertain_and_is_not_repeated() {
+        let (mut backend, methods) = TerminalWorkflowBackend::new();
+        backend.drop_send_message_response = true;
+        let mut runtime = CoreRuntime::start(backend, test_deadline()).unwrap();
+        let policy = RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![RiskClass::Send],
+        );
+
+        let receipt = send_text_message(
+            &mut runtime,
+            &policy,
+            9,
+            "once",
+            Instant::now() + Duration::from_millis(20),
+        )
+        .unwrap();
+        assert_eq!(receipt.outcome, BotStartOutcome::Uncertain);
+        assert_eq!(receipt.old_message_id, None);
+        assert!(!receipt.complete);
+        assert_eq!(
+            methods
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|method| method.as_str() == "sendMessage")
+                .count(),
+            1
         );
         runtime.shutdown().unwrap();
     }
@@ -3185,17 +3449,14 @@ mod tests {
         let blocked = start_bot(&mut runtime, &policy, 8, 9, "", test_deadline()).unwrap_err();
         assert!(matches!(
             blocked,
-            ChatWorkflowError::ResyncRequired {
-                gap_after_sequence: None
-            }
+            ChatWorkflowError::ResyncRequired { gap_after_sequence }
+                if gap_after_sequence == gap.after_sequence.map(|value| value.get())
         ));
-        assert!(
-            !methods
-                .lock()
-                .unwrap()
-                .iter()
-                .any(|method| method == "sendBotStartMessage")
-        );
+        assert!(!methods
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|method| method == "sendBotStartMessage"));
 
         let receipt = resync_after_gap(&mut runtime, &policy, test_deadline()).unwrap();
         assert_eq!(

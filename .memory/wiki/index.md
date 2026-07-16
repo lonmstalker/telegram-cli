@@ -30,6 +30,7 @@
 - [P6 cold-agent eval](../../docs/agent-skill-eval.md)
 - [F007 user/profile workflow](../../docs/user-profile-workflow.md)
 - [F008 chat/folder/topic workflows](../../docs/forum-topic-workflow.md)
+- [F009 message workflows](../../docs/message-workflow.md)
 - [Current project state](project-state.md)
 
 ## Memory streams
@@ -54,7 +55,7 @@
 
 ## Current records
 
-- Implementation: P0–P6 accepted; P7/F007–F008 закрыты, следующий — F009; см. [project-state.md](project-state.md).
+- Implementation: P0–P6 accepted; P7/F007–F009 закрыты, следующий — F010; см. [project-state.md](project-state.md).
 - Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -98,6 +99,7 @@
 - Compact agent skill и P6 Acceptance: [D-20260715-073](../decisions/decisions.md), [W-20260715-078](../logs/work.md), [`docs/agent-skill-eval.md`](../../docs/agent-skill-eval.md).
 - F007 user/profile resolver/redaction/mutation: [D-20260715-074](../decisions/decisions.md), [W-20260715-079](../logs/work.md), [`docs/user-profile-workflow.md`](../../docs/user-profile-workflow.md).
 - F008 chat/folder/topic pagination/reconciliation: [D-20260715-075](../decisions/decisions.md), [W-20260715-080](../logs/work.md), [`docs/forum-topic-workflow.md`](../../docs/forum-topic-workflow.md).
+- F009 message read/send safety: [D-20260715-076](../decisions/decisions.md), [W-20260715-081](../logs/work.md), [`docs/message-workflow.md`](../../docs/message-workflow.md).
 
 ## Operating rules
 

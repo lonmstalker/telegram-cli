@@ -311,7 +311,7 @@ mod tests {
     fn default_deny_method_cannot_dispatch() {
         let mut calls = 0;
         let result = safe_read(
-            "viewMessages",
+            "testSquareInt",
             &(),
             NonZeroUsize::new(2).unwrap(),
             Instant::now() + Duration::from_secs(1),

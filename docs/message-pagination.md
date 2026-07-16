@@ -21,5 +21,10 @@ Terminal result различает:
   `complete=false`.
 
 `total_count` не используется как terminal proof: pinned schema называет его approximate.
-Messages сохраняются raw и в исходном порядке; дедупликация использует только ID внутри
-одного chat workflow. Mark-read/presence не выполняются.
+Messages сохраняются в исходном порядке; дедупликация использует только ID внутри одного
+chat workflow. Если cached chat имеет `has_protected_content=true`, поле `content`
+заменяется closed marker с исходным constructor и `content_redacted=true`.
+
+Mark-read/presence по умолчанию не выполняются. Только explicit `mark_read=true` после
+complete page вызывает один `viewMessages(..., force_read=true)` для реально возвращённых
+IDs; partial/no-progress result не создаёт скрытого side effect.

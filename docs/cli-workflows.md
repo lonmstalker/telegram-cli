@@ -12,7 +12,7 @@ telegram-cli workflow run <lease_id> <workflow> '<input-json>'
 Daemon публикует и исполняет все реализованные core workflows:
 `user_profile`, `update_profile_name`, `resolve_chat`, `ensure_membership`, `load_chat_list`, `inspect_chat`,
 `forum_topics`, `set_forum_topic_closed`, `chat_history`,
-`search_chat_messages`, `supergroup_members`, `chat_statistics`, `resync_after_gap`,
+`search_chat_messages`, `send_text_message`, `supergroup_members`, `chat_statistics`, `resync_after_gap`,
 `download_file`, `upload_sticker_file`, `start_bot`, `open_web_app`.
 
 Каждый run требует matching principal/lease и строит `RawPolicy` на daemon side. Input
@@ -29,6 +29,10 @@ route, поэтому agent skill не хранит копию каталога.
 `open_web_app` выполняет scoped open/wait/close chain. Result содержит только terminal
 receipt и `require_same_origin`; sensitive launch URL не сериализуется и не покидает daemon.
 Browser handoff будет завершён domain slice F013 без ослабления этого redaction boundary.
+
+Message routes описаны в [`message-workflow.md`](message-workflow.md): history/search
+никогда не меняют read-state без `mark_read=true`, а `send_text_message` ждёт matching
+send terminal update и не повторяет uncertain dispatch.
 
 `user_profile` и `update_profile_name` описаны в
 [`user-profile-workflow.md`](user-profile-workflow.md); sensitive profile fields не входят

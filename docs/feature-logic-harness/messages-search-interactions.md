@@ -28,7 +28,7 @@
 - SRC001: product.md; type: file; supports: use cases/safety; limits: none.
 - SRC002: HARNESS.md; type: file; supports: retry/completion invariants; limits: none.
 - SRC003: pinned official schema/getting-started; type: supplied; supports: message/history/update families; limits: source alone does not prove generated registry.
-- SRC004: plans.md P4/P7; type: file; supports: workflow gates; limits: implementation absent.
+- SRC004: plans.md P4/P7 и `telegram_core::workflows`; type: file/code; supports: pagination, explicit presence и send terminal gates; limits: live mutation fixture absent.
 
 ## TDLib API Coverage
 
@@ -61,9 +61,10 @@ Chat permissions, protected content, paid reactions/messages and bot/account typ
 
 ## Live Verification Boundary
 
-P4 history/search paginator проверен deterministic pages: short history продолжает chain,
+P4/P7 history/search paginator проверен deterministic pages: short history продолжает chain,
 returned search cursor управляет следующим call, date/count/exhausted/no-progress различаются.
-Live message read/send не выполнялся; mutations await disposable-target approval.
+Mark-read выполняется только explicit после complete page; text send ждёт succeeded/failed
+update, а timeout остаётся uncertain без повтора. Live message read/send не выполнялся.
 
 ## Scope
 
@@ -154,8 +155,8 @@ Live message read/send не выполнялся; mutations await disposable-tar
 
 ## Coverage Notes
 
-- Kernel coverage: history/chat-search pagination implemented; write/uncertainty modeled.
-- Modeled: major message families and safety.
-- Partial: exact 1.8.66 rich/AI/ephemeral mapping.
+- Kernel coverage: history/chat-search pagination, explicit mark-read, protected-content redaction и text-send terminal/uncertain lifecycle implemented.
+- Modeled: edit/delete/forward/reaction/poll/rich/ephemeral families remain universal raw/default-deny paths.
+- Partial: live permissions, protected-chat и disposable send fixtures.
 - Unknown: live permission matrix.
 - Not applicable: channel membership administration.

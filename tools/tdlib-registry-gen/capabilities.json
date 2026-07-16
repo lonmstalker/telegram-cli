@@ -690,6 +690,25 @@
       "retry": "reconcile"
     },
     {
+      "method": "sendMessage",
+      "risk": "send",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "ChatKnown { target: chat_id }",
+      "retry": "reconcile"
+    },
+    {
+      "method": "viewMessages",
+      "risk": "presence",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKnown { target: chat_id }",
+      "retry": "convergent"
+    },
+    {
       "method": "uploadStickerFile",
       "risk": "reversible_mutation",
       "accounts": [

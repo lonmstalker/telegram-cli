@@ -29,6 +29,7 @@
 - SRC002: HARNESS.md; type: file; supports: request-chain/completion dimensions; limits: none.
 - SRC003: pinned official schema; type: supplied; supports: statistics/resource method families; limits: source alone does not prove generated registry.
 - SRC004: plans.md P4/P7/P10; type: file; supports: graph tokens, terminal rules and live acceptance; limits: implementation absent.
+- SRC005: `crates/telegram-core/src/workflows.rs`, `docs/members-statistics-workflow.md`; type: file; supports: capability-first chat statistics, terminal graph traversal and redacted read-only resource snapshot; limits: live channel proof and export UX remain open.
 
 ## TDLib API Coverage
 
@@ -46,7 +47,8 @@ Statistics are complete only when every required graph is data/error (not async)
 
 ## Cache and Update Semantics
 
-Statistics cache keys include entity, date range, filters and schema version. Domain updates may invalidate current windows; server observation time is distinct from event time.
+Curated statistics/resources не вводят долгоживущий cache: каждый result содержит local
+observation time и `ServerSnapshot`; Telegram event/window time остаётся частью raw overview.
 
 ## Retry and Reconciliation
 
@@ -54,7 +56,9 @@ Overview/graph reads use bounded retry respecting FLOOD_WAIT. Repeated async tok
 
 ## CLI/MCP Exposure
 
-Human output is a short digest; JSON/JSONL retains graph/data provenance and completeness. Large raw series stream or write to an explicit artifact handle rather than filling agent context.
+Human output остаётся общим compact digest; JSON сохраняет graph lineage/completeness.
+Resource result агрегирует network entries и редактирует opaque database report, не создавая
+необоснованный artifact/export subsystem до решения Q001.
 
 ## Permissions and Account Capabilities
 
@@ -143,9 +147,9 @@ channel/statistics query has yet been executed; P10 needs owned/test channels wi
 ## Scenario Cells
 
 - SC001 - Channel graph is async
-  - Dimensions: D001, D002; Workflow/entity anchor: GraphNode; Scenario: overview returns token; Expected behavior: load token until data/error/deadline and expose lineage; Related contracts: C001-C002; Related invariants: I001-I002; Why this matters: core user complaint; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: GraphNode; Scenario: overview returns token; Expected behavior: load token until data/error/deadline and expose lineage; Related contracts: C001-C002; Related invariants: I001-I002; Why this matters: core user complaint; Status: implemented synthetic.
 - SC002 - Statistics unavailable
-  - Dimensions: D001, D002; Workflow/entity anchor: StatisticsQuery; Scenario: channel resolves but account lacks rights; Expected behavior: capability_denied, never not_found; Related contracts: C002-C003; Related invariants: I001; Why this matters: diagnosability; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: StatisticsQuery; Scenario: channel resolves but account lacks rights; Expected behavior: capability_denied, never not_found; Related contracts: C002-C003; Related invariants: I001; Why this matters: diagnosability; Status: implemented synthetic.
 
 ## Assumptions
 
@@ -157,9 +161,9 @@ channel/statistics query has yet been executed; P10 needs owned/test channels wi
 
 ## Coverage Notes
 
-- Kernel coverage: chat statistics capability, graph traversal, lineage and snapshot
-  freshness implemented; resource effects remain modeled.
-- Modeled: principal statistics/resource families.
-- Partial: other statistics/resource families, export UX and live fixtures.
+- Kernel coverage: chat statistics capability, graph traversal/lineage/freshness and redacted
+  storage/database/network snapshot implemented.
+- Modeled: message/story/revenue/optimization families stay generated raw/default-deny.
+- Partial: export UX and live fixtures.
 - Unknown: final export UX.
 - Not applicable: browser rendering.

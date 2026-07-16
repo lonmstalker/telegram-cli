@@ -9,7 +9,7 @@
 - Pinned schema: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`; 1010 functions, 2168 definitions, 184 updates, 13 auth states; gate `scripts/check-tdlib-pin.py`.
 - Strict schema parser в `telegram-core::schema` (12 тестов, без внешних dependencies).
 - macOS arm64 и Linux x86_64 `tdjson` с provenance в content-addressed cache; общий gate `scripts/check-tdlib-native-pin.py`, локальная проверка обоих artifacts — с `--require-local-artifact`.
-- Ручное capability-ревью: 127 reviewed и 883 default-deny методов сохранены в canonical data table и `docs/capability-notes.md`. Recognizer engine удалён ([D-20260715-035](../decisions/decisions.md)); классификация — данные с default-deny.
+- Ручное capability-ревью: 130 reviewed и 880 default-deny методов сохранены в canonical data table и `docs/capability-notes.md`. Recognizer engine удалён ([D-20260715-035](../decisions/decisions.md)); классификация — данные с default-deny.
 - Свежий protected live gate существующей зашифрованной сессии прошёл `WaitTdlibParameters -> Ready -> getMe -> close -> Closed` без нового login input; `.env.local` contract (mode `0600`, protected loader) соблюдён.
 - Canonical GitHub remote: `https://github.com/lonmstalker/telegram-cli.git` (public, принято пользователем).
 - P0 accepted: `tg-analytics@e35c54ce213aa170fb0b411eab614485424b3e60` audited from clean archive (97 tests); phase-neutral patterns перенесены, runtime contracts распределены по owner-фазам в `docs/tg-analytics-reuse.md`.
@@ -69,10 +69,11 @@
 - Десятый подпункт P7/F016 закрыт: partial notification patch сохраняет omitted поля; session output redacted, а exact approved termination запрещает current target и перечитывает список ([D-20260715-083](../decisions/decisions.md)).
 - Одиннадцатый подпункт P7/F017 закрыт: daemon выводит bot/user scope из verified `getMe`; Business inspect/send требуют exact connection, редактируют content и после timeout только refresh-ят capability без resend ([D-20260715-084](../decisions/decisions.md)).
 - Двенадцатый подпункт P7/F018 закрыт: current-owner Stars balance redacted; Stars invoice требует fresh exact plan/approval и после single dispatch подтверждается только новой matching ledger transaction ([D-20260715-085](../decisions/decisions.md)).
+- Тринадцатый подпункт P7/F019 закрыт: existing capability-first async graph walker переиспользован; resource read агрегирует storage/database/network и редактирует opaque database report без implicit optimization ([D-20260715-086](../decisions/decisions.md)).
 
 ## Not implemented
 
-- Оставшиеся подпункты P7/F019–F022 и фазы P8–P10: domain workflows, optional MCP, packaging и live acceptance.
+- Оставшиеся подпункты P7/F020–F022 и фазы P8–P10: domain workflows, optional MCP, packaging и live acceptance.
 
 ## Active boundary
 
@@ -81,4 +82,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: P7/F019 statistics/resources.
+- Следующий implementation boundary: P7/F020 platform utilities.

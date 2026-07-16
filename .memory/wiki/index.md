@@ -118,6 +118,7 @@
 - F016 partial settings and exact session termination: [D-20260715-083](../decisions/decisions.md), [W-20260715-088](../logs/work.md), [`docs/account-settings-workflow.md`](../../docs/account-settings-workflow.md).
 - F017 explicit Business connection and runtime bot policy: [D-20260715-084](../decisions/decisions.md), [W-20260715-089](../logs/work.md), [`docs/business-workflow.md`](../../docs/business-workflow.md).
 - F018 Stars-only exact payment and ledger proof: [D-20260715-085](../decisions/decisions.md), [W-20260715-090](../logs/work.md), [`docs/stars-payment-workflow.md`](../../docs/stars-payment-workflow.md).
+- F019 terminal graph and redacted resource snapshot: [D-20260715-086](../decisions/decisions.md), [W-20260715-091](../logs/work.md), [`docs/members-statistics-workflow.md`](../../docs/members-statistics-workflow.md).
 
 ## Operating rules
 

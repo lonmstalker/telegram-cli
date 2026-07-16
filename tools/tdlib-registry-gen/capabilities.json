@@ -1,6 +1,36 @@
 {
   "reviewed": [
     {
+      "method": "getStorageStatisticsFast",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "TDLibClient { state: Initialized }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getDatabaseStatistics",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "TDLibClient { state: Initialized }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getNetworkStatistics",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "TDLibClient { state: Initialized }",
+      "retry": "safe_read"
+    },
+    {
       "method": "getStarTransactions",
       "risk": "read",
       "accounts": [

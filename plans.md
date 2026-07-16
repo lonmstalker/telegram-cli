@@ -260,7 +260,7 @@ flowchart LR
 - [x] F016 account settings.
 - [x] F017 Business.
 - [x] F018 payments/digital assets.
-- [ ] F019 statistics/resources.
+- [x] F019 statistics/resources.
 - [ ] F020 platform utilities.
 - [ ] F021 reliability как сквозной contract.
 - [ ] F022 agent skill.

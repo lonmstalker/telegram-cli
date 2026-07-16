@@ -284,6 +284,21 @@ pub struct StatisticsSnapshot {
     pub freshness: Freshness,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ResourceStatisticsSnapshot {
+    pub files_size: i64,
+    pub file_count: i32,
+    pub database_size: i64,
+    pub language_pack_database_size: i64,
+    pub log_size: i64,
+    pub network_since_date: i32,
+    pub sent_bytes: i64,
+    pub received_bytes: i64,
+    pub database_report_redacted: bool,
+    pub observed_at: SystemTime,
+    pub freshness: Freshness,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ResyncReceipt {
     pub gap_after_sequence: Option<u64>,
@@ -1259,6 +1274,18 @@ pub fn chat_statistics(
         capability.sequence.get(),
         |method, request| invoke(runtime, policy, method, request, deadline),
     )
+}
+
+pub fn resource_statistics(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    only_current_network: bool,
+    deadline: Instant,
+) -> Result<ResourceStatisticsSnapshot, ChatWorkflowError> {
+    require_resynced(runtime)?;
+    resource_statistics_with(only_current_network, |method, request| {
+        invoke(runtime, policy, method, request, deadline)
+    })
 }
 
 pub fn resync_after_gap(
@@ -4206,6 +4233,101 @@ fn chat_statistics_with(
     })
 }
 
+fn resource_statistics_with(
+    only_current_network: bool,
+    mut call: impl FnMut(&'static str, Value) -> Result<TdObject, ChatWorkflowError>,
+) -> Result<ResourceStatisticsSnapshot, ChatWorkflowError> {
+    let storage = call(
+        "getStorageStatisticsFast",
+        json!({"@type":"getStorageStatisticsFast"}),
+    )?;
+    if storage.as_value()["@type"] != "storageStatisticsFast" {
+        return Err(ChatWorkflowError::UnexpectedResult {
+            method: "getStorageStatisticsFast",
+        });
+    }
+    let database = call(
+        "getDatabaseStatistics",
+        json!({"@type":"getDatabaseStatistics"}),
+    )?;
+    if database.as_value()["@type"] != "databaseStatistics" {
+        return Err(ChatWorkflowError::UnexpectedResult {
+            method: "getDatabaseStatistics",
+        });
+    }
+    let _ = required_string(database.as_value(), "statistics", "getDatabaseStatistics")?;
+    let network = call(
+        "getNetworkStatistics",
+        json!({"@type":"getNetworkStatistics","only_current":only_current_network}),
+    )?;
+    if network.as_value()["@type"] != "networkStatistics" {
+        return Err(ChatWorkflowError::UnexpectedResult {
+            method: "getNetworkStatistics",
+        });
+    }
+    let entries =
+        network.as_value()["entries"]
+            .as_array()
+            .ok_or(ChatWorkflowError::InvalidResult {
+                method: "getNetworkStatistics",
+                field: "entries",
+            })?;
+    let mut sent_bytes = 0_i64;
+    let mut received_bytes = 0_i64;
+    for entry in entries {
+        if !matches!(
+            entry["@type"].as_str(),
+            Some("networkStatisticsEntryFile" | "networkStatisticsEntryCall")
+        ) {
+            return Err(ChatWorkflowError::UnexpectedResult {
+                method: "getNetworkStatistics",
+            });
+        }
+        let sent = required_i64(entry, "sent_bytes", "getNetworkStatistics")?;
+        let received = required_i64(entry, "received_bytes", "getNetworkStatistics")?;
+        if sent < 0 || received < 0 {
+            return Err(ChatWorkflowError::InvalidResult {
+                method: "getNetworkStatistics",
+                field: "entries",
+            });
+        }
+        sent_bytes = sent_bytes
+            .checked_add(sent)
+            .ok_or(ChatWorkflowError::InvalidResult {
+                method: "getNetworkStatistics",
+                field: "sent_bytes",
+            })?;
+        received_bytes =
+            received_bytes
+                .checked_add(received)
+                .ok_or(ChatWorkflowError::InvalidResult {
+                    method: "getNetworkStatistics",
+                    field: "received_bytes",
+                })?;
+    }
+    Ok(ResourceStatisticsSnapshot {
+        files_size: required_i64(storage.as_value(), "files_size", "getStorageStatisticsFast")?,
+        file_count: required_i32(storage.as_value(), "file_count", "getStorageStatisticsFast")?,
+        database_size: required_i64(
+            storage.as_value(),
+            "database_size",
+            "getStorageStatisticsFast",
+        )?,
+        language_pack_database_size: required_i64(
+            storage.as_value(),
+            "language_pack_database_size",
+            "getStorageStatisticsFast",
+        )?,
+        log_size: required_i64(storage.as_value(), "log_size", "getStorageStatisticsFast")?,
+        network_since_date: required_i32(network.as_value(), "since_date", "getNetworkStatistics")?,
+        sent_bytes,
+        received_bytes,
+        database_report_redacted: true,
+        observed_at: SystemTime::now(),
+        freshness: Freshness::ServerSnapshot,
+    })
+}
+
 fn collect_async_tokens(
     value: &Value,
     tokens: &mut BTreeSet<String>,
@@ -6155,6 +6277,50 @@ mod tests {
         );
         assert!(result.unresolved_tokens.is_empty());
         assert!(result.complete);
+    }
+
+    #[test]
+    fn resource_statistics_are_read_only_aggregated_and_redacted() {
+        let mut methods = Vec::new();
+        let snapshot = resource_statistics_with(true, |method, request| {
+            methods.push(method);
+            workflow_object(match method {
+                "getStorageStatisticsFast" => json!({
+                    "@type":"storageStatisticsFast",
+                    "files_size":100,"file_count":2,"database_size":30,
+                    "language_pack_database_size":4,"log_size":5
+                }),
+                "getDatabaseStatistics" => json!({
+                    "@type":"databaseStatistics",
+                    "statistics":"DATABASE_REPORT_CANARY"
+                }),
+                "getNetworkStatistics" => {
+                    assert_eq!(request["only_current"], true);
+                    json!({
+                        "@type":"networkStatistics","since_date":10,
+                        "entries":[
+                            {"@type":"networkStatisticsEntryFile","sent_bytes":7,"received_bytes":11},
+                            {"@type":"networkStatisticsEntryCall","sent_bytes":13,"received_bytes":17}
+                        ]
+                    })
+                }
+                _ => unreachable!(),
+            })
+        })
+        .unwrap();
+        assert_eq!(
+            methods,
+            [
+                "getStorageStatisticsFast",
+                "getDatabaseStatistics",
+                "getNetworkStatistics"
+            ]
+        );
+        assert_eq!((snapshot.sent_bytes, snapshot.received_bytes), (20, 28));
+        assert!(snapshot.database_report_redacted);
+        assert!(!serde_json::to_string(&snapshot)
+            .unwrap()
+            .contains("DATABASE_REPORT_CANARY"));
     }
 
     #[test]

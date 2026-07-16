@@ -81,6 +81,7 @@ const WORKFLOWS: &[(&str, &str)] = &[
         r#"{"supergroup_id":0,"count":100,"page_limit":100}"#,
     ),
     ("chat_statistics", r#"{"chat_id":0,"is_dark":false}"#),
+    ("resource_statistics", r#"{"only_current_network":true}"#),
     ("resync_after_gap", "{}"),
     (
         "download_file",
@@ -1061,6 +1062,18 @@ fn run_workflow(
             let complete = result.complete;
             output(result, complete)
         }
+        "resource_statistics" => {
+            let input: ResourceStatisticsInput = parse(input)?;
+            output(
+                workflows::resource_statistics(
+                    runtime,
+                    &policy,
+                    input.only_current_network,
+                    deadline,
+                )?,
+                true,
+            )
+        }
         "resync_after_gap" => {
             let _: EmptyInput = parse(input)?;
             let result = workflows::resync_after_gap(runtime, &policy, deadline)?;
@@ -1642,6 +1655,12 @@ struct MembersInput {
 struct StatisticsInput {
     chat_id: i64,
     is_dark: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ResourceStatisticsInput {
+    only_current_network: bool,
 }
 
 #[derive(Deserialize)]
@@ -2459,6 +2478,7 @@ mod tests {
                 "send_text_message" => parse::<TextMessageInput>(input).is_ok(),
                 "supergroup_members" => parse::<MembersInput>(input).is_ok(),
                 "chat_statistics" => parse::<StatisticsInput>(input).is_ok(),
+                "resource_statistics" => parse::<ResourceStatisticsInput>(input).is_ok(),
                 "resync_after_gap" => parse::<EmptyInput>(input).is_ok(),
                 "download_file" => parse::<DownloadInput>(input).is_ok(),
                 "cancel_download" => parse::<CancelDownloadInput>(input).is_ok(),

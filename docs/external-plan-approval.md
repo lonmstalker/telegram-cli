@@ -31,7 +31,8 @@ nonce/signature redacted в Debug и zeroized после decode. Daemon хран
 Workflow approval не подписывает имя route: daemon восстанавливает exact TDLib request из
 strict typed input, проверяет тот же plan hash, а core расходует capability только внутри
 matching common `td_call`. Этот путь без второго signer/verifier используют
-`apply_chat_title`, `apply_custom_emoji_set` и `apply_story_mutation`.
+`apply_chat_title`, `apply_custom_emoji_set`, `apply_story_mutation` и
+`apply_terminate_session`.
 
 ## Durable boundary
 

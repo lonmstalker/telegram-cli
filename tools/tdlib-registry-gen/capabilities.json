@@ -1,6 +1,15 @@
 {
   "reviewed": [
     {
+      "method": "getActiveSessions",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "safe_read"
+    },
+    {
       "method": "addChecklistTasks",
       "risk": "reversible_mutation",
       "accounts": [
@@ -465,6 +474,15 @@
       "retry": "safe_read"
     },
     {
+      "method": "getScopeNotificationSettings",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "safe_read"
+    },
+    {
       "method": "getStory",
       "risk": "read",
       "accounts": [
@@ -882,6 +900,15 @@
       "retry": "convergent"
     },
     {
+      "method": "setScopeNotificationSettings",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "convergent"
+    },
+    {
       "method": "setChatLocation",
       "risk": "admin",
       "accounts": [
@@ -1033,6 +1060,15 @@
       ],
       "runtime_requirements": "(ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanManageTopics }) OR (ChatKind { target: chat_id, kind: Supergroup } AND TopicCreator { target: chat_id, topic: forum_topic_id })",
       "retry": "convergent"
+    },
+    {
+      "method": "terminateSession",
+      "risk": "auth_security",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "SessionProperty { session: session_id, property: IsCurrent, value: false }",
+      "retry": "reconcile"
     },
     {
       "method": "toggleGroupCallAreMessagesAllowed",

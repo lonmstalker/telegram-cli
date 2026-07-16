@@ -28,7 +28,8 @@
 - SRC001: product.md; type: file; supports: owner jobs and default-deny destructive actions; limits: none.
 - SRC002: HARNESS.md; type: file; supports: capability/risk dimensions; limits: none.
 - SRC003: pinned official schema; type: supplied; supports: account/settings/security method families; limits: source alone does not prove generated registry.
-- SRC004: plans.md P5/P7; type: file; supports: preview/approval/reconciliation; limits: implementation absent.
+- SRC004: plans.md P5/P7/P10; type: file; supports: preview/approval/reconciliation and live boundary; limits: live mutations remain P10.
+- SRC005: `crates/telegram-core/src/workflows.rs`, `apps/telegramd/src/server.rs`; type: file; supports: partial notification desired state, sanitized session inventory and exact approved termination; limits: secret-bearing password/recovery consumers absent.
 
 ## TDLib API Coverage
 
@@ -46,7 +47,9 @@ Writes complete only after current settings converge to desired state. Session t
 
 ## Cache and Update Semantics
 
-Settings reads use versioned snapshots; relevant updates invalidate them. Active sessions/websites are always refreshed before destructive operations.
+Curated notification and session workflows use fresh server snapshots for plan/apply proof.
+No long-lived settings cache is introduced; active sessions are refreshed immediately before
+and after termination.
 
 ## Retry and Reconciliation
 
@@ -54,7 +57,8 @@ Reads retry boundedly. Convergent setters may reapply only after reread. Passwor
 
 ## CLI/MCP Exposure
 
-Read and preview are machine-friendly. Passwords, recovery codes and database key use protected input channels and never ordinary flags or MCP arguments.
+Notification/session read and preview are machine-friendly. Passwords, recovery codes and
+database key have no curated ordinary JSON route; a future consumer must use protected input.
 
 ## Permissions and Account Capabilities
 
@@ -62,7 +66,9 @@ Regular/bot account differences, current-session restrictions, 2FA/recovery avai
 
 ## Live Verification Boundary
 
-Only existing account access was verified via `getMe`; no account setting or security mutation was performed.
+Synthetic tests prove omitted-field preservation, reread convergence, session redaction,
+current-session rejection and timeout reconciliation. No live account setting or security
+mutation was performed.
 
 ## Scope
 
@@ -139,9 +145,9 @@ Only existing account access was verified via `getMe`; no account setting or sec
 ## Scenario Cells
 
 - SC001 - Change notification settings
-  - Dimensions: D001, D002; Workflow/entity anchor: DesiredSettings; Scenario: reversible desired-state update; Expected behavior: diff, apply and reread convergence; Related contracts: C003; Related invariants: I002; Why this matters: routine automation; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: DesiredSettings; Scenario: reversible desired-state update; Expected behavior: diff, apply and reread convergence; Related contracts: C003; Related invariants: I002; Why this matters: routine automation; Status: implemented synthetic.
 - SC002 - Terminate another session
-  - Dimensions: D001, D002; Workflow/entity anchor: SecurityPlan; Scenario: exact target approved, response times out; Expected behavior: refresh session list, never blind retry; Related contracts: C001-C003; Related invariants: I001/I003; Why this matters: account safety; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: SecurityPlan; Scenario: exact target approved, response times out; Expected behavior: refresh session list, never blind retry; Related contracts: C001-C003; Related invariants: I001/I003; Why this matters: account safety; Status: implemented synthetic.
 
 ## Assumptions
 
@@ -149,12 +155,13 @@ Only existing account access was verified via `getMe`; no account setting or sec
 
 ## Open Questions
 
-- Q001: local TTY confirmation, policy file signature or external approval broker; owner: maintainer; blocking for destructive actions.
+- Q001 resolved for dispatch: existing external exact-plan signer/verifier is reused; live target/confirmation UX remains P10/operator-owned.
 
 ## Coverage Notes
 
-- Kernel coverage: desired state, secrets and destructive boundaries modeled.
-- Modeled: settings/security method families.
-- Partial: exact generated method classification and approval transport.
-- Unknown: production secret provider.
+- Kernel coverage: partial notification desired state and exact remote-session plan/apply with
+  redaction/reconciliation implemented.
+- Modeled: remaining privacy/push/password/recovery/account-lifecycle families stay generated raw/default-deny.
+- Partial: live matrix and protected consumer for Ready-state security secrets.
+- Unknown: production secret provider for future password/recovery consumers.
 - Not applicable: Telegram Passport document processing.

@@ -37,6 +37,7 @@
 - [F013 Mini App handoff](../../docs/mini-app-handoff.md)
 - [F014 custom emoji set workflow](../../docs/sticker-set-workflow.md)
 - [F015 story and group-call workflow](../../docs/story-call-workflow.md)
+- [F016 account settings workflow](../../docs/account-settings-workflow.md)
 - [Current project state](project-state.md)
 
 ## Memory streams
@@ -61,7 +62,7 @@
 
 ## Current records
 
-- Implementation: P0–P6 accepted; P7/F007–F015 закрыты, следующий — F016; см. [project-state.md](project-state.md).
+- Implementation: P0–P6 accepted; P7/F007–F016 закрыты, следующий — F017; см. [project-state.md](project-state.md).
 - Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -112,6 +113,7 @@
 - F013 one-shot Mini App browser handoff: [D-20260715-080](../decisions/decisions.md), [W-20260715-085](../logs/work.md), [`docs/mini-app-handoff.md`](../../docs/mini-app-handoff.md).
 - F014 typed custom emoji lifecycle: [D-20260715-081](../decisions/decisions.md), [W-20260715-086](../logs/work.md), [`docs/sticker-set-workflow.md`](../../docs/sticker-set-workflow.md).
 - F015 story/group-call proof and cleanup: [D-20260715-082](../decisions/decisions.md), [W-20260715-087](../logs/work.md), [`docs/story-call-workflow.md`](../../docs/story-call-workflow.md).
+- F016 partial settings and exact session termination: [D-20260715-083](../decisions/decisions.md), [W-20260715-088](../logs/work.md), [`docs/account-settings-workflow.md`](../../docs/account-settings-workflow.md).
 
 ## Operating rules
 

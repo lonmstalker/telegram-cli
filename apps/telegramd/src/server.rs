@@ -24,8 +24,9 @@ use telegram_core::registry::{AccountKind, SymbolKind, ValidatedRequest};
 use telegram_core::runtime::CoreRuntime;
 use telegram_core::workflows::{
     self, ChatSearchQuery, ChatTarget, ChatWorkflowError, CustomEmojiSetAction, DownloadQuery,
-    ForumTopicsQuery, HistoryQuery, InputFileSource, MembersQuery, MembershipTarget, PageOptions,
-    StickerFormat, StoryAction, StoryPrivacy, UserTarget, WebAppMode, WebAppRequest,
+    ForumTopicsQuery, HistoryQuery, InputFileSource, MembersQuery, MembershipTarget,
+    NotificationScope, NotificationSettingsPatch, PageOptions, StickerFormat, StoryAction,
+    StoryPrivacy, UserTarget, WebAppMode, WebAppRequest,
 };
 use telegram_protocol::{
     CommandErrorCode, DaemonRequest, DaemonResponse, EventKind, EventRecord, LeaseErrorCode,
@@ -111,6 +112,14 @@ const WORKFLOWS: &[(&str, &str)] = &[
     ),
     ("inspect_group_call", r#"{"group_call_id":1}"#),
     ("leave_group_call", r#"{"group_call_id":1}"#),
+    ("notification_settings", r#"{"scope":"private_chats"}"#),
+    (
+        "set_notification_settings",
+        r#"{"scope":"private_chats","patch":{"mute_for":60}}"#,
+    ),
+    ("active_sessions", "{}"),
+    ("plan_terminate_session", r#"{"session_id":1}"#),
+    ("apply_terminate_session", r#"{"session_id":1}"#),
     (
         "start_bot",
         r#"{"bot_user_id":0,"chat_id":0,"parameter":""}"#,
@@ -827,6 +836,7 @@ fn run_workflow(
         && name != "apply_chat_title"
         && name != "apply_custom_emoji_set"
         && name != "apply_story_mutation"
+        && name != "apply_terminate_session"
     {
         return Err(WorkflowDispatchError::InvalidInput);
     }
@@ -1101,6 +1111,46 @@ fn run_workflow(
             let input: GroupCallInput = parse(input)?;
             let result =
                 workflows::leave_group_call(runtime, &policy, input.group_call_id, deadline)?;
+            let complete = result.complete;
+            output(result, complete)
+        }
+        "notification_settings" => {
+            let input: NotificationScopeInput = parse(input)?;
+            output(
+                workflows::notification_settings(runtime, &policy, input.scope.into(), deadline)?,
+                true,
+            )
+        }
+        "set_notification_settings" => {
+            let input: NotificationPatchInput = parse(input)?;
+            let result = workflows::set_notification_settings(
+                runtime,
+                &policy,
+                input.scope.into(),
+                input.patch.into(),
+                deadline,
+            )?;
+            let complete = result.complete;
+            output(result, complete)
+        }
+        "active_sessions" => {
+            let _: EmptyInput = parse(input)?;
+            output(
+                workflows::active_sessions(runtime, &policy, deadline)?,
+                true,
+            )
+        }
+        "plan_terminate_session" => {
+            let input: SessionInput = parse(input)?;
+            output(workflows::plan_terminate_session(input.session_id)?, true)
+        }
+        "apply_terminate_session" => {
+            let input: SessionInput = parse(input)?;
+            let request = workflows::terminate_session_request(input.session_id)?;
+            let policy = approved_policy(policy, approval, &request, approval_verifier)
+                .map_err(WorkflowDispatchError::Approval)?;
+            let result =
+                workflows::apply_terminate_session(runtime, &policy, input.session_id, deadline)?;
             let complete = result.complete;
             output(result, complete)
         }
@@ -1687,6 +1737,76 @@ struct GroupCallInput {
     group_call_id: i32,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NotificationScopeInput {
+    scope: NotificationScopeValue,
+}
+
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum NotificationScopeValue {
+    #[serde(rename = "private_chats")]
+    Private,
+    #[serde(rename = "group_chats")]
+    Group,
+    #[serde(rename = "channel_chats")]
+    Channel,
+}
+
+impl From<NotificationScopeValue> for NotificationScope {
+    fn from(value: NotificationScopeValue) -> Self {
+        match value {
+            NotificationScopeValue::Private => Self::PrivateChats,
+            NotificationScopeValue::Group => Self::GroupChats,
+            NotificationScopeValue::Channel => Self::ChannelChats,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NotificationPatchInput {
+    scope: NotificationScopeValue,
+    patch: NotificationSettingsPatchInput,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NotificationSettingsPatchInput {
+    mute_for: Option<i32>,
+    sound_id: Option<i64>,
+    show_preview: Option<bool>,
+    use_default_mute_stories: Option<bool>,
+    mute_stories: Option<bool>,
+    story_sound_id: Option<i64>,
+    show_story_poster: Option<bool>,
+    disable_pinned_message_notifications: Option<bool>,
+    disable_mention_notifications: Option<bool>,
+}
+
+impl From<NotificationSettingsPatchInput> for NotificationSettingsPatch {
+    fn from(value: NotificationSettingsPatchInput) -> Self {
+        Self {
+            mute_for: value.mute_for,
+            sound_id: value.sound_id,
+            show_preview: value.show_preview,
+            use_default_mute_stories: value.use_default_mute_stories,
+            mute_stories: value.mute_stories,
+            story_sound_id: value.story_sound_id,
+            show_story_poster: value.show_story_poster,
+            disable_pinned_message_notifications: value.disable_pinned_message_notifications,
+            disable_mention_notifications: value.disable_mention_notifications,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SessionInput {
+    session_id: i64,
+}
+
 impl From<StickerFormatInput> for StickerFormat {
     fn from(value: StickerFormatInput) -> Self {
         match value {
@@ -1878,6 +1998,8 @@ fn workflow_error(error: WorkflowDispatchError) -> CommandErrorCode {
             | ChatWorkflowError::InvalidStickerSetMutation
             | ChatWorkflowError::InvalidStoryMutation
             | ChatWorkflowError::InvalidGroupCall
+            | ChatWorkflowError::InvalidNotificationSettings
+            | ChatWorkflowError::InvalidSessionTarget
             | ChatWorkflowError::InvalidProfileInput
             | ChatWorkflowError::InvalidChatConfiguration
             | ChatWorkflowError::InvalidBotInteraction,
@@ -2241,6 +2363,12 @@ mod tests {
                     parse::<StoryMutationInput>(input).is_ok()
                 }
                 "inspect_group_call" | "leave_group_call" => parse::<GroupCallInput>(input).is_ok(),
+                "notification_settings" => parse::<NotificationScopeInput>(input).is_ok(),
+                "set_notification_settings" => parse::<NotificationPatchInput>(input).is_ok(),
+                "active_sessions" => parse::<EmptyInput>(input).is_ok(),
+                "plan_terminate_session" | "apply_terminate_session" => {
+                    parse::<SessionInput>(input).is_ok()
+                }
                 "start_bot" | "start_bot_and_wait_reply" => parse::<StartBotInput>(input).is_ok(),
                 "click_bot_callback" => parse::<BotCallbackInput>(input).is_ok(),
                 "open_web_app" | "prepare_web_app_handoff" => parse::<WebAppInput>(input).is_ok(),

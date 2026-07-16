@@ -258,7 +258,7 @@ flowchart LR
 - [x] F014 stickers/custom emoji.
 - [x] F015 stories/calls/live.
 - [x] F016 account settings.
-- [ ] F017 Business.
+- [x] F017 Business.
 - [ ] F018 payments/digital assets.
 - [ ] F019 statistics/resources; F020 platform utilities; F021 reliability как сквозной contract; F022 agent skill.
 

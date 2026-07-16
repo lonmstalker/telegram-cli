@@ -29,6 +29,7 @@
 - SRC002: HARNESS.md; type: file; supports: capabilities, shared session and audit; limits: none.
 - SRC003: pinned official schema; type: supplied; supports: Business method/object/update families; limits: source alone does not prove generated registry.
 - SRC004: plans.md P3/P7; type: file; supports: generated parity and vertical slices; limits: implementation absent.
+- SRC005: `crates/telegram-core/src/workflows.rs`, `apps/telegramd/src/identity.rs`, `apps/telegramd/src/server.rs`; type: file; supports: explicit connection inspect/send, runtime bot identity, redaction and timeout capability refresh; limits: live entitlement remains unavailable.
 
 ## TDLib API Coverage
 
@@ -46,7 +47,9 @@ Success includes connection ID, applied scope and current server state. A generi
 
 ## Cache and Update Semantics
 
-Business connection and quick-reply state is connection-scoped. Updates carry ordering and invalidate only the matching connection/account records; disconnect forces capability refresh.
+Curated Business state не кэшируется между calls: exact connection перечитывается перед send,
+а после timeout выполняется read-only capability refresh того же ID. Остальные Business
+updates остаются lossless в generated/raw surface до появления отдельного consumer.
 
 ## Retry and Reconciliation
 
@@ -54,15 +57,17 @@ Reads retry boundedly. Message/story/profile/quick-reply writes reconcile via co
 
 ## CLI/MCP Exposure
 
-Commands require explicit connection selection unless exactly one safe default is configured. MCP capabilities hide unavailable Business operations rather than exposing failing tool variants.
+Curated commands всегда требуют explicit connection selection; safe default не вводится.
 
 ## Permissions and Account Capabilities
 
-Check Business/Premium availability, connection validity, managed-bot rights, writable feature flags and chat-specific restrictions.
+Daemon выводит account kind из TDLib `getMe`; generated policy разрешает curated methods
+только bot account. Exact connection `is_enabled` и `can_reply` проверяются fresh перед send.
 
 ## Live Verification Boundary
 
-Current account type was verified as regular; no Business entitlement or Business mutation was tested.
+Synthetic tests покрывают bot account parsing, two-connection isolation и disconnect after
+timeout. Текущий live account regular; Business entitlement/mutation не тестировались.
 
 ## Scope
 
@@ -139,9 +144,9 @@ Current account type was verified as regular; no Business entitlement or Busines
 ## Scenario Cells
 
 - SC001 - Two Business connections
-  - Dimensions: D001, D002; Workflow/entity anchor: BusinessConnectionRef; Scenario: same chat-like identifier under separate scopes; Expected behavior: explicit connection selection and isolated state; Related contracts: C001-C002; Related invariants: I001; Why this matters: tenant safety; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: BusinessConnectionRef; Scenario: same chat-like identifier under separate scopes; Expected behavior: explicit connection selection and isolated state; Related contracts: C001-C002; Related invariants: I001; Why this matters: tenant safety; Status: implemented synthetic.
 - SC002 - Send timeout then disconnect
-  - Dimensions: D001, D002; Workflow/entity anchor: BusinessMutationReceipt; Scenario: outcome unknown and capability disappears; Expected behavior: reconcile read-only, block retry; Related contracts: C003; Related invariants: I002-I003; Why this matters: duplicate prevention; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: BusinessMutationReceipt; Scenario: outcome unknown and capability disappears; Expected behavior: reconcile read-only, block retry; Related contracts: C003; Related invariants: I002-I003; Why this matters: duplicate prevention; Status: implemented synthetic.
 
 ## Assumptions
 
@@ -153,8 +158,8 @@ Current account type was verified as regular; no Business entitlement or Busines
 
 ## Coverage Notes
 
-- Kernel coverage: connection isolation and capability behavior modeled.
-- Modeled: Business families at domain level.
-- Partial: exact schema mapping and live entitlement.
+- Kernel coverage: exact connection inspect, scoped text send, bot account policy and timeout capability refresh implemented.
+- Modeled: remaining profile/link/quick-reply/story families stay generated raw/default-deny.
+- Partial: live entitlement and disposable connection proof.
 - Unknown: live fixture.
 - Not applicable: financial settlement.

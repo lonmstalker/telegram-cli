@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 use telegram_core::authorization::{AuthorizationError, AuthorizationMachine, AuthorizationStep};
 use telegram_core::database_key::DatabaseKey;
 use telegram_core::reducer::CachedUpdateKind;
+use telegram_core::registry::AccountKind;
 use telegram_core::runtime::{CoreRuntime, CoreRuntimeEvent, RuntimeError};
 use telegram_core::transport::TransportError;
 use telegram_core::NativeTdJson;
@@ -33,7 +34,7 @@ pub enum DaemonState {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthorizationReadiness {
-    Ready,
+    Ready(AccountKind),
     InteractiveRequired,
 }
 
@@ -140,8 +141,9 @@ pub fn reach_ready(
                 step = wait_for_authorization(runtime, &mut machine, deadline)?;
             }
             AuthorizationStep::Ready => {
-                verify_ready_identity(runtime, ownership, config.expected_user_id(), deadline)?;
-                return Ok(AuthorizationReadiness::Ready);
+                let account =
+                    verify_ready_identity(runtime, ownership, config.expected_user_id(), deadline)?;
+                return Ok(AuthorizationReadiness::Ready(account));
             }
             AuthorizationStep::Challenge(_) => {
                 return Ok(AuthorizationReadiness::InteractiveRequired);
@@ -184,7 +186,13 @@ pub fn serve_until_authorized(
                     match authorization_type(runtime) {
                         Some("authorizationStateReady") => {
                             let deadline = deadline_after(AUTHORIZATION_TIMEOUT)?;
-                            verify_ready_identity(runtime, ownership, expected_user_id, deadline)?;
+                            let account = verify_ready_identity(
+                                runtime,
+                                ownership,
+                                expected_user_id,
+                                deadline,
+                            )?;
+                            server.set_account_kind(account);
                             server.set_ready(true);
                             return Ok(());
                         }
@@ -209,19 +217,20 @@ fn verify_ready_identity(
     ownership: &ProfileDatabaseLock,
     expected_user_id: Option<i64>,
     deadline: Instant,
-) -> Result<(), LifecycleError> {
+) -> Result<AccountKind, LifecycleError> {
     let response = runtime
         .transport()
         .call_until(json!({"@type":"getMe"}), deadline)
         .map_err(LifecycleError::Transport)?;
-    let actual_user_id =
-        identity::user_id_from_get_me(&response).map_err(LifecycleError::Identity)?;
+    let (actual_user_id, account) =
+        identity::account_from_get_me(&response).map_err(LifecycleError::Identity)?;
     identity::verify_or_bind(
         ownership.canonical_database_directory(),
         actual_user_id,
         expected_user_id,
     )
-    .map_err(LifecycleError::Identity)
+    .map_err(LifecycleError::Identity)?;
+    Ok(account)
 }
 
 fn wait_for_authorization(

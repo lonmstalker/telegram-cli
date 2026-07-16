@@ -7,11 +7,12 @@ use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::Path;
 
 use serde_json::Value;
+use telegram_core::registry::AccountKind;
 
 const IDENTITY_FILE: &str = ".telegramd-identity";
 const MAX_IDENTITY_BYTES: u64 = 32;
 
-pub fn user_id_from_get_me(response: &Value) -> Result<i64, IdentityError> {
+pub fn account_from_get_me(response: &Value) -> Result<(i64, AccountKind), IdentityError> {
     let object = response
         .as_object()
         .filter(|object| object.get("@type").and_then(Value::as_str) == Some("user"))
@@ -25,7 +26,12 @@ pub fn user_id_from_get_me(response: &Value) -> Result<i64, IdentityError> {
         })
         .filter(|id| *id > 0)
         .ok_or(IdentityError::InvalidGetMe)?;
-    Ok(id)
+    let kind = match object.get("type").and_then(|value| value.get("@type")) {
+        Some(Value::String(kind)) if kind == "userTypeRegular" => AccountKind::RegularUser,
+        Some(Value::String(kind)) if kind == "userTypeBot" => AccountKind::Bot,
+        _ => return Err(IdentityError::InvalidGetMe),
+    };
+    Ok((id, kind))
 }
 
 pub fn verify_or_bind(
@@ -158,5 +164,21 @@ mod tests {
             Err(IdentityError::Mismatch)
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn get_me_binds_account_kind_from_tdlib_identity() {
+        assert_eq!(
+            account_from_get_me(&serde_json::json!({
+                "@type":"user", "id":42, "type":{"@type":"userTypeBot"}
+            })),
+            Ok((42, AccountKind::Bot))
+        );
+        assert_eq!(
+            account_from_get_me(&serde_json::json!({
+                "@type":"user", "id":42, "type":{"@type":"userTypeDeleted"}
+            })),
+            Err(IdentityError::InvalidGetMe)
+        );
     }
 }

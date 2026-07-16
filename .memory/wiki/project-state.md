@@ -9,7 +9,7 @@
 - Pinned schema: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`; 1010 functions, 2168 definitions, 184 updates, 13 auth states; gate `scripts/check-tdlib-pin.py`.
 - Strict schema parser в `telegram-core::schema` (12 тестов, без внешних dependencies).
 - macOS arm64 и Linux x86_64 `tdjson` с provenance в content-addressed cache; общий gate `scripts/check-tdlib-native-pin.py`, локальная проверка обоих artifacts — с `--require-local-artifact`.
-- Ручное capability-ревью: 122 reviewed и 888 default-deny методов сохранены в canonical data table и `docs/capability-notes.md`. Recognizer engine удалён ([D-20260715-035](../decisions/decisions.md)); классификация — данные с default-deny.
+- Ручное capability-ревью: 124 reviewed и 886 default-deny методов сохранены в canonical data table и `docs/capability-notes.md`. Recognizer engine удалён ([D-20260715-035](../decisions/decisions.md)); классификация — данные с default-deny.
 - Свежий protected live gate существующей зашифрованной сессии прошёл `WaitTdlibParameters -> Ready -> getMe -> close -> Closed` без нового login input; `.env.local` contract (mode `0600`, protected loader) соблюдён.
 - Canonical GitHub remote: `https://github.com/lonmstalker/telegram-cli.git` (public, принято пользователем).
 - P0 accepted: `tg-analytics@e35c54ce213aa170fb0b411eab614485424b3e60` audited from clean archive (97 tests); phase-neutral patterns перенесены, runtime contracts распределены по owner-фазам в `docs/tg-analytics-reuse.md`.
@@ -67,10 +67,11 @@
 - Восьмой подпункт P7/F014 закрыт: typed custom-emoji plan/apply требует terminal uploaded file и exact approval; create/add перечитывают inventory, delete подтверждает cleanup освобождённым именем ([D-20260715-081](../decisions/decisions.md)).
 - Девятый подпункт P7/F015 закрыт: photo-story post/delete используют exact approval и fresh reread; existing group-call inspect/leave доказывает cleanup без model-visible join payload ([D-20260715-082](../decisions/decisions.md)).
 - Десятый подпункт P7/F016 закрыт: partial notification patch сохраняет omitted поля; session output redacted, а exact approved termination запрещает current target и перечитывает список ([D-20260715-083](../decisions/decisions.md)).
+- Одиннадцатый подпункт P7/F017 закрыт: daemon выводит bot/user scope из verified `getMe`; Business inspect/send требуют exact connection, редактируют content и после timeout только refresh-ят capability без resend ([D-20260715-084](../decisions/decisions.md)).
 
 ## Not implemented
 
-- Оставшиеся подпункты P7/F017–F022 и фазы P8–P10: domain workflows, optional MCP, packaging и live acceptance.
+- Оставшиеся подпункты P7/F018–F022 и фазы P8–P10: domain workflows, optional MCP, packaging и live acceptance.
 
 ## Active boundary
 
@@ -79,4 +80,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: P7/F017 Business.
+- Следующий implementation boundary: P7/F018 payments/digital assets.

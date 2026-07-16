@@ -38,6 +38,7 @@
 - [F014 custom emoji set workflow](../../docs/sticker-set-workflow.md)
 - [F015 story and group-call workflow](../../docs/story-call-workflow.md)
 - [F016 account settings workflow](../../docs/account-settings-workflow.md)
+- [F017 Business workflow](../../docs/business-workflow.md)
 - [Current project state](project-state.md)
 
 ## Memory streams
@@ -114,6 +115,7 @@
 - F014 typed custom emoji lifecycle: [D-20260715-081](../decisions/decisions.md), [W-20260715-086](../logs/work.md), [`docs/sticker-set-workflow.md`](../../docs/sticker-set-workflow.md).
 - F015 story/group-call proof and cleanup: [D-20260715-082](../decisions/decisions.md), [W-20260715-087](../logs/work.md), [`docs/story-call-workflow.md`](../../docs/story-call-workflow.md).
 - F016 partial settings and exact session termination: [D-20260715-083](../decisions/decisions.md), [W-20260715-088](../logs/work.md), [`docs/account-settings-workflow.md`](../../docs/account-settings-workflow.md).
+- F017 explicit Business connection and runtime bot policy: [D-20260715-084](../decisions/decisions.md), [W-20260715-089](../logs/work.md), [`docs/business-workflow.md`](../../docs/business-workflow.md).
 
 ## Operating rules
 

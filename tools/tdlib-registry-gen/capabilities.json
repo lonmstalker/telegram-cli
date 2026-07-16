@@ -1,6 +1,24 @@
 {
   "reviewed": [
     {
+      "method": "getBusinessConnection",
+      "risk": "read",
+      "accounts": [
+        "bot"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready } AND BusinessConnection { target: connection_id }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "sendBusinessMessage",
+      "risk": "send",
+      "accounts": [
+        "bot"
+      ],
+      "runtime_requirements": "BusinessConnectionRight { target: business_connection_id, right: CanReply }",
+      "retry": "reconcile"
+    },
+    {
       "method": "getActiveSessions",
       "risk": "read",
       "accounts": [

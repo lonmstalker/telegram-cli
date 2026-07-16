@@ -121,6 +121,14 @@ const WORKFLOWS: &[(&str, &str)] = &[
     ("plan_terminate_session", r#"{"session_id":1}"#),
     ("apply_terminate_session", r#"{"session_id":1}"#),
     (
+        "business_connection",
+        r#"{"connection_id":"connection-id"}"#,
+    ),
+    (
+        "send_business_text",
+        r#"{"connection_id":"connection-id","chat_id":1,"text":"hello"}"#,
+    ),
+    (
         "start_bot",
         r#"{"bot_user_id":0,"chat_id":0,"parameter":""}"#,
     ),
@@ -219,6 +227,7 @@ pub struct LeaseServer {
     artifact_root: Option<PathBuf>,
     approval_verifier: Option<ApprovalVerifier>,
     web_app_artifacts: WebAppArtifactStore,
+    account_kind: Option<AccountKind>,
 }
 
 impl LeaseServer {
@@ -231,6 +240,7 @@ impl LeaseServer {
             artifact_root: None,
             approval_verifier: None,
             web_app_artifacts: WebAppArtifactStore::default(),
+            account_kind: None,
         }
     }
 
@@ -246,6 +256,10 @@ impl LeaseServer {
 
     pub fn set_ready(&mut self, ready: bool) {
         self.ready = ready;
+    }
+
+    pub fn set_account_kind(&mut self, account_kind: AccountKind) {
+        self.account_kind = Some(account_kind);
     }
 
     pub fn start_events_at(&mut self, sequence: Option<u64>) {
@@ -461,12 +475,13 @@ impl LeaseServer {
                 request,
                 approval,
             } => {
-                let policy = match self.leases.raw_policy(
-                    &lease_id,
-                    &principal,
-                    AccountKind::RegularUser,
-                    now,
-                ) {
+                let Some(account_kind) = self.account_kind else {
+                    return runtime_unavailable();
+                };
+                let policy = match self
+                    .leases
+                    .raw_policy(&lease_id, &principal, account_kind, now)
+                {
                     Ok(policy) => policy,
                     Err(code) => return DaemonResponse::Error { code },
                 };
@@ -515,12 +530,13 @@ impl LeaseServer {
                 input,
                 approval,
             } => {
-                let policy = match self.leases.raw_policy(
-                    &lease_id,
-                    &principal,
-                    AccountKind::RegularUser,
-                    now,
-                ) {
+                let Some(account_kind) = self.account_kind else {
+                    return runtime_unavailable();
+                };
+                let policy = match self
+                    .leases
+                    .raw_policy(&lease_id, &principal, account_kind, now)
+                {
                     Ok(policy) => policy,
                     Err(code) => return DaemonResponse::Error { code },
                 };
@@ -576,9 +592,12 @@ impl LeaseServer {
                 principal,
                 after,
             } => {
-                if let Err(code) =
-                    self.leases
-                        .raw_policy(&lease_id, &principal, AccountKind::RegularUser, now)
+                let Some(account_kind) = self.account_kind else {
+                    return runtime_unavailable();
+                };
+                if let Err(code) = self
+                    .leases
+                    .raw_policy(&lease_id, &principal, account_kind, now)
                 {
                     return DaemonResponse::Error { code };
                 }
@@ -1151,6 +1170,26 @@ fn run_workflow(
                 .map_err(WorkflowDispatchError::Approval)?;
             let result =
                 workflows::apply_terminate_session(runtime, &policy, input.session_id, deadline)?;
+            let complete = result.complete;
+            output(result, complete)
+        }
+        "business_connection" => {
+            let input: BusinessConnectionInput = parse(input)?;
+            output(
+                workflows::business_connection(runtime, &policy, &input.connection_id, deadline)?,
+                true,
+            )
+        }
+        "send_business_text" => {
+            let input: BusinessMessageInput = parse(input)?;
+            let result = workflows::send_business_text(
+                runtime,
+                &policy,
+                &input.connection_id,
+                input.chat_id,
+                &input.text,
+                deadline,
+            )?;
             let complete = result.complete;
             output(result, complete)
         }
@@ -1807,6 +1846,20 @@ struct SessionInput {
     session_id: i64,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BusinessConnectionInput {
+    connection_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BusinessMessageInput {
+    connection_id: String,
+    chat_id: i64,
+    text: String,
+}
+
 impl From<StickerFormatInput> for StickerFormat {
     fn from(value: StickerFormatInput) -> Self {
         match value {
@@ -2369,6 +2422,8 @@ mod tests {
                 "plan_terminate_session" | "apply_terminate_session" => {
                     parse::<SessionInput>(input).is_ok()
                 }
+                "business_connection" => parse::<BusinessConnectionInput>(input).is_ok(),
+                "send_business_text" => parse::<BusinessMessageInput>(input).is_ok(),
                 "start_bot" | "start_bot_and_wait_reply" => parse::<StartBotInput>(input).is_ok(),
                 "click_bot_callback" => parse::<BotCallbackInput>(input).is_ok(),
                 "open_web_app" | "prepare_web_app_handoff" => parse::<WebAppInput>(input).is_ok(),

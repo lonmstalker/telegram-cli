@@ -75,6 +75,9 @@ fn run() -> Result<(), Box<dyn Error>> {
     ))
     .with_artifact_root(files_directory)
     .with_approval_verifier(approval_verifier);
+    if let lifecycle::AuthorizationReadiness::Ready(account) = readiness {
+        server.set_account_kind(account);
+    }
     server.start_events_at(
         runtime
             .state()

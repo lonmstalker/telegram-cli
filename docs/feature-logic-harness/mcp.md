@@ -27,12 +27,13 @@
 
 - SRC001: product.md; type: file; supports: optional MCP rule; limits: none.
 - SRC002: HARNESS.md; type: file; supports: parity/one-owner invariants; limits: none.
-- SRC003: plans.md P8/P9; type: file; supports: decision gate/security; limits: transport choice deferred.
+- SRC003: plans.md P8/P9 и `apps/telegram-mcp`; type: file/code; supports: decision gate, small tool inventory, strict protocol translation and transport-owned principal; limits: transport choice deferred.
 
 ## TDLib API Coverage
 
-- MCP does not create tool-per-method. Generic schema/call plus workflows expose the same classified registry.
+- MCP does not create tool-per-method. Eight stable tools expose session, brokered auth metadata, generic schema/call, workflows and events over the same daemon protocol.
 - Each method records `direct`, `brokered` or `blocked` MCP exposure with reason; parity report is generated.
+- Curated `workflow` inputs do not require TDJSON constructors. Only the universal raw `call` accepts a schema-described request with `@type`; generated Rust validation still runs in core before dispatch.
 
 ## Request Graph
 
@@ -54,7 +55,7 @@ Transport reconnect does not replay non-idempotent operations. Request/idempoten
 
 ## CLI/MCP Exposure
 
-Minimal tools: session status, `auth.begin/status/wait`, capabilities/schema, workflow, call and events. MCP coordinates login but carries only challenge metadata; secrets remain in a protected CLI/TTY or SSH operator channel.
+Minimal tools: `session`, `auth.begin`, `auth.status`, `auth.wait`, `schema`, `workflow`, `call` and `events`. MCP coordinates login but carries only challenge metadata; secrets remain in a protected CLI/TTY or SSH operator channel. Principal is injected by transport context and cannot be supplied as a tool argument.
 
 ## Permissions and Account Capabilities
 
@@ -62,7 +63,7 @@ Remote principal identity maps to scopes/policy; public unauthenticated access i
 
 ## Live Verification Boundary
 
-No MCP implementation/live endpoint exists; local CLI remains the accepted MVP route.
+The strict adapter and its MCP 2025-11-25-compatible tool schemas are unit-tested against shared `DaemonRequest`; binary startup still fails closed because local/remote transports belong to the next P8 task. No live endpoint has been started.
 
 ## Scope
 
@@ -155,8 +156,8 @@ No MCP implementation/live endpoint exists; local CLI remains the accepted MVP r
 
 ## Coverage Notes
 
-- Kernel coverage: parity/security/reconnect modeled.
-- Modeled: optional adapter behavior.
+- Kernel coverage: small adapter surface, protocol translation and principal-injection boundary verified; transport parity/security/reconnect modeled.
+- Modeled: optional transport and brokered wait behavior.
 - Partial: remote transport decision.
 - Unknown: exact MCP version/hosting stack.
 - Not applicable: direct secret entry in MCP arguments.

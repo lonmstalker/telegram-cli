@@ -61,7 +61,16 @@ fn run(arguments: Vec<String>, format: OutputFormat) -> Result<ExitCode, CliErro
     let profile = env::var("TELEGRAM_PROFILE").unwrap_or_else(|_| "default".to_owned());
     let principal = env::var("TELEGRAM_PRINCIPAL").unwrap_or_else(|_| "telegram-cli".to_owned());
     if arguments == ["login", "tty"] {
-        return login_tty(&profile, format);
+        return login_tty(&profile, format, None);
+    }
+    if let [login, tty, challenge_id] = arguments.as_slice()
+        && login == "login"
+        && tty == "tty"
+    {
+        let challenge_id = challenge_id
+            .parse()
+            .map_err(|_| CliError::new(ClientErrorCode::InvalidArguments))?;
+        return login_tty(&profile, format, Some(challenge_id));
     }
     let request = command(&arguments, principal)?;
     if format != OutputFormat::Json {
@@ -238,7 +247,11 @@ fn exchange(profile: &str, request: &DaemonRequest) -> Result<DaemonResponse, Cl
     parsed.map_err(|_| CliError::new(ClientErrorCode::InvalidResponse))
 }
 
-fn login_tty(profile: &str, format: OutputFormat) -> Result<ExitCode, CliError> {
+fn login_tty(
+    profile: &str,
+    format: OutputFormat,
+    expected_challenge: Option<u64>,
+) -> Result<ExitCode, CliError> {
     install_signal_handlers()?;
     let mut waiting_for = None;
     loop {
@@ -246,6 +259,17 @@ fn login_tty(profile: &str, format: OutputFormat) -> Result<ExitCode, CliError> 
             return Err(CliError::new(ClientErrorCode::Cancelled));
         }
         let response = exchange(profile, &DaemonRequest::LoginStatus)?;
+        if let (Some(expected), DaemonResponse::LoginStatus { challenge_id, .. }) =
+            (expected_challenge, &response)
+            && *challenge_id != Some(expected)
+        {
+            return show_login_response(
+                format,
+                &DaemonResponse::CommandError {
+                    code: telegram_protocol::CommandErrorCode::LoginChallengeInvalid,
+                },
+            );
+        }
         match response {
             response @ DaemonResponse::LoginStatus {
                 state: LoginState::Ready,
@@ -259,20 +283,21 @@ fn login_tty(profile: &str, format: OutputFormat) -> Result<ExitCode, CliError> 
                     | LoginState::Unknown,
                 ..
             } => {
-                let exit = response_exit(&response);
-                write_response(format, &response)
-                    .map_err(|_| CliError::new(ClientErrorCode::OutputFailed))?;
-                return Ok(exit);
+                return show_login_response(format, &response);
             }
-            DaemonResponse::LoginStatus {
+            response @ DaemonResponse::LoginStatus {
                 state,
                 challenge_id: Some(challenge_id),
+                ..
             } => {
                 if waiting_for == Some(challenge_id) {
                     thread::sleep(WATCH_POLL_INTERVAL);
                     continue;
                 }
                 let Some(input) = tty_login_input(state)? else {
+                    if expected_challenge.is_some() {
+                        return show_login_response(format, &response);
+                    }
                     waiting_for = Some(challenge_id);
                     thread::sleep(WATCH_POLL_INTERVAL);
                     continue;
@@ -285,17 +310,17 @@ fn login_tty(profile: &str, format: OutputFormat) -> Result<ExitCode, CliError> 
                     },
                 )?;
                 match submitted {
-                    DaemonResponse::LoginSubmitted {
+                    response @ DaemonResponse::LoginSubmitted {
                         challenge_id: submitted_id,
                     } if submitted_id == challenge_id => {
+                        if expected_challenge.is_some() {
+                            return show_login_response(format, &response);
+                        }
                         waiting_for = Some(challenge_id);
                     }
                     response @ (DaemonResponse::CommandError { .. }
                     | DaemonResponse::Error { .. }) => {
-                        let exit = response_exit(&response);
-                        write_response(format, &response)
-                            .map_err(|_| CliError::new(ClientErrorCode::OutputFailed))?;
-                        return Ok(exit);
+                        return show_login_response(format, &response);
                     }
                     _ => return Err(CliError::new(ClientErrorCode::InvalidResponse)),
                 }
@@ -304,14 +329,19 @@ fn login_tty(profile: &str, format: OutputFormat) -> Result<ExitCode, CliError> 
                 challenge_id: None, ..
             } => thread::sleep(WATCH_POLL_INTERVAL),
             response @ (DaemonResponse::CommandError { .. } | DaemonResponse::Error { .. }) => {
-                let exit = response_exit(&response);
-                write_response(format, &response)
-                    .map_err(|_| CliError::new(ClientErrorCode::OutputFailed))?;
-                return Ok(exit);
+                return show_login_response(format, &response);
             }
             _ => return Err(CliError::new(ClientErrorCode::InvalidResponse)),
         }
     }
+}
+
+fn show_login_response(
+    format: OutputFormat,
+    response: &DaemonResponse,
+) -> Result<ExitCode, CliError> {
+    write_response(format, response).map_err(|_| CliError::new(ClientErrorCode::OutputFailed))?;
+    Ok(response_exit(response))
 }
 
 fn tty_login_input(state: LoginState) -> Result<Option<LoginInput>, CliError> {
@@ -744,7 +774,7 @@ impl CliError {
     const fn message(self) -> &'static str {
         match self.code {
             ClientErrorCode::InvalidArguments => {
-                "usage: telegram-cli session ... | login [tty] | schema ... | td preview <json> | td call <lease_id> <json> [approval_json] | workflow list|describe|run ... | events watch ..."
+                "usage: telegram-cli session ... | login [tty [challenge_id]] | schema ... | td preview <json> | td call <lease_id> <json> [approval_json] | workflow list|describe|run ... | events watch ..."
             }
             ClientErrorCode::InvalidJson => "неверный JSON input",
             ClientErrorCode::InvalidOutputFormat => "output должен быть human, json или jsonl",
@@ -832,9 +862,10 @@ fn human_response(writer: &mut impl Write, response: &DaemonResponse) -> io::Res
         DaemonResponse::LoginStatus {
             state,
             challenge_id,
+            next_action,
         } => writeln!(
             writer,
-            "Авторизация: {state:?}{}",
+            "Авторизация: {state:?}{}; next_action={next_action:?}",
             challenge_id.map_or(String::new(), |id| format!("; challenge={id}")),
         ),
         DaemonResponse::LoginSubmitted { challenge_id } => {
@@ -1119,7 +1150,7 @@ mod tests {
         assert_eq!(
             serde_json::to_value(&ok).unwrap(),
             serde_json::json!({
-                "version": 2,
+                "version": 3,
                 "status": "ok",
                 "data": {"type": "session_status", "metrics": metrics},
             })
@@ -1146,7 +1177,7 @@ mod tests {
             ))
             .unwrap(),
             serde_json::json!({
-                "version": 2,
+                "version": 3,
                 "status": "error",
                 "error": {"domain": "client", "code": "invalid_arguments"},
             })
@@ -1177,10 +1208,14 @@ mod tests {
             &DaemonResponse::LoginStatus {
                 state: telegram_protocol::LoginState::Ready,
                 challenge_id: None,
+                next_action: telegram_protocol::LoginNextAction::Ready,
             },
         )
         .unwrap();
-        assert_eq!(String::from_utf8(output).unwrap(), "Авторизация: Ready\n");
+        assert_eq!(
+            String::from_utf8(output).unwrap(),
+            "Авторизация: Ready; next_action=Ready\n"
+        );
     }
 
     #[test]

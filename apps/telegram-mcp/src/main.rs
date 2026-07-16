@@ -73,10 +73,14 @@ fn tools() -> Vec<Tool> {
         ),
         tool(
             "auth.begin",
-            "Begin or resume brokered login metadata.",
+            "Return brokered challenge metadata and its next action; never credentials.",
             empty(),
         ),
-        tool("auth.status", "Read brokered login metadata.", empty()),
+        tool(
+            "auth.status",
+            "Read brokered challenge ID and next action; never credentials.",
+            empty(),
+        ),
         tool(
             "auth.wait",
             "Wait for a challenge transition; credentials are submitted outside MCP.",
@@ -321,7 +325,7 @@ impl ServerHandler for TelegramMcp {
                 env!("CARGO_PKG_VERSION"),
             ))
             .with_instructions(
-                "Prefer workflow describe/run; use schema and raw call only as an on-demand fallback.",
+                "Prefer workflow describe/run; use schema and raw call only as an on-demand fallback. For submit_via_protected_channel, the owner runs telegram-cli login tty <challenge_id> outside the MCP channel.",
             )
     }
 

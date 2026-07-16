@@ -531,6 +531,7 @@ impl LeaseServer {
                 DaemonResponse::LoginStatus {
                     state,
                     challenge_id,
+                    next_action: state.next_action(),
                 }
             }
             DaemonRequest::LoginSubmit {

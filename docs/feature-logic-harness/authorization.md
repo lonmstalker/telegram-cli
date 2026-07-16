@@ -63,7 +63,7 @@ Only account owner/operator may submit auth secrets. Agent may wait/poll status 
 
 ## Live Verification Boundary
 
-P1 protected live gate подтвердил returning regular-user session: `WaitTdlibParameters -> Ready -> getMe(user) -> close -> Closed` без phone/OTP/2FA input и без вывода identity/secret. Pure core machine обрабатывает все pinned states и exact auth requests. Отдельный pinned-native synthetic test-DC probe подтвердил wrong-key 401, отсутствие перехода к phone authorization, неизменность DB bytes и preflight reject missing key. P2 штатно подключил тот же path к singleton daemon, stable profile identity и idle/crash restart. P6 добавил daemon broker exact challenge ID и `/dev/tty` bridge с отключённым echo, redacted debug и zeroizing buffers; live phone/OTP/2FA login остаётся P10 boundary.
+P1 protected live gate подтвердил returning regular-user session: `WaitTdlibParameters -> Ready -> getMe(user) -> close -> Closed` без phone/OTP/2FA input и без вывода identity/secret. Pure core machine обрабатывает все pinned states и exact auth requests. Отдельный pinned-native synthetic test-DC probe подтвердил wrong-key 401, отсутствие перехода к phone authorization, неизменность DB bytes и preflight reject missing key. P2 штатно подключил тот же path к singleton daemon, stable profile identity и idle/crash restart. P6 добавил daemon broker и защищённый `/dev/tty`; P8 добавил typed `next_action` и one-shot operator handoff `login tty <challenge_id>`, который fail closed до prompt при stale ID. Live phone/OTP/2FA login остаётся P10 boundary.
 
 ## Scope
 

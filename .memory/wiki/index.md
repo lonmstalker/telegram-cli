@@ -66,7 +66,7 @@
 
 ## Current records
 
-- Implementation: P0–P7 accepted; первый пункт P8 optional MCP закрыт, следующий — local/remote transport; см. [project-state.md](project-state.md).
+- Implementation: P0–P8 accepted; следующий пункт — P9 reproducible pinned TDLib builds для обоих targets; см. [project-state.md](project-state.md).
 - Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
@@ -123,9 +123,10 @@
 - F019 terminal graph and redacted resource snapshot: [D-20260715-086](../decisions/decisions.md), [W-20260715-091](../logs/work.md), [`docs/members-statistics-workflow.md`](../../docs/members-statistics-workflow.md).
 - F020 generated platform coverage and proxy transition: [D-20260715-087](../decisions/decisions.md), [W-20260715-092](../logs/work.md), [`docs/platform-utilities-workflow.md`](../../docs/platform-utilities-workflow.md).
 - F021 cross-cutting reliability dispatch: [D-20260715-088](../decisions/decisions.md), [W-20260715-093](../logs/work.md), [`docs/feature-logic-harness/reliability-policy-observability.md`](../../docs/feature-logic-harness/reliability-policy-observability.md).
-- F022 compact v2 agent skill и P7 Acceptance: [D-20260715-073](../decisions/decisions.md), [D-20260715-088](../decisions/decisions.md), [W-20260715-094](../logs/work.md), [`docs/agent-skill-eval.md`](../../docs/agent-skill-eval.md).
+- F022 compact agent skill и P7 Acceptance: [D-20260715-073](../decisions/decisions.md), [D-20260715-088](../decisions/decisions.md), [W-20260715-094](../logs/work.md), [`docs/agent-skill-eval.md`](../../docs/agent-skill-eval.md).
 - MCP small tool adapter: [D-20260715-089](../decisions/decisions.md), [W-20260715-095](../logs/work.md), [`docs/feature-logic-harness/mcp.md`](../../docs/feature-logic-harness/mcp.md).
 - MCP local/SSH transport: [D-20260715-090](../decisions/decisions.md), [W-20260715-096](../logs/work.md), [`docs/mcp-transport.md`](../../docs/mcp-transport.md).
+- MCP brokered login и P8 Acceptance: [D-20260715-091](../decisions/decisions.md), [W-20260715-097](../logs/work.md), [`docs/cli-secure-login.md`](../../docs/cli-secure-login.md).
 
 ## Operating rules
 

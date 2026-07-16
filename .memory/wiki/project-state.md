@@ -72,14 +72,16 @@
 - Тринадцатый подпункт P7/F019 закрыт: existing capability-first async graph walker переиспользован; resource read агрегирует storage/database/network и редактирует opaque database report без implicit optimization ([D-20260715-086](../decisions/decisions.md)).
 - Четырнадцатый подпункт P7/F020 закрыт: generated pin/default-deny покрывают редкие utilities; proxy status redacted, exact-ID setter требует ordered Ready proof и сохраняет rollback ID без repeat ([D-20260715-087](../decisions/decisions.md)).
 - Пятнадцатый подпункт P7/F021 закрыт: common raw path применяет bounded flood retry, scheduler, durable journal и redacted audit; raw mutation возвращает partial reconciliation state, shared metrics доступны через CLI status ([D-20260715-088](../decisions/decisions.md)).
-- Шестнадцатый подпункт P7/F022 закрыт: compact skill использует machine envelope v2, on-demand discovery и explicit reconciliation stop; offline cold traces green, token budget 806/662 < 1500 ([D-20260715-073](../decisions/decisions.md), [D-20260715-088](../decisions/decisions.md)).
+- Шестнадцатый подпункт P7/F022 закрыт: compact skill использует current machine envelope v3, on-demand discovery и explicit reconciliation stop; offline cold traces green, token budget 806/662 < 1500 до P8 broker instruction ([D-20260715-073](../decisions/decisions.md), [D-20260715-088](../decisions/decisions.md), [D-20260715-091](../decisions/decisions.md)).
 - P7 accepted: все F007–F022 harness criteria подтверждены synthetic/offline tests; live side effects остаются только P10.
 - Первый пункт P8 закрыт: восемь MCP tools строго переводятся в shared `DaemonRequest`; transport principal не является model argument, auth принимает только challenge metadata, curated workflows скрывают `@type` ([D-20260715-089](../decisions/decisions.md)).
 - Второй пункт P8 закрыт: official MCP 2025-11-25 stdio запускается локально или через OpenSSH forced command; remote identity/profile/scopes bound к root-owned policy, TCP listener отсутствует ([D-20260715-090](../decisions/decisions.md)).
+- Третий пункт P8 закрыт: protocol v3 отдаёт typed auth `next_action`, а owner one-shot `login tty <challenge_id>` fail closed сверяет ID до protected TTY prompt; secret submission отсутствует в MCP ([D-20260715-091](../decisions/decisions.md)).
+- P8 accepted: MCP не создаёт TDLib session, remote transport требует OpenSSH identity/root-owned scopes, context ограничен восемью on-demand tool families.
 
 ## Not implemented
 
-- Последний пункт P8, фазы P9–P10: MCP brokered secret channel, packaging и live acceptance.
+- Фазы P9–P10: packaging/upgrades и live acceptance.
 
 ## Active boundary
 
@@ -88,4 +90,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: третий Tasks-пункт P8 — brokered login с secret entry вне model-visible transport.
+- Следующий implementation boundary: первый Tasks-пункт P9 — reproducible pinned TDLib builds для macOS arm64 и Linux x86_64.

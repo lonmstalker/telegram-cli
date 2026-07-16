@@ -1,7 +1,7 @@
 # P6 cold-agent eval
 
 Eval context ограничен [`SKILL.md`](../.agents/skills/telegram-cli/SKILL.md) и machine
-responses v2 `workflow list/describe`; repo source, каталог TDLib и human output не выдаются.
+responses v3 `workflow list/describe`; repo source, каталог TDLib и human output не выдаются.
 Проверяется action trace, а не формулировка ответа. Во всех сценариях обязательны minimal
 lease, discovery-before-execution, root status/continuation check и release в finally.
 

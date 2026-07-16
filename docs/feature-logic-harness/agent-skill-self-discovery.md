@@ -61,7 +61,7 @@ Skill never self-approves or asks model to reveal OTP/key; it requests operator 
 
 ## Live Verification Boundary
 
-Repo-local skill использует только stable CLI machine envelope v2 и on-demand
+Repo-local skill использует только stable CLI machine envelope v3 и on-demand
 `workflow list/describe`/schema discovery. Offline cold-context traces закрывают history,
 statistics, sticker, bot и Mini App handoff; raw mutation control останавливается на
 `reconciliation_required`. Live Telegram side effects остаются P10.
@@ -155,7 +155,7 @@ statistics, sticker, bot и Mini App handoff; raw mutation control остана�
 
 ## Coverage Notes
 
-- Implemented: acquire/discover/execute/continue/release flow, v2 partial/reconciliation
+- Implemented: acquire/discover/execute/continue/release flow, v3 partial/reconciliation
   handling, no-secret/no-self-approval rules and five representative offline cold traces.
 - Verified: pinned `tiktoken 0.12.0` counts 806 `cl100k_base` / 662 `o200k_base`, below 1500.
 - Partial: live model variance и live Telegram scenario fixtures остаются P10.

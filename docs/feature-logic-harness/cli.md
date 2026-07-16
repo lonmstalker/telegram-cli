@@ -68,8 +68,9 @@ lease без heartbeat loop. Login status использует typed authorizati
 values; one-shot events route переносит только sequence/kind/cursor/gap metadata. Human default
 и versioned compact JSON/JSONL с closed error/exit codes реализованы. Human/JSONL watch
 поддерживает cursor streaming, heartbeat и release после signal/pipe cancellation.
-`login tty` связывает protected `/dev/tty` input с typed challenge ID; secrets отсутствуют
-в flags/stdin/output, echo восстанавливается после signal, stale/pending input fail closed.
+`login tty` связывает protected `/dev/tty` input с typed challenge ID; one-shot
+`login tty <challenge_id>` обслуживает MCP/operator handoff и сверяет ID до prompt. Secrets
+отсутствуют в flags/stdin/output, echo восстанавливается после signal, stale/pending input fail closed.
 Live first-login остаётся P10 boundary.
 Compact repo-local skill использует только machine envelope и on-demand
 workflow/schema descriptors; offline cold-context traces закрывают representative history,

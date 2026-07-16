@@ -44,6 +44,21 @@ empty/unknown scopes fail closed. Principal становится `ssh:reader`; t
 могут подменить principal, profile или transport ceiling. Remote key не должен получать
 shell, PTY, forwarding или возможность выбирать другой policy ID.
 
+## Protected operator login
+
+`auth.begin/status/wait` возвращают только `challenge_id`, `LoginState` и typed
+`next_action`. Когда action равен `submit_via_protected_channel`, владелец открывает
+отдельную, независимо аутентифицированную SSH-сессию с PTY и запускает на сервере:
+
+```sh
+telegram-cli login tty <challenge_id>
+```
+
+Это не MCP forced-command key и не model terminal. Secret вводится в server `/dev/tty` с
+выключенным echo и идёт только внутри зашифрованного SSH channel; в arguments находится
+лишь non-secret challenge ID. CLI сверяет ID до prompt и отправляет ровно один typed input.
+После этого MCP использует `auth.wait` для следующего ID/action или доказанного `Ready`.
+
 ## Reconnect and results
 
 OpenSSH reconnect создаёт новую MCP connection и новый lifecycle. Adapter не хранит

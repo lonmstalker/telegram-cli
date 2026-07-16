@@ -111,7 +111,7 @@ flowchart LR
 | P5 | Reliability, policy, limits и observability | accepted |
 | P6 | Полный CLI и компактный agent skill | complete |
 | P7 | Domain workflows по F007–F020 | accepted |
-| P8 | Optional MCP | pending |
+| P8 | Optional MCP | accepted |
 | P9 | Local/server packaging и upgrade/rollback | pending |
 | P10 | Live end-to-end acceptance | pending |
 
@@ -275,13 +275,13 @@ Decision gate: начинать только после acceptance P0–P7.
 
 - [x] MCP — adapter к daemon/protocol; небольшой набор tools (session, auth.begin/status/wait, schema, workflow, call, events).
 - [x] Local stdio и аутентифицированный remote transport.
-- [ ] Brokered login: challenge ID/next action; secret вводится вне model-visible transport.
+- [x] Brokered login: challenge ID/next action; secret вводится вне model-visible transport.
 
 ### Acceptance
 
-- [ ] Запуск MCP не создаёт новую Telegram session; отключение MCP не уменьшает core/CLI — зачем: MCP — adapter, а не второй продукт; это главный анти-drift критерий.
-- [ ] Remote endpoint требует identity, scoped authorization и encryption — зачем: неаутентифицированный endpoint — это чужой полный доступ к аккаунту.
-- [ ] MCP context не содержит каталог из 1000 tools — зачем: контекст агента — ограниченный ресурс; discovery должен быть on-demand.
+- [x] Запуск MCP не создаёт новую Telegram session; отключение MCP не уменьшает core/CLI — зачем: MCP — adapter, а не второй продукт; это главный анти-drift критерий.
+- [x] Remote endpoint требует identity, scoped authorization и encryption — зачем: неаутентифицированный endpoint — это чужой полный доступ к аккаунту.
+- [x] MCP context не содержит каталог из 1000 tools — зачем: контекст агента — ограниченный ресурс; discovery должен быть on-demand.
 
 ## P9 — Packaging, server и upgrades
 

@@ -12,14 +12,14 @@
 - product_context_source: product.md
 - Feature purpose: опционально открыть тот же broker/protocol MCP-клиентам без второго TDLib owner.
 - Product workflow/job served: brokered login, status/discovery/call/workflow/events через local или authenticated remote transport.
-- Primary ambiguity to keep explicit: protected remote operator secret entry остаётся следующим P8 task.
+- Primary ambiguity to keep explicit: live server installation remains P9 scope.
 
 ## Product Context
 
 - Product context source: product.md
 - Product purpose: remote/standard tool access без дублирования логики.
 - Primary users: remote AI-агент и operator.
-- Core workflows touched: все protocol routes, кроме brokered secret entry.
+- Core workflows touched: все shared protocol routes, включая brokered auth metadata.
 - Domain terms used: adapter, transport principal, scoped tool.
 - Open product questions: Q001.
 
@@ -27,7 +27,7 @@
 
 - SRC001: product.md; type: file; supports: optional MCP rule; limits: none.
 - SRC002: HARNESS.md; type: file; supports: parity/one-owner invariants; limits: none.
-- SRC003: plans.md P8/P9, `apps/telegram-mcp` и `docs/mcp-transport.md`; type: file/code; supports: decision gate, small tool inventory, strict protocol translation, local stdio and SSH transport identity/scope policy; limits: brokered secret channel deferred.
+- SRC003: plans.md P8/P9, `apps/telegram-mcp`, `telegram-cli` и `docs/mcp-transport.md`; type: file/code; supports: small adapter, local/SSH transport identity, typed next action and exact challenge-bound protected operator handoff; limits: live first-login and server installation remain P10/P9.
 - SRC004: official MCP 2025-11-25 [tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools), [transports](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports), [lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle) and official `rmcp 2.2.0`; type: external primary; supports: tool names/schema, newline stdio and lifecycle negotiation; limits: OpenSSH deployment policy remains product-owned.
 
 ## TDLib API Coverage
@@ -64,7 +64,7 @@ Remote principal identity maps to scopes/policy; public unauthenticated access i
 
 ## Live Verification Boundary
 
-The strict adapter runs over MCP 2025-11-25 stdio through official `rmcp 2.2.0`. Synthetic initialize/list succeeds without daemon access. Authenticated remote mode is the same stdio behind OpenSSH restricted forced command; it requires sshd context and root-owned identity policy. No live SSH endpoint or Telegram call has been started.
+The strict adapter runs over MCP 2025-11-25 stdio through official `rmcp 2.2.0`. Synthetic initialize/list succeeds without daemon access. Authenticated remote mode is the same stdio behind OpenSSH restricted forced command; it requires sshd context and root-owned identity policy. Auth status serializes only typed broker metadata; exact-ID `telegram-cli login tty <challenge_id>` is the separate one-shot operator channel. No live SSH endpoint or first-login Telegram call has been started.
 
 ## Scope
 
@@ -78,7 +78,7 @@ The strict adapter runs over MCP 2025-11-25 stdio through official `rmcp 2.2.0`.
 
 ### Ambiguous
 
-- Live server installation and operator secret channel remain deferred; transport stack is resolved in Q001.
+- Live server installation remains P9; transport and operator-channel contracts are resolved.
 
 ## Context Map
 
@@ -145,7 +145,7 @@ The strict adapter runs over MCP 2025-11-25 stdio through official `rmcp 2.2.0`.
 - SC001 - Remote read workflow
   - Dimensions: D001, D002; Workflow/entity anchor: workflow; Scenario: authenticated remote agent requests history; Expected behavior: same envelope as CLI; Related contracts: C002/C003; Related invariants: I001; Why this matters: parity; Status: modeled.
 - SC002 - OTP requested through MCP
-  - Dimensions: D001, D002; Workflow/entity anchor: auth; Scenario: fresh profile requires OTP; Expected behavior: MCP returns challenge ID/next action, owner submits through protected channel, MCP waits for Ready/getMe; Related contracts: C003/C004; Related invariants: I002/I004; Why this matters: login support with secret isolation; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: auth; Scenario: fresh profile requires OTP; Expected behavior: MCP returns challenge ID/next action, owner submits through protected channel, MCP waits for Ready/getMe; Related contracts: C003/C004; Related invariants: I002/I004; Why this matters: login support with secret isolation; Status: implemented synthetically, live first-login deferred to P10.
 
 ## Assumptions
 
@@ -157,8 +157,8 @@ The strict adapter runs over MCP 2025-11-25 stdio through official `rmcp 2.2.0`.
 
 ## Coverage Notes
 
-- Kernel coverage: small adapter, protocol translation, stdio lifecycle, principal injection, SSH context and root-policy scope boundary verified.
-- Modeled: brokered wait and protected operator submission behavior.
-- Partial: live SSH deployment and brokered secret channel.
+- Kernel coverage: small adapter, protocol translation, stdio lifecycle, principal injection, SSH context, root-policy scope boundary, brokered wait and protected exact-ID operator submission verified.
+- Modeled: live first-login and server installation behavior.
+- Partial: live SSH deployment and phone/OTP/2FA execution.
 - Unknown: none for transport topology.
 - Not applicable: direct secret entry in MCP arguments.

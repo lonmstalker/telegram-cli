@@ -8,7 +8,7 @@ use std::fmt;
 use std::str::FromStr;
 use zeroize::Zeroize;
 
-pub const MACHINE_PROTOCOL_VERSION: u16 = 2;
+pub const MACHINE_PROTOCOL_VERSION: u16 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -186,6 +186,7 @@ pub enum DaemonResponse {
     LoginStatus {
         state: LoginState,
         challenge_id: Option<u64>,
+        next_action: LoginNextAction,
     },
     LoginSubmitted {
         challenge_id: u64,
@@ -285,6 +286,36 @@ pub enum LoginState {
     Closing,
     Closed,
     Unknown,
+}
+
+impl LoginState {
+    pub const fn next_action(self) -> LoginNextAction {
+        match self {
+            Self::QrCode => LoginNextAction::ConfirmOtherDevice,
+            Self::PhoneNumber
+            | Self::PremiumPurchase
+            | Self::Code
+            | Self::Password
+            | Self::EmailAddress
+            | Self::EmailCode
+            | Self::Registration => LoginNextAction::SubmitViaProtectedChannel,
+            Self::Ready => LoginNextAction::Ready,
+            Self::Closed => LoginNextAction::RestartDaemon,
+            Self::Parameters | Self::LoggingOut | Self::Closing | Self::Unknown => {
+                LoginNextAction::Wait
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LoginNextAction {
+    Wait,
+    SubmitViaProtectedChannel,
+    ConfirmOtherDevice,
+    Ready,
+    RestartDaemon,
 }
 
 #[derive(PartialEq, Eq, Serialize, Deserialize)]
@@ -572,6 +603,28 @@ mod tests {
         assert!(wire.contains(canary));
         wire.zeroize();
         assert!(wire.is_empty());
+    }
+
+    #[test]
+    fn login_status_exposes_only_broker_metadata() {
+        let envelope = MachineEnvelope::from_response(DaemonResponse::LoginStatus {
+            state: LoginState::Code,
+            challenge_id: Some(7),
+            next_action: LoginState::Code.next_action(),
+        });
+        assert_eq!(
+            serde_json::to_value(envelope).unwrap(),
+            serde_json::json!({
+                "version": 3,
+                "status": "partial",
+                "data": {
+                    "type": "login_status",
+                    "state": "code",
+                    "challenge_id": 7,
+                    "next_action": "submit_via_protected_channel",
+                },
+            })
+        );
     }
 
     #[test]

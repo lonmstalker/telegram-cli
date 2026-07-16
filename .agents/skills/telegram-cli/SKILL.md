@@ -7,13 +7,14 @@ description: "Безопасная работа с Telegram через singleton
 
 Работай только через `telegram-cli`; не открывай TDLib DB, не запускай второй TDLib owner и
 не вызывай native TDLib напрямую. Для machine decisions всегда добавляй `--output json` и
-читай только envelope v2 `version/status/data/error`, не human prose.
+читай только envelope v3 `version/status/data/error`, не human prose.
 
 ## Цикл
 
-1. Проверь `telegram-cli --output json login`. Если state не `ready`, не передавай phone,
-   OTP, 2FA, database key или Web App init data. Попроси владельца выполнить
-   `telegram-cli login tty`, затем повтори status.
+1. Проверь `telegram-cli --output json login`. Если state не `ready`, следуй typed
+   `next_action`, но не передавай phone, OTP, 2FA, database key или Web App init data. Для
+   `submit_via_protected_channel` попроси владельца вне model terminal выполнить
+   `telegram-cli login tty <challenge_id>`, затем повтори status.
 2. Возьми минимальный lease:
    `telegram-cli --output json session hold <scope[,scope...]>`. Сохрани `lease_id` из
    `data.lease` и освободи его в finally через

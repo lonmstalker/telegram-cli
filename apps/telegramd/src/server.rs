@@ -23,9 +23,9 @@ use telegram_core::reducer::{AppliedUpdate, CachedUpdateKind, ChatList};
 use telegram_core::registry::{AccountKind, SymbolKind, ValidatedRequest};
 use telegram_core::runtime::CoreRuntime;
 use telegram_core::workflows::{
-    self, ChatSearchQuery, ChatTarget, ChatWorkflowError, DownloadQuery, ForumTopicsQuery,
-    HistoryQuery, InputFileSource, MembersQuery, MembershipTarget, PageOptions, StickerFormat,
-    UserTarget, WebAppMode, WebAppRequest,
+    self, ChatSearchQuery, ChatTarget, ChatWorkflowError, CustomEmojiSetAction, DownloadQuery,
+    ForumTopicsQuery, HistoryQuery, InputFileSource, MembersQuery, MembershipTarget, PageOptions,
+    StickerFormat, UserTarget, WebAppMode, WebAppRequest,
 };
 use telegram_protocol::{
     CommandErrorCode, DaemonRequest, DaemonResponse, EventKind, EventRecord, LeaseErrorCode,
@@ -92,6 +92,14 @@ const WORKFLOWS: &[(&str, &str)] = &[
     (
         "upload_sticker_file",
         r#"{"user_id":0,"format":"webp","source":{"kind":"id","id":0}}"#,
+    ),
+    (
+        "plan_custom_emoji_set",
+        r#"{"action":"create","user_id":1,"title":"Disposable","name":"codex_disposable","format":"webp","sticker_file_id":1,"emojis":"🧪","needs_repainting":false}"#,
+    ),
+    (
+        "apply_custom_emoji_set",
+        r#"{"action":"create","user_id":1,"title":"Disposable","name":"codex_disposable","format":"webp","sticker_file_id":1,"emojis":"🧪","needs_repainting":false}"#,
     ),
     (
         "start_bot",
@@ -805,7 +813,7 @@ fn run_workflow(
         web_app_artifacts,
         deadline,
     } = context;
-    if approval.is_some() && name != "apply_chat_title" {
+    if approval.is_some() && name != "apply_chat_title" && name != "apply_custom_emoji_set" {
         return Err(WorkflowDispatchError::InvalidInput);
     }
     match name {
@@ -1037,6 +1045,20 @@ fn run_workflow(
         "upload_sticker_file" => {
             let input: UploadInput = parse(input)?;
             let result = upload_sticker_file(runtime, &policy, input, artifact_root, deadline)?;
+            let complete = result.complete;
+            output(result, complete)
+        }
+        "plan_custom_emoji_set" => {
+            let input: CustomEmojiSetInput = parse(input)?;
+            output(workflows::plan_custom_emoji_set(input.as_core())?, true)
+        }
+        "apply_custom_emoji_set" => {
+            let input: CustomEmojiSetInput = parse(input)?;
+            let action = input.as_core();
+            let request = workflows::custom_emoji_set_request(action)?;
+            let policy = approved_policy(policy, approval, &request, approval_verifier)
+                .map_err(WorkflowDispatchError::Approval)?;
+            let result = workflows::apply_custom_emoji_set(runtime, &policy, action, deadline)?;
             let complete = result.complete;
             output(result, complete)
         }
@@ -1471,12 +1493,81 @@ struct UploadInput {
     source: FileSourceInput,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum StickerFormatInput {
     Webp,
     Tgs,
     Webm,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
+enum CustomEmojiSetInput {
+    Create {
+        user_id: i64,
+        title: String,
+        name: String,
+        format: StickerFormatInput,
+        sticker_file_id: i32,
+        emojis: String,
+        needs_repainting: bool,
+    },
+    Add {
+        user_id: i64,
+        set_id: i64,
+        name: String,
+        format: StickerFormatInput,
+        sticker_file_id: i32,
+        emojis: String,
+    },
+    Delete {
+        set_id: i64,
+        name: String,
+    },
+}
+
+impl CustomEmojiSetInput {
+    fn as_core(&self) -> CustomEmojiSetAction<'_> {
+        match self {
+            Self::Create {
+                user_id,
+                title,
+                name,
+                format,
+                sticker_file_id,
+                emojis,
+                needs_repainting,
+            } => CustomEmojiSetAction::Create {
+                user_id: *user_id,
+                title,
+                name,
+                format: (*format).into(),
+                sticker_file_id: *sticker_file_id,
+                emojis,
+                needs_repainting: *needs_repainting,
+            },
+            Self::Add {
+                user_id,
+                set_id,
+                name,
+                format,
+                sticker_file_id,
+                emojis,
+            } => CustomEmojiSetAction::Add {
+                user_id: *user_id,
+                set_id: *set_id,
+                name,
+                format: (*format).into(),
+                sticker_file_id: *sticker_file_id,
+                emojis,
+            },
+            Self::Delete { set_id, name } => CustomEmojiSetAction::Delete {
+                set_id: *set_id,
+                name,
+            },
+        }
+    }
 }
 
 impl From<StickerFormatInput> for StickerFormat {
@@ -1667,6 +1758,7 @@ fn workflow_error(error: WorkflowDispatchError) -> CommandErrorCode {
             | ChatWorkflowError::InvalidLimit
             | ChatWorkflowError::InvalidPageOptions
             | ChatWorkflowError::InvalidFileTransfer
+            | ChatWorkflowError::InvalidStickerSetMutation
             | ChatWorkflowError::InvalidProfileInput
             | ChatWorkflowError::InvalidChatConfiguration
             | ChatWorkflowError::InvalidBotInteraction,
@@ -2023,6 +2115,9 @@ mod tests {
                 "download_file" => parse::<DownloadInput>(input).is_ok(),
                 "cancel_download" => parse::<CancelDownloadInput>(input).is_ok(),
                 "upload_sticker_file" => parse::<UploadInput>(input).is_ok(),
+                "plan_custom_emoji_set" | "apply_custom_emoji_set" => {
+                    parse::<CustomEmojiSetInput>(input).is_ok()
+                }
                 "start_bot" | "start_bot_and_wait_reply" => parse::<StartBotInput>(input).is_ok(),
                 "click_bot_callback" => parse::<BotCallbackInput>(input).is_ok(),
                 "open_web_app" | "prepare_web_app_handoff" => parse::<WebAppInput>(input).is_ok(),

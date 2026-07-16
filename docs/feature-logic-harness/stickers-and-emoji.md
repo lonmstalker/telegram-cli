@@ -28,7 +28,8 @@
 - SRC001: product.md; type: file; supports: user jobs and safety boundary; limits: none.
 - SRC002: HARNESS.md; type: file; supports: semantic scope and required dimensions; limits: planning IDs are documentation-only.
 - SRC003: pinned official schema; type: supplied; supports: sticker/emoji/reaction method families; limits: source alone does not prove generated registry.
-- SRC004: plans.md P3/P4/P7; type: file; supports: raw parity and workflow behavior; limits: implementation absent.
+- SRC004: plans.md P3/P4/P7/P10; type: file; supports: raw parity, workflow behavior and live matrix; limits: live mutation remains P10.
+- SRC005: `crates/telegram-core/src/workflows.rs`, `apps/telegramd/src/server.rs`; type: file; supports: typed plan/apply, uploaded-file prerequisite, ownership/inventory reconciliation and cleanup proof; limits: curated lifecycle is regular-user only.
 
 ## TDLib API Coverage
 
@@ -38,7 +39,7 @@
 
 ## Request Graph
 
-`resolve owner/chat -> inspect capabilities -> validate/convert media via F010 -> upload when required -> create/change/reorder/delete -> await response/update -> reread set/status -> return completeness proof`.
+`prepare media via F010 -> terminal upload -> typed plan -> external exact approval -> create/add/delete once -> reread set/name -> return completeness proof`.
 
 ## Completion Proof
 
@@ -46,7 +47,9 @@ Mutation is complete only when TDLib confirms it and a reread or relevant update
 
 ## Cache and Update Semantics
 
-Sticker-set, custom-emoji and emoji-status caches retain `observed_at` and source. Updates invalidate affected records; missing cached objects trigger permitted fetches before `not_found`.
+Curated lifecycle использует fresh `getFile`, `getStickerSet`, `searchStickerSet(ignore_cache)`
+и `checkStickerSetName`, поэтому не выводит absence/ownership из stale cache. Receipt хранит
+`observed_at` и server-snapshot freshness; общий raw surface не обещает cached `not_found`.
 
 ## Retry and Reconciliation
 
@@ -54,7 +57,7 @@ Lookup reads use bounded retry. Create/add/delete/reorder operations are not bli
 
 ## CLI/MCP Exposure
 
-Expose curated workflows plus raw `td call`. Binary input uses local file handles or protected remote uploads, never inline secret/base64 blobs in agent context.
+Expose typed `upload_sticker_file` + plan/apply lifecycle and raw `td call`. Binary input uses local file handles or protected remote uploads, never inline secret/base64 blobs in agent context.
 
 ## Permissions and Account Capabilities
 
@@ -62,10 +65,10 @@ Check account type, set ownership, Premium/custom-emoji availability, chat right
 
 ## Live Verification Boundary
 
-Synthetic runtime test proves typed `uploadStickerFile` waits for
-`updateFile.remote.is_uploading_completed`. It does not claim sticker-set mutation;
-no live sticker/emoji mutation has been executed. Acceptance uses a disposable test set
-and explicit cleanup proof.
+Synthetic runtime tests prove terminal upload and create -> lost-response add reconciliation
+-> delete/name-availability cleanup. No live sticker/emoji mutation has been executed; P10
+uses a disposable test set and requires explicit destructive-operation permission immediately
+before cleanup.
 
 ## Scope
 
@@ -142,9 +145,9 @@ and explicit cleanup proof.
 ## Scenario Cells
 
 - SC001 - Create custom emoji set
-  - Dimensions: D001, D002; Workflow/entity anchor: StickerSetRef; Scenario: valid upload and owner capability; Expected behavior: create, wait, reread and return confirmed inventory; Related contracts: C001-C003; Related invariants: I001-I002; Why this matters: remembered user case; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: StickerSetRef; Scenario: valid upload and owner capability; Expected behavior: create, wait, reread and return confirmed inventory; Related contracts: C001-C003; Related invariants: I001-I002; Why this matters: remembered user case; Status: implemented synthetic.
 - SC002 - Timeout after add
-  - Dimensions: D001, D002; Workflow/entity anchor: MutationReceipt; Scenario: response lost after server commit; Expected behavior: inspect set before any retry; Related contracts: C002; Related invariants: I001; Why this matters: duplicate avoidance; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: MutationReceipt; Scenario: response lost after server commit; Expected behavior: inspect set before any retry; Related contracts: C002; Related invariants: I001; Why this matters: duplicate avoidance; Status: implemented synthetic.
 
 ## Assumptions
 
@@ -156,9 +159,9 @@ and explicit cleanup proof.
 
 ## Coverage Notes
 
-- Kernel coverage: typed upload prerequisite and terminal file proof implemented;
-  set ownership/mutation/reconciliation remain modeled.
-- Modeled: read and mutation families.
-- Partial: exact generated method mapping and live rights matrix.
+- Kernel coverage: typed upload prerequisite, exact-plan create/add/delete, ownership checks,
+  inventory reconciliation and cleanup proof implemented.
+- Modeled: remaining read/status/reaction families stay generated raw/default-deny until a consumer requires review.
+- Partial: live rights/Premium matrix; regular-user curated lifecycle only.
 - Unknown: deployment converter choice.
 - Not applicable: browser UI proof.

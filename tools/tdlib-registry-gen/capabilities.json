@@ -21,6 +21,15 @@
       "retry": "reconcile"
     },
     {
+      "method": "addStickerToSet",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "StickerSetOwner { target: name } AND UploadedFile { target: sticker.sticker }",
+      "retry": "reconcile"
+    },
+    {
       "method": "approveSuggestedPost",
       "risk": "financial",
       "accounts": [
@@ -42,6 +51,15 @@
     },
     {
       "method": "checkChatInviteLink",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "checkStickerSetName",
       "risk": "read",
       "accounts": [
         "regular_user"
@@ -75,6 +93,15 @@
         "bot"
       ],
       "runtime_requirements": "(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers })",
+      "retry": "reconcile"
+    },
+    {
+      "method": "createNewStickerSet",
+      "risk": "admin",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready } AND UploadedFiles { target: stickers }",
       "retry": "reconcile"
     },
     {
@@ -144,6 +171,15 @@
       ],
       "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanDeleteReactions }",
       "retry": "convergent"
+    },
+    {
+      "method": "deleteStickerSet",
+      "risk": "destructive",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "StickerSetOwner { target: name }",
+      "retry": "reconcile"
     },
     {
       "method": "cancelDownloadFile",
@@ -390,6 +426,15 @@
         "bot"
       ],
       "runtime_requirements": "MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetAuthor }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getStickerSet",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
       "retry": "safe_read"
     },
     {
@@ -690,6 +735,15 @@
     },
     {
       "method": "searchPublicChat",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "searchStickerSet",
       "risk": "read",
       "accounts": [
         "regular_user"

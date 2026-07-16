@@ -29,6 +29,7 @@
 - SRC002: HARNESS.md; type: file; supports: semantic scope/default-deny; limits: planning IDs are documentation-only.
 - SRC003: pinned official schema; type: supplied; supports: platform method/object/update families; limits: source alone does not prove generated registry.
 - SRC004: docs/tdlib-api-coverage.md; type: file; supports: no-unclassified-method gate; limits: full registry absent.
+- SRC005: `crates/telegram-core/src/registry/generated.rs`, `crates/telegram-core/src/workflows.rs`; type: file; supports: full generated classification/default-deny and redacted proxy ID transition with ordered connectivity proof; limits: endpoint creation requires a future protected provider.
 
 ## TDLib API Coverage
 
@@ -46,7 +47,8 @@ Reads require a typed TDLib response. Setters require reread/update convergence.
 
 ## Cache and Update Semantics
 
-Language/config/options/background/theme caches carry version and source. Network/proxy state is update-led. Runtime/schema mismatch invalidates platform caches.
+Generated schema/version remains canonical. Curated proxy route не кэширует endpoints:
+proxy list reread-ится, а connectivity proof берётся из ordered reducer sequence.
 
 ## Retry and Reconciliation
 
@@ -54,7 +56,9 @@ Pure reads retry boundedly. Proxy/network/option setters reconcile current state
 
 ## CLI/MCP Exposure
 
-Everything is reachable by CLI raw call after policy validation; common utilities get curated commands. MCP exposes generic schema/call tools, not one tool per utility.
+Everything is reachable by CLI raw call after policy validation. Curated proxy commands
+работают только с existing ID; endpoint credentials не принимаются. MCP остаётся generic
+schema/call adapter, не one-tool-per-utility.
 
 ## Permissions and Account Capabilities
 
@@ -62,7 +66,8 @@ Classify whether method needs authorization, account capability, filesystem/netw
 
 ## Live Verification Boundary
 
-No platform setting/proxy/logging mutation was performed. Only native TDJSON loading, authorization and close were exercised by the access probe.
+Synthetic proxy transition/redaction выполнен; live platform/proxy/logging mutation не
+выполнялась. Native TDJSON load/version/authorization остаются real runtime evidence.
 
 ## Scope
 
@@ -139,9 +144,9 @@ No platform setting/proxy/logging mutation was performed. Only native TDJSON loa
 ## Scenario Cells
 
 - SC001 - Upstream adds a method
-  - Dimensions: D001, D002; Workflow/entity anchor: SpecialMethodClass; Scenario: schema hash changes and method has no classification; Expected behavior: generation/CI fails before release; Related contracts: C001-C002; Related invariants: I001-I002; Why this matters: honest full coverage; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: SpecialMethodClass; Scenario: schema hash changes and method has no classification; Expected behavior: generation/CI fails before release; Related contracts: C001-C002; Related invariants: I001-I002; Why this matters: honest full coverage; Status: implemented by pin/generated/default-deny gates.
 - SC002 - Set proxy then connection fails
-  - Dimensions: D001, D002; Workflow/entity anchor: ProxyProfile; Scenario: setter responds but state/connectivity diverges; Expected behavior: reread/reconcile, return partial/failed and preserve rollback data; Related contracts: C003; Related invariants: I003; Why this matters: remote availability; Status: modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: ProxyProfile; Scenario: setter responds but state/connectivity diverges; Expected behavior: reread/reconcile, return partial/failed and preserve rollback data; Related contracts: C003; Related invariants: I003; Why this matters: remote availability; Status: implemented synthetic.
 
 ## Assumptions
 
@@ -153,8 +158,8 @@ No platform setting/proxy/logging mutation was performed. Only native TDJSON loa
 
 ## Coverage Notes
 
-- Kernel coverage: platform classification and safe schema drift modeled.
-- Modeled: platform families and special method policy.
-- Partial: full generated registry and allowlist.
+- Kernel coverage: full generated classification/schema drift gate and redacted exact-ID proxy transition implemented.
+- Modeled: localization/theme/options/log/custom/test families remain generated raw/default-deny.
+- Partial: protected endpoint provider and deployment allowlist.
 - Unknown: deployment-specific network/proxy support.
 - Not applicable: domain-specific financial approval.

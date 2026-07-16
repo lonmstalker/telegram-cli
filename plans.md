@@ -261,7 +261,7 @@ flowchart LR
 - [x] F017 Business.
 - [x] F018 payments/digital assets.
 - [x] F019 statistics/resources.
-- [ ] F020 platform utilities.
+- [x] F020 platform utilities.
 - [ ] F021 reliability как сквозной contract.
 - [ ] F022 agent skill.
 

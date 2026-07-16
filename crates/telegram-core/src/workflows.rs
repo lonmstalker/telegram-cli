@@ -299,6 +299,41 @@ pub struct ResourceStatisticsSnapshot {
     pub freshness: Freshness,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ProxySummary {
+    pub proxy_id: i32,
+    pub is_enabled: bool,
+    pub proxy_type: String,
+    pub endpoint_redacted: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ProxySnapshot {
+    pub proxies: Vec<ProxySummary>,
+    pub observed_at: SystemTime,
+    pub freshness: Freshness,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProxyTransitionOutcome {
+    AlreadyApplied,
+    Verified,
+    ConnectivityDiverged,
+    Uncertain,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ProxyTransitionReceipt {
+    pub desired_proxy_id: Option<i32>,
+    pub rollback_proxy_id: Option<i32>,
+    pub outcome: ProxyTransitionOutcome,
+    pub endpoint_redacted: bool,
+    pub complete: bool,
+    pub observed_at: SystemTime,
+    pub freshness: Freshness,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ResyncReceipt {
     pub gap_after_sequence: Option<u64>,
@@ -1285,6 +1320,34 @@ pub fn resource_statistics(
     require_resynced(runtime)?;
     resource_statistics_with(only_current_network, |method, request| {
         invoke(runtime, policy, method, request, deadline)
+    })
+}
+
+pub fn proxy_status(
+    runtime: &mut CoreRuntime,
+    policy: &RawPolicy,
+    deadline: Instant,
+) -> Result<ProxySnapshot, ChatWorkflowError> {
+    require_resynced(runtime)?;
+    let (response, _) = invoke_ordered(
+        runtime,
+        policy,
+        "getProxies",
+        get_proxies_request(),
+        deadline,
+    )?;
+    proxy_snapshot(response.as_value())
+}
+
+pub fn set_proxy_enabled(
+    runtime: &mut CoreRuntime,
+    policy: &RawPolicy,
+    proxy_id: Option<i32>,
+    deadline: Instant,
+) -> Result<ProxyTransitionReceipt, ChatWorkflowError> {
+    require_resynced(runtime)?;
+    set_proxy_enabled_with(proxy_id, |method, request| {
+        invoke_ordered(runtime, policy, method, request, deadline)
     })
 }
 
@@ -4328,6 +4391,161 @@ fn resource_statistics_with(
     })
 }
 
+#[derive(Clone, Copy)]
+struct ConnectionObservation {
+    sequence: u64,
+    ready: bool,
+}
+
+fn set_proxy_enabled_with(
+    desired_proxy_id: Option<i32>,
+    mut call: impl FnMut(
+        &'static str,
+        Value,
+    ) -> Result<(TdObject, Option<ConnectionObservation>), ChatWorkflowError>,
+) -> Result<ProxyTransitionReceipt, ChatWorkflowError> {
+    if desired_proxy_id.is_some_and(|proxy_id| proxy_id <= 0) {
+        return Err(ChatWorkflowError::InvalidProxyTarget);
+    }
+    let (before, before_connection) = call("getProxies", get_proxies_request())?;
+    let before = proxy_snapshot(before.as_value())?;
+    if desired_proxy_id.is_some_and(|proxy_id| {
+        before
+            .proxies
+            .iter()
+            .all(|proxy| proxy.proxy_id != proxy_id)
+    }) {
+        return Err(ChatWorkflowError::InvalidProxyTarget);
+    }
+    let enabled_before = enabled_proxy_id(&before.proxies)?;
+    if enabled_before == desired_proxy_id {
+        return Ok(proxy_transition_receipt(
+            desired_proxy_id,
+            enabled_before,
+            ProxyTransitionOutcome::AlreadyApplied,
+        ));
+    }
+    let (method, request) = desired_proxy_id.map_or_else(
+        || ("disableProxy", json!({"@type":"disableProxy"})),
+        |proxy_id| {
+            (
+                "enableProxy",
+                json!({"@type":"enableProxy","proxy_id":proxy_id}),
+            )
+        },
+    );
+    match call(method, request) {
+        Ok((response, _)) => expect_ok(response, method)?,
+        Err(error) if response_timed_out(&error) => {}
+        Err(error) => return Err(error),
+    }
+    let Ok((after, after_connection)) = call("getProxies", get_proxies_request()) else {
+        return Ok(proxy_transition_receipt(
+            desired_proxy_id,
+            enabled_before,
+            ProxyTransitionOutcome::Uncertain,
+        ));
+    };
+    let after = proxy_snapshot(after.as_value())?;
+    let state_matches = enabled_proxy_id(&after.proxies)? == desired_proxy_id;
+    let connection_ready = after_connection.is_some_and(|connection| {
+        connection.ready
+            && connection.sequence
+                > before_connection
+                    .map(|connection| connection.sequence)
+                    .unwrap_or_default()
+    });
+    let outcome = match (state_matches, connection_ready) {
+        (true, true) => ProxyTransitionOutcome::Verified,
+        (true, false) => ProxyTransitionOutcome::ConnectivityDiverged,
+        (false, _) => ProxyTransitionOutcome::Uncertain,
+    };
+    Ok(proxy_transition_receipt(
+        desired_proxy_id,
+        enabled_before,
+        outcome,
+    ))
+}
+
+fn proxy_snapshot(value: &Value) -> Result<ProxySnapshot, ChatWorkflowError> {
+    if value["@type"] != "addedProxies" {
+        return Err(ChatWorkflowError::UnexpectedResult {
+            method: "getProxies",
+        });
+    }
+    let values = value["proxies"]
+        .as_array()
+        .ok_or(ChatWorkflowError::InvalidResult {
+            method: "getProxies",
+            field: "proxies",
+        })?;
+    let mut seen = BTreeSet::new();
+    let proxies = values
+        .iter()
+        .map(|value| {
+            if value["@type"] != "addedProxy" || value["proxy"]["@type"] != "proxy" {
+                return Err(ChatWorkflowError::UnexpectedResult {
+                    method: "getProxies",
+                });
+            }
+            let proxy_id = required_i32(value, "id", "getProxies")?;
+            if proxy_id <= 0 || !seen.insert(proxy_id) {
+                return Err(ChatWorkflowError::InvalidResult {
+                    method: "getProxies",
+                    field: "proxies[].id",
+                });
+            }
+            Ok(ProxySummary {
+                proxy_id,
+                is_enabled: required_bool(value, "is_enabled", "getProxies")?,
+                proxy_type: required_string(&value["proxy"]["type"], "@type", "getProxies")?
+                    .to_owned(),
+                endpoint_redacted: true,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ProxySnapshot {
+        proxies,
+        observed_at: SystemTime::now(),
+        freshness: Freshness::ServerSnapshot,
+    })
+}
+
+fn enabled_proxy_id(proxies: &[ProxySummary]) -> Result<Option<i32>, ChatWorkflowError> {
+    let mut enabled = proxies.iter().filter(|proxy| proxy.is_enabled);
+    let first = enabled.next().map(|proxy| proxy.proxy_id);
+    if enabled.next().is_some() {
+        return Err(ChatWorkflowError::InvalidResult {
+            method: "getProxies",
+            field: "proxies[].is_enabled",
+        });
+    }
+    Ok(first)
+}
+
+fn proxy_transition_receipt(
+    desired_proxy_id: Option<i32>,
+    rollback_proxy_id: Option<i32>,
+    outcome: ProxyTransitionOutcome,
+) -> ProxyTransitionReceipt {
+    ProxyTransitionReceipt {
+        desired_proxy_id,
+        rollback_proxy_id,
+        outcome,
+        endpoint_redacted: true,
+        complete: matches!(
+            outcome,
+            ProxyTransitionOutcome::AlreadyApplied | ProxyTransitionOutcome::Verified
+        ),
+        observed_at: SystemTime::now(),
+        freshness: Freshness::ServerSnapshot,
+    }
+}
+
+fn get_proxies_request() -> Value {
+    json!({"@type":"getProxies"})
+}
+
 fn collect_async_tokens(
     value: &Value,
     tokens: &mut BTreeSet<String>,
@@ -5050,6 +5268,29 @@ fn invoke(
     checked_response(method, response)
 }
 
+fn invoke_ordered(
+    runtime: &mut CoreRuntime,
+    policy: &RawPolicy,
+    method: &'static str,
+    request: Value,
+    deadline: Instant,
+) -> Result<(TdObject, Option<ConnectionObservation>), ChatWorkflowError> {
+    let (response, boundary) = td_call_with_boundary(runtime, policy, request, deadline)
+        .map_err(ChatWorkflowError::Call)?;
+    runtime
+        .apply_through_boundary(boundary, deadline)
+        .map_err(ChatWorkflowError::Runtime)?;
+    let response = checked_response(method, response)?;
+    let connection = runtime
+        .state()
+        .connection()
+        .map(|connection| ConnectionObservation {
+            sequence: connection.sequence.get(),
+            ready: connection.value["@type"] == "connectionStateReady",
+        });
+    Ok((response, connection))
+}
+
 fn expect_ok(response: TdObject, method: &'static str) -> Result<(), ChatWorkflowError> {
     if response.as_value()["@type"] == "ok" {
         Ok(())
@@ -5192,6 +5433,7 @@ pub enum ChatWorkflowError {
     InvalidSessionTarget,
     InvalidBusinessInput,
     InvalidPaymentInput,
+    InvalidProxyTarget,
     InvalidProfileInput,
     InvalidChatConfiguration,
     InvalidBotInteraction,
@@ -5248,6 +5490,7 @@ impl fmt::Display for ChatWorkflowError {
             Self::InvalidPaymentInput => {
                 formatter.write_str("payment input is outside the approved Stars-only boundary")
             }
+            Self::InvalidProxyTarget => formatter.write_str("proxy target is invalid or missing"),
             Self::InvalidProfileInput => {
                 formatter.write_str("profile input is outside TDLib bounds")
             }
@@ -5289,6 +5532,7 @@ impl Error for ChatWorkflowError {
             | Self::InvalidSessionTarget
             | Self::InvalidBusinessInput
             | Self::InvalidPaymentInput
+            | Self::InvalidProxyTarget
             | Self::InvalidProfileInput
             | Self::InvalidChatConfiguration
             | Self::InvalidBotInteraction
@@ -6321,6 +6565,59 @@ mod tests {
         assert!(!serde_json::to_string(&snapshot)
             .unwrap()
             .contains("DATABASE_REPORT_CANARY"));
+    }
+
+    #[test]
+    fn proxy_transition_redacts_endpoints_and_reports_connectivity_divergence() {
+        let proxies = |enabled_id: i32| {
+            let proxies = [1, 2]
+                .into_iter()
+                .map(|id| json!({
+                    "@type":"addedProxy","id":id,"is_enabled":id == enabled_id,
+                    "comment":"PROXY_COMMENT_CANARY",
+                    "proxy":{
+                        "@type":"proxy","server":"PROXY_HOST_CANARY","port":443,
+                        "type":{"@type":"proxyTypeSocks5","username":"USER_CANARY","password":"PASS_CANARY"}
+                    }
+                }))
+                .collect::<Vec<_>>();
+            json!({
+                "@type":"addedProxies",
+                "proxies":proxies
+            })
+        };
+        let snapshot = proxy_snapshot(&proxies(1)).unwrap();
+        let serialized = serde_json::to_string(&snapshot).unwrap();
+        assert!(snapshot.proxies.iter().all(|proxy| proxy.endpoint_redacted));
+        assert!(!serialized.contains("CANARY"));
+
+        let mut reads = 0;
+        let mut methods = Vec::new();
+        let receipt = set_proxy_enabled_with(Some(2), |method, _| {
+            methods.push(method);
+            match method {
+                "getProxies" => {
+                    reads += 1;
+                    Ok((
+                        TdObject::from_value(proxies(if reads == 1 { 1 } else { 2 })).unwrap(),
+                        Some(ConnectionObservation {
+                            sequence: 10 + reads,
+                            ready: reads == 1,
+                        }),
+                    ))
+                }
+                "enableProxy" => Ok((TdObject::from_value(json!({"@type":"ok"})).unwrap(), None)),
+                _ => unreachable!(),
+            }
+        })
+        .unwrap();
+        assert_eq!(methods, ["getProxies", "enableProxy", "getProxies"]);
+        assert_eq!(receipt.rollback_proxy_id, Some(1));
+        assert_eq!(
+            receipt.outcome,
+            ProxyTransitionOutcome::ConnectivityDiverged
+        );
+        assert!(!receipt.complete);
     }
 
     #[test]

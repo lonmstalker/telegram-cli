@@ -82,6 +82,8 @@ const WORKFLOWS: &[(&str, &str)] = &[
     ),
     ("chat_statistics", r#"{"chat_id":0,"is_dark":false}"#),
     ("resource_statistics", r#"{"only_current_network":true}"#),
+    ("proxy_status", "{}"),
+    ("set_proxy_enabled", r#"{"action":"enable","proxy_id":1}"#),
     ("resync_after_gap", "{}"),
     (
         "download_file",
@@ -1074,6 +1076,17 @@ fn run_workflow(
                 true,
             )
         }
+        "proxy_status" => {
+            let _: EmptyInput = parse(input)?;
+            output(workflows::proxy_status(runtime, &policy, deadline)?, true)
+        }
+        "set_proxy_enabled" => {
+            let input: ProxyInput = parse(input)?;
+            let result =
+                workflows::set_proxy_enabled(runtime, &policy, input.proxy_id(), deadline)?;
+            let complete = result.complete;
+            output(result, complete)
+        }
         "resync_after_gap" => {
             let _: EmptyInput = parse(input)?;
             let result = workflows::resync_after_gap(runtime, &policy, deadline)?;
@@ -1661,6 +1674,22 @@ struct StatisticsInput {
 #[serde(deny_unknown_fields)]
 struct ResourceStatisticsInput {
     only_current_network: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
+enum ProxyInput {
+    Enable { proxy_id: i32 },
+    Disable,
+}
+
+impl ProxyInput {
+    fn proxy_id(&self) -> Option<i32> {
+        match self {
+            Self::Enable { proxy_id } => Some(*proxy_id),
+            Self::Disable => None,
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -2479,6 +2508,8 @@ mod tests {
                 "supergroup_members" => parse::<MembersInput>(input).is_ok(),
                 "chat_statistics" => parse::<StatisticsInput>(input).is_ok(),
                 "resource_statistics" => parse::<ResourceStatisticsInput>(input).is_ok(),
+                "proxy_status" => parse::<EmptyInput>(input).is_ok(),
+                "set_proxy_enabled" => parse::<ProxyInput>(input).is_ok(),
                 "resync_after_gap" => parse::<EmptyInput>(input).is_ok(),
                 "download_file" => parse::<DownloadInput>(input).is_ok(),
                 "cancel_download" => parse::<CancelDownloadInput>(input).is_ok(),
@@ -2510,6 +2541,7 @@ mod tests {
             };
             assert!(valid, "invalid input example for {name}");
         }
+        assert!(parse::<ProxyInput>(json!({})).is_err());
     }
 
     fn exchange(

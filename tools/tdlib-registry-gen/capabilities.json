@@ -1,6 +1,36 @@
 {
   "reviewed": [
     {
+      "method": "getProxies",
+      "risk": "read",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "TDLibClient { state: Initialized }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "enableProxy",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "Proxy { target: proxy_id, state: Configured }",
+      "retry": "reconcile"
+    },
+    {
+      "method": "disableProxy",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user",
+        "bot"
+      ],
+      "runtime_requirements": "TDLibClient { state: Initialized }",
+      "retry": "reconcile"
+    },
+    {
       "method": "getStorageStatisticsFast",
       "risk": "read",
       "accounts": [

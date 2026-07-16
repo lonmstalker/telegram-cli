@@ -8,7 +8,7 @@ use std::fmt;
 use std::str::FromStr;
 use zeroize::Zeroize;
 
-pub const MACHINE_PROTOCOL_VERSION: u16 = 1;
+pub const MACHINE_PROTOCOL_VERSION: u16 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -151,11 +151,37 @@ pub struct LeaseView {
     pub expires_in_ms: u64,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OperationalMetrics {
+    pub requests: u64,
+    pub succeeded: u64,
+    pub failed: u64,
+    pub uncertain: u64,
+    pub denied: u64,
+    pub request_latency_ms_total: u64,
+    pub request_latency_ms_max: u64,
+    pub queue_depth: usize,
+    pub queue_depth_max: usize,
+    pub queue_rejections: u64,
+    pub retries: u64,
+    pub flood_waits: u64,
+    pub flood_delay_ms_total: u64,
+    pub update_lag_events: u64,
+    pub update_lag_ms_max: u64,
+    pub fresh_results: u64,
+    pub cached_results: u64,
+    pub stale_results: u64,
+    pub partial_results: u64,
+    pub active_leases: usize,
+    pub active_leases_max: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DaemonResponse {
     SessionStatus {
-        active_leases: usize,
+        metrics: Box<OperationalMetrics>,
     },
     LoginStatus {
         state: LoginState,
@@ -181,6 +207,8 @@ pub enum DaemonResponse {
     },
     TdResult {
         result: Value,
+        retries: u64,
+        reconciliation_required: bool,
     },
     WorkflowList {
         workflows: Vec<String>,
@@ -392,6 +420,9 @@ pub enum CommandErrorCode {
     LoginChallengeInvalid,
     LoginSubmissionPending,
     LoginSubmissionRejected,
+    OperationAlreadySucceeded,
+    ReconciliationRequired,
+    ReliabilityUnavailable,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -443,6 +474,10 @@ impl MachineEnvelope {
             },
             response @ DaemonResponse::WorkflowResult {
                 complete: false, ..
+            }
+            | response @ DaemonResponse::TdResult {
+                reconciliation_required: true,
+                ..
             }
             | response @ DaemonResponse::Events { gap: true, .. } => {
                 MachineOutcome::Partial { data: response }

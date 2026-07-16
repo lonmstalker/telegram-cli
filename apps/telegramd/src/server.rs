@@ -16,11 +16,16 @@ use telegram_core::authorization::{
     AuthorizationChallengeKind, AuthorizationError, AuthorizationInput, AuthorizationMachine,
     AuthorizationRequest, AuthorizationStep, ChallengeId, SensitiveString,
 };
+use telegram_core::idempotency::{
+    BeginDecision, IdempotencyJournal, OperationFingerprint, OperationState,
+};
 use telegram_core::raw_api::{
     self, PolicyError, RawApiError, SchemaDescription, SchemaSearchResult,
 };
 use telegram_core::reducer::{AppliedUpdate, CachedUpdateKind, ChatList};
-use telegram_core::registry::{AccountKind, SymbolKind, ValidatedRequest};
+use telegram_core::registry::{
+    self, AccountKind, CapabilityDisposition, RetryClass, RiskClass, SymbolKind, ValidatedRequest,
+};
 use telegram_core::runtime::CoreRuntime;
 use telegram_core::workflows::{
     self, ChatSearchQuery, ChatTarget, ChatWorkflowError, CustomEmojiSetAction, DownloadQuery,
@@ -35,6 +40,10 @@ use telegram_protocol::{
 use zeroize::Zeroizing;
 
 use crate::lease::LeaseManager;
+use crate::scheduler::{
+    AccountScheduler, FloodScope, OperationClass, OperationContext, OperationPermit,
+};
+use crate::telemetry::{AuditEvent, AuditLog, OperationOutcome, Telemetry};
 
 const MAX_REQUEST_BYTES: u64 = 16 * 1024;
 const CLIENT_IO_TIMEOUT: Duration = Duration::from_secs(5);
@@ -162,6 +171,21 @@ const WORKFLOWS: &[(&str, &str)] = &[
     ),
     ("close_web_app_handoff", r#"{"launch_id":0}"#),
 ];
+const JOURNALED_WORKFLOWS: &[&str] = &[
+    "ensure_membership",
+    "send_text_message",
+    "upload_sticker_file",
+    "apply_custom_emoji_set",
+    "apply_story_mutation",
+    "apply_terminate_session",
+    "send_business_text",
+    "apply_star_invoice_payment",
+    "start_bot",
+    "start_bot_and_wait_reply",
+    "click_bot_callback",
+    "open_web_app",
+    "prepare_web_app_handoff",
+];
 
 struct WebAppArtifact {
     principal: String,
@@ -233,6 +257,10 @@ impl WebAppArtifactStore {
 
 pub struct LeaseServer {
     leases: LeaseManager,
+    scheduler: AccountScheduler,
+    telemetry: Telemetry,
+    idempotency: IdempotencyJournal,
+    audit: AuditLog,
     ready: bool,
     events: EventBuffer,
     authorization: AuthorizationBroker,
@@ -243,9 +271,19 @@ pub struct LeaseServer {
 }
 
 impl LeaseServer {
-    pub fn new(leases: LeaseManager) -> Self {
+    pub fn new(
+        leases: LeaseManager,
+        scheduler: AccountScheduler,
+        telemetry: Telemetry,
+        idempotency: IdempotencyJournal,
+        audit: AuditLog,
+    ) -> Self {
         Self {
             leases,
+            scheduler,
+            telemetry,
+            idempotency,
+            audit,
             ready: true,
             events: EventBuffer::new(EVENT_BUFFER_CAPACITY),
             authorization: AuthorizationBroker::default(),
@@ -320,6 +358,93 @@ impl LeaseServer {
 
     pub fn active_leases(&self) -> usize {
         self.leases.active_count()
+    }
+
+    fn admit(
+        &self,
+        risk: RiskClass,
+        chat_id: Option<i64>,
+    ) -> Result<(OperationPermit, Duration), CommandErrorCode> {
+        let queued_at = Instant::now();
+        let permit = self
+            .scheduler
+            .enqueue(OperationContext {
+                operation: if risk == RiskClass::Read {
+                    OperationClass::Read
+                } else {
+                    OperationClass::Mutation
+                },
+                method_class: risk,
+                chat_id,
+            })
+            .and_then(|queued| queued.wait())
+            .map_err(|_| CommandErrorCode::ReliabilityUnavailable)?;
+        Ok((permit, queued_at.elapsed()))
+    }
+
+    fn begin_idempotent(
+        &mut self,
+        fingerprint: Option<OperationFingerprint>,
+    ) -> Result<Option<OperationFingerprint>, CommandErrorCode> {
+        let Some(fingerprint) = fingerprint else {
+            return Ok(None);
+        };
+        match self.idempotency.begin(fingerprint) {
+            Ok(BeginDecision::Dispatch) => Ok(Some(fingerprint)),
+            Ok(BeginDecision::AlreadySucceeded) => Err(CommandErrorCode::OperationAlreadySucceeded),
+            Ok(BeginDecision::ReconcileRequired) => Err(CommandErrorCode::ReconciliationRequired),
+            Err(_) => Err(CommandErrorCode::ReliabilityUnavailable),
+        }
+    }
+
+    fn finish_idempotent(
+        &mut self,
+        fingerprint: Option<OperationFingerprint>,
+        state: OperationState,
+    ) -> Result<(), CommandErrorCode> {
+        let Some(fingerprint) = fingerprint else {
+            return Ok(());
+        };
+        let result = match state {
+            OperationState::Succeeded => self.idempotency.succeeded(fingerprint),
+            OperationState::Failed => self.idempotency.failed(fingerprint),
+            OperationState::Uncertain => self.idempotency.uncertain(fingerprint),
+            OperationState::Pending => return Err(CommandErrorCode::ReliabilityUnavailable),
+        };
+        result.map_err(|_| CommandErrorCode::ReliabilityUnavailable)
+    }
+
+    fn record_raw(
+        &mut self,
+        request: &ValidatedRequest,
+        outcome: OperationOutcome,
+        started: Instant,
+        queued: Duration,
+        retries: u64,
+    ) -> Result<(), CommandErrorCode> {
+        let latency = started.elapsed();
+        self.telemetry.record_request(latency, outcome);
+        for _ in 0..retries {
+            self.telemetry.record_retry();
+        }
+        let event = AuditEvent::operation(
+            request,
+            outcome,
+            latency,
+            queued,
+            retries,
+            false,
+            SystemTime::now(),
+        )
+        .map_err(|_| CommandErrorCode::ReliabilityUnavailable)?;
+        self.audit
+            .append(&event)
+            .map_err(|_| CommandErrorCode::ReliabilityUnavailable)
+    }
+
+    fn record_workflow(&self, outcome: OperationOutcome, started: Instant) {
+        let latency = started.elapsed();
+        self.telemetry.record_request(latency, outcome);
     }
 
     fn serve_once(
@@ -399,7 +524,7 @@ impl LeaseServer {
         }
         match request {
             DaemonRequest::SessionStatus => DaemonResponse::SessionStatus {
-                active_leases: self.leases.active_count(),
+                metrics: Box::new(self.telemetry.snapshot()),
             },
             DaemonRequest::LoginStatus => {
                 let (state, challenge_id) = self.authorization.status();
@@ -487,8 +612,28 @@ impl LeaseServer {
                 request,
                 approval,
             } => {
+                let started = Instant::now();
                 let Some(account_kind) = self.account_kind else {
                     return runtime_unavailable();
+                };
+                let validated = match ValidatedRequest::from_value(request.clone()) {
+                    Ok(request) => request,
+                    Err(_) => {
+                        return DaemonResponse::CommandError {
+                            code: CommandErrorCode::InvalidTdjson,
+                        };
+                    }
+                };
+                let Some(capability) = registry::capability(validated.descriptor().name) else {
+                    return DaemonResponse::CommandError {
+                        code: CommandErrorCode::MethodDefaultDenied,
+                    };
+                };
+                let CapabilityDisposition::Reviewed { risk, retry, .. } = capability.disposition
+                else {
+                    return DaemonResponse::CommandError {
+                        code: CommandErrorCode::MethodDefaultDenied,
+                    };
                 };
                 let policy = match self
                     .leases
@@ -509,10 +654,71 @@ impl LeaseServer {
                     Ok(policy) => policy,
                     Err(code) => return DaemonResponse::CommandError { code },
                 };
+                let (_permit, queued) = match self.admit(
+                    risk,
+                    validated.as_value().get("chat_id").and_then(Value::as_i64),
+                ) {
+                    Ok(admission) => admission,
+                    Err(code) => return DaemonResponse::CommandError { code },
+                };
+                let fingerprint = (retry != RetryClass::SafeRead)
+                    .then(|| OperationFingerprint::for_request(&validated));
+                let fingerprint = match self.begin_idempotent(fingerprint) {
+                    Ok(fingerprint) => fingerprint,
+                    Err(code) => {
+                        let outcome = if code == CommandErrorCode::ReconciliationRequired {
+                            OperationOutcome::Uncertain
+                        } else {
+                            OperationOutcome::Denied
+                        };
+                        let _ = self.record_raw(&validated, outcome, started, queued, 0);
+                        return DaemonResponse::CommandError { code };
+                    }
+                };
                 let deadline = now.checked_add(CALL_TIMEOUT).unwrap_or(now);
-                match raw_api::td_call(runtime, &policy, request, deadline) {
-                    Ok(result) => DaemonResponse::TdResult {
+                let scheduler = self.scheduler.clone();
+                let result =
+                    raw_api::td_call_observed(runtime, &policy, request, deadline, |delay| {
+                        scheduler
+                            .record_flood_wait(FloodScope::MethodClass(risk), delay)
+                            .ok()
+                            .and_then(|decision| decision.automatic_delay)
+                    });
+                let (state, outcome) = match &result {
+                    Ok((result, _))
+                        if result.as_value()["@type"] != "error" && fingerprint.is_none() =>
+                    {
+                        (OperationState::Succeeded, OperationOutcome::Succeeded)
+                    }
+                    Ok((result, _)) if result.as_value()["@type"] != "error" => {
+                        (OperationState::Uncertain, OperationOutcome::Uncertain)
+                    }
+                    Ok(_) => (OperationState::Failed, OperationOutcome::Failed),
+                    Err(RawApiError::Transport(_) | RawApiError::UnexpectedResult { .. }) => {
+                        (OperationState::Uncertain, OperationOutcome::Uncertain)
+                    }
+                    Err(_) => (OperationState::Failed, OperationOutcome::Failed),
+                };
+                if let Err(code) = self.finish_idempotent(fingerprint, state) {
+                    let retries = result.as_ref().map_or(0, |(_, retries)| *retries);
+                    let _ = self.record_raw(
+                        &validated,
+                        OperationOutcome::Uncertain,
+                        started,
+                        queued,
+                        retries,
+                    );
+                    return DaemonResponse::CommandError { code };
+                }
+                let retries = result.as_ref().map_or(0, |(_, retries)| *retries);
+                if let Err(code) = self.record_raw(&validated, outcome, started, queued, retries) {
+                    return DaemonResponse::CommandError { code };
+                }
+                match result {
+                    Ok((result, retries)) => DaemonResponse::TdResult {
                         result: result.into_value(),
+                        retries,
+                        reconciliation_required: state == OperationState::Uncertain,
                     },
                     Err(error) => DaemonResponse::CommandError {
                         code: raw_error(error),
@@ -542,6 +748,15 @@ impl LeaseServer {
                 input,
                 approval,
             } => {
+                let started = Instant::now();
+                let Some((workflow_name, _)) = WORKFLOWS
+                    .iter()
+                    .find(|(candidate, _)| *candidate == workflow)
+                else {
+                    return DaemonResponse::CommandError {
+                        code: CommandErrorCode::WorkflowNotFound,
+                    };
+                };
                 let Some(account_kind) = self.account_kind else {
                     return runtime_unavailable();
                 };
@@ -554,6 +769,21 @@ impl LeaseServer {
                 };
                 let Some(runtime) = runtime else {
                     return runtime_unavailable();
+                };
+                let fingerprint = JOURNALED_WORKFLOWS
+                    .contains(workflow_name)
+                    .then(|| OperationFingerprint::for_workflow(workflow_name, &input));
+                let fingerprint = match self.begin_idempotent(fingerprint) {
+                    Ok(fingerprint) => fingerprint,
+                    Err(code) => {
+                        let outcome = if code == CommandErrorCode::ReconciliationRequired {
+                            OperationOutcome::Uncertain
+                        } else {
+                            OperationOutcome::Denied
+                        };
+                        self.record_workflow(outcome, started);
+                        return DaemonResponse::CommandError { code };
+                    }
                 };
                 let deadline = now.checked_add(CALL_TIMEOUT).unwrap_or(now);
                 let result = run_workflow(
@@ -570,12 +800,24 @@ impl LeaseServer {
                         deadline,
                     },
                 );
+                let (state, outcome) = match &result {
+                    Ok(output) if output.complete => {
+                        (OperationState::Succeeded, OperationOutcome::Succeeded)
+                    }
+                    Ok(_) => (OperationState::Uncertain, OperationOutcome::Uncertain),
+                    Err(_) => (OperationState::Failed, OperationOutcome::Failed),
+                };
                 self.events.reconcile(
                     runtime
                         .state()
                         .last_sequence()
                         .map(telegram_core::reducer::UpdateSequence::get),
                 );
+                if let Err(code) = self.finish_idempotent(fingerprint, state) {
+                    self.record_workflow(OperationOutcome::Uncertain, started);
+                    return DaemonResponse::CommandError { code };
+                }
+                self.record_workflow(outcome, started);
                 match result {
                     Ok(output) => DaemonResponse::WorkflowResult {
                         workflow,
@@ -647,8 +889,8 @@ impl LeaseServer {
 }
 
 fn workflow_input_example(name: &str) -> Option<Value> {
-    let (_, example) = WORKFLOWS.iter().find(|(candidate, _)| *candidate == name)?;
-    Some(serde_json::from_str(example).expect("workflow input example is valid JSON"))
+    let (_, input_example) = WORKFLOWS.iter().find(|(candidate, _)| *candidate == name)?;
+    Some(serde_json::from_str(input_example).expect("workflow input example is valid JSON"))
 }
 
 struct EventBuffer {
@@ -2262,7 +2504,19 @@ mod tests {
         let ownership = ProfileDatabaseLock::acquire(profile, &root).unwrap();
         let socket = DaemonSocket::bind(&ownership).unwrap();
         socket.listener().set_nonblocking(true).unwrap();
-        let mut server = LeaseServer::new(LeaseManager::default());
+        let telemetry = Telemetry::default();
+        let scheduler = AccountScheduler::with_telemetry(
+            crate::scheduler::serial_daemon_budgets(),
+            telemetry.clone(),
+        )
+        .unwrap();
+        let mut server = LeaseServer::new(
+            LeaseManager::with_telemetry([RiskScope::Read], telemetry.clone()),
+            scheduler,
+            telemetry,
+            IdempotencyJournal::open(root.join("idempotency.jsonl")).unwrap(),
+            AuditLog::open(root.join("audit.jsonl")).unwrap(),
+        );
 
         let granted = exchange(
             &mut server,
@@ -2303,7 +2557,12 @@ mod tests {
         );
         assert_eq!(
             exchange(&mut server, &socket, DaemonRequest::SessionStatus),
-            DaemonResponse::SessionStatus { active_leases: 0 }
+            DaemonResponse::SessionStatus {
+                metrics: Box::new(telegram_protocol::OperationalMetrics {
+                    active_leases_max: 1,
+                    ..Default::default()
+                }),
+            }
         );
         let DaemonResponse::SchemaSearchResults { results } = exchange(
             &mut server,

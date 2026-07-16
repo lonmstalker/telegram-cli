@@ -4,14 +4,16 @@ use serde::Serialize;
 use serde_json::Value;
 use std::error::Error;
 use std::fmt;
+use std::num::NonZeroUsize;
+use std::time::Duration;
 use std::time::{Instant, SystemTime};
 
-use crate::approval::{ApprovedPlan, PlanAuthorizationError, approval_required};
+use crate::approval::{approval_required, ApprovedPlan, PlanAuthorizationError};
 use crate::registry::{
-    self, AccountKind, BUILTINS, CAPABILITIES, CONSTRUCTORS, CapabilityDescriptor,
-    CapabilityDisposition, RiskClass, SymbolDescriptor, TYPES, TdObject, ValidatedRequest,
-    ValidationError,
+    self, AccountKind, CapabilityDescriptor, CapabilityDisposition, RiskClass, SymbolDescriptor,
+    TdObject, ValidatedRequest, ValidationError, BUILTINS, CAPABILITIES, CONSTRUCTORS, TYPES,
 };
+use crate::retry::{self, AttemptFailure, RetryExecution};
 use crate::runtime::CoreRuntime;
 use crate::transport::TransportError;
 
@@ -113,7 +115,18 @@ pub fn td_call(
     request: Value,
     deadline: Instant,
 ) -> Result<TdObject, RawApiError> {
-    td_call_with_boundary(runtime, policy, request, deadline).map(|(response, _)| response)
+    td_call_report(runtime, policy, request, deadline, &mut Some).map(|(response, _, _)| response)
+}
+
+pub fn td_call_observed(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    request: Value,
+    deadline: Instant,
+    mut on_flood: impl FnMut(Duration) -> Option<Duration>,
+) -> Result<(TdObject, u64), RawApiError> {
+    td_call_report(runtime, policy, request, deadline, &mut on_flood)
+        .map(|(response, _, attempts)| (response, attempts.saturating_sub(1)))
 }
 
 pub(crate) fn td_call_with_boundary(
@@ -122,14 +135,76 @@ pub(crate) fn td_call_with_boundary(
     request: Value,
     deadline: Instant,
 ) -> Result<(TdObject, u64), RawApiError> {
+    td_call_report(runtime, policy, request, deadline, &mut Some)
+        .map(|(response, boundary, _)| (response, boundary))
+}
+
+fn td_call_report(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    request: Value,
+    deadline: Instant,
+    on_flood: &mut impl FnMut(Duration) -> Option<Duration>,
+) -> Result<(TdObject, u64, u64), RawApiError> {
     let request = ValidatedRequest::from_value(request).map_err(RawApiError::Validation)?;
     let method = request.descriptor();
     policy
         .authorize_request(&request)
         .map_err(RawApiError::Policy)?;
+    let retry = registry::capability(method.name)
+        .and_then(|capability| match capability.disposition {
+            CapabilityDisposition::Reviewed { retry, .. } => Some(retry),
+            CapabilityDisposition::DefaultDeny => None,
+        })
+        .expect("authorized requests have a reviewed retry class");
+    if retry != crate::registry::RetryClass::SafeRead {
+        return td_call_once(runtime, method, request.as_value(), deadline)
+            .map(|(response, boundary)| (response, boundary, 1));
+    }
+    match retry::safe_read(
+        method.name,
+        request.as_value(),
+        NonZeroUsize::new(2).expect("two is non-zero"),
+        deadline,
+        |request| match td_call_once(runtime, method, request, deadline) {
+            Ok(result) => match flood_delay(result.0.as_value()) {
+                Some(retry_after) => match on_flood(retry_after) {
+                    Some(retry_after) => Err(AttemptFailure::Retryable {
+                        retry_after,
+                        error: ReadFailure::Flood(result),
+                    }),
+                    None => Err(AttemptFailure::Terminal(ReadFailure::Flood(result))),
+                },
+                None => Ok(result),
+            },
+            Err(error) => Err(AttemptFailure::Terminal(ReadFailure::Error(error))),
+        },
+    )
+    .expect("generated retry class was checked")
+    {
+        RetryExecution::Succeeded {
+            value: (response, boundary),
+            attempts,
+            ..
+        } => Ok((response, boundary, attempts as u64)),
+        RetryExecution::Stopped {
+            error, attempts, ..
+        } => match error {
+            ReadFailure::Flood((response, boundary)) => Ok((response, boundary, attempts as u64)),
+            ReadFailure::Error(error) => Err(error),
+        },
+    }
+}
+
+fn td_call_once(
+    runtime: &CoreRuntime,
+    method: &'static SymbolDescriptor,
+    request: &Value,
+    deadline: Instant,
+) -> Result<(TdObject, u64), RawApiError> {
     let pending = runtime
         .transport()
-        .request(request.into_value())
+        .request(request.clone())
         .map_err(RawApiError::Transport)?;
     let boundary = pending.correlation_id();
     let response = pending
@@ -148,6 +223,27 @@ pub(crate) fn td_call_with_boundary(
         });
     }
     Ok((response, boundary))
+}
+
+enum ReadFailure {
+    Flood((TdObject, u64)),
+    Error(RawApiError),
+}
+
+fn flood_delay(response: &Value) -> Option<Duration> {
+    if response.get("@type").and_then(Value::as_str) != Some("error")
+        || response.get("code").and_then(Value::as_i64) != Some(429)
+    {
+        return None;
+    }
+    let seconds = response
+        .get("message")
+        .and_then(Value::as_str)?
+        .rsplit_once("retry after ")?
+        .1
+        .parse()
+        .ok()?;
+    Some(Duration::from_secs(seconds))
 }
 
 #[derive(Debug)]
@@ -175,10 +271,7 @@ impl RawPolicy {
         self.authorized_risk(method).map(|_| ())
     }
 
-    pub(crate) fn authorize_request(
-        &self,
-        request: &ValidatedRequest,
-    ) -> Result<(), PolicyError> {
+    pub(crate) fn authorize_request(&self, request: &ValidatedRequest) -> Result<(), PolicyError> {
         let risk = self.authorized_risk(request.descriptor().name)?;
         if approval_required(risk) {
             let approval = self

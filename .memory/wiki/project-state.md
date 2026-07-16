@@ -71,10 +71,11 @@
 - Двенадцатый подпункт P7/F018 закрыт: current-owner Stars balance redacted; Stars invoice требует fresh exact plan/approval и после single dispatch подтверждается только новой matching ledger transaction ([D-20260715-085](../decisions/decisions.md)).
 - Тринадцатый подпункт P7/F019 закрыт: existing capability-first async graph walker переиспользован; resource read агрегирует storage/database/network и редактирует opaque database report без implicit optimization ([D-20260715-086](../decisions/decisions.md)).
 - Четырнадцатый подпункт P7/F020 закрыт: generated pin/default-deny покрывают редкие utilities; proxy status redacted, exact-ID setter требует ordered Ready proof и сохраняет rollback ID без repeat ([D-20260715-087](../decisions/decisions.md)).
+- Пятнадцатый подпункт P7/F021 закрыт: common raw path применяет bounded flood retry, scheduler, durable journal и redacted audit; raw mutation возвращает partial reconciliation state, shared metrics доступны через CLI status ([D-20260715-088](../decisions/decisions.md)).
 
 ## Not implemented
 
-- Оставшиеся подпункты P7/F021–F022 и фазы P8–P10: domain workflows, optional MCP, packaging и live acceptance.
+- Оставшийся подпункт P7/F022 и фазы P8–P10: agent skill, optional MCP, packaging и live acceptance.
 
 ## Active boundary
 
@@ -83,4 +84,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: P7/F021 reliability cross-cutting contract.
+- Следующий implementation boundary: P7/F022 agent skill.

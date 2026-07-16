@@ -6,9 +6,9 @@ queue/rejections, retry/flood delay, update lag, freshness и active leases. Met
 не имеют пути в metrics.
 
 Scheduler обновляет queue depth/rejections и flood counters; lease manager — active/max
-leases. Dispatch/workflow consumer передаёт только duration, closed outcome, retry count,
-lag и freshness enum. Exporter не является частью P5: P6 status surface сможет читать тот
-же snapshot без второго telemetry framework.
+leases. Raw dispatch и workflow consumer добавляют latency/closed outcome, а bounded raw
+retry — retry count. `telegram-cli status` читает тот же shared snapshot через protocol;
+отдельный exporter/framework не создаётся.
 
 ## Audit boundary
 
@@ -17,7 +17,8 @@ method/risk. Persisted JSONL schema содержит timestamp, method, risk, cl
 latency/queue duration, retry count и reconciliation flag. Payload, Telegram identifiers,
 errors и arbitrary context в schema отсутствуют.
 
-Daemon открывает `.telegramd-audit.jsonl` после canonical profile owner lock. Файл обязан
+Daemon открывает `.telegramd-audit.jsonl` после canonical profile owner lock и передаёт его
+raw dispatch path. Файл обязан
 быть current-user regular file с одним hard link и exact mode `0600`; symlink и unsafe
 metadata fail closed. Каждая append завершается `sync_data`.
 

@@ -283,6 +283,28 @@ impl AccountScheduler {
     }
 }
 
+pub fn serial_daemon_budgets() -> SchedulerBudgets {
+    let scope = ScopeBudget {
+        max_queued: NonZeroUsize::new(1).expect("one is non-zero"),
+        rate: RateBudget::new(
+            NonZeroU32::new(u32::MAX).expect("u32::MAX is non-zero"),
+            Duration::from_secs(1),
+        )
+        .expect("one second is non-zero"),
+    };
+    SchedulerBudgets {
+        max_concurrent_reads: NonZeroUsize::new(1).expect("one is non-zero"),
+        account: scope,
+        chat: scope,
+        method_classes: RISK_CLASSES
+            .into_iter()
+            .map(|class| (class, scope))
+            .collect(),
+        max_automatic_backoff: Duration::from_secs(30),
+        max_jitter: Duration::from_millis(250),
+    }
+}
+
 pub struct QueuedOperation {
     inner: Arc<SchedulerInner>,
     ticket: u64,

@@ -42,7 +42,14 @@
 
 ## Completion Proof
 
-Reliability is accepted only with fault injection for flood, timeout, update gap, cancellation, crash and unknown mutation outcome; green happy-path tests are insufficient.
+Fault proof is executable and split by boundary: `workflows::safe_read_retries_tdlib_flood_once`,
+`retry::safe_read_respects_server_delay_before_retry` and
+`raw_api::flood_delay_comes_only_from_tdlib_rate_limit_errors` cover flood;
+`workflows::send_timeout_is_uncertain_and_is_not_repeated` covers send timeout;
+`workflows::gapped_state_blocks_workflow_until_snapshot_resync` covers update gap;
+`transport::deadline_and_explicit_cancellation_remove_pending_response` covers cancellation;
+`idempotency::interrupted_dispatch_requires_reconciliation_after_reopen` covers crash; and
+`retry::uncertain_outcome_stops_without_retry` covers unknown mutation outcome.
 
 ## Cache and Update Semantics
 
@@ -62,14 +69,16 @@ Scopes: read, presence, send, reversible mutation, admin, destructive, financial
 
 ## Live Verification Boundary
 
-P1 реализует transport deadlines/cancellation и native secret-output canary. P5 scheduler
-имеет explicit account/chat/generated-risk queue/rate budgets и bounded flood delay with
-jitter. Core retry executor допускает только generated `safe_read` и `convergent`; durable
-journal превращает timeout/restart в `uncertain` и требует reconciliation. Typed lease
-scopes и exact-plan Ed25519 approval проверяются до transport. Fixed-shape metrics покрывают
-latency/outcome, queue, retry/flood, update lag, freshness и leases; owner-only audit schema
-не содержит payload/identifier/error fields и проверена secret-shaped canary. Production
-budgets, exporter/status surface и live Telegram fault injection принадлежат P6/P10.
+P1 реализует transport deadlines/cancellation и native secret-output canary. Raw daemon
+dispatch после policy/approval входит в generated-risk scheduler, journal и owner-only
+audit. TDLib 429 для generated `safe_read` блокирует method class, выдерживает supplied
+delay и допускает один bounded repeat; другие retry classes generic layer не повторяет.
+Generic raw mutation response остаётся partial `reconciliation_required`, потому что один
+TDLib response не доказывает domain terminal state. Reconcile/never workflows используют
+canonical workflow fingerprint, а typed workflow сохраняет incomplete outcome как
+`uncertain`. Shared fixed-shape metrics доступны через
+CLI status и не содержат payload/identifier labels. Live Telegram fault injection и
+измеренные multi-read budgets остаются P10/Q001.
 
 ## Scope
 
@@ -147,9 +156,9 @@ budgets, exporter/status surface и live Telegram fault injection принадл
 ## Scenario Cells
 
 - SC001 - Flooded read
-  - Dimensions: D001, D002; Workflow/entity anchor: retry; Scenario: read returns delay; Expected behavior: bounded wait then retry; Related contracts: C001; Related invariants: I002; Why this matters: safe resilience; Status: implemented in core executor with synthetic delay.
+  - Dimensions: D001, D002; Workflow/entity anchor: retry; Scenario: read returns delay; Expected behavior: bounded wait then retry; Related contracts: C001; Related invariants: I002; Why this matters: safe resilience; Status: implemented in common raw dispatch with generated class, parsed TDLib 429 and synthetic delay proof.
 - SC002 - Send timeout
-  - Dimensions: D001, D002; Workflow/entity anchor: reconciliation; Scenario: no terminal send update before deadline; Expected behavior: uncertain, probe, no blind resend; Related contracts: C002; Related invariants: I002; Why this matters: prevents duplicates; Status: journal/recovery implemented, domain probe remains modeled.
+  - Dimensions: D001, D002; Workflow/entity anchor: reconciliation; Scenario: no terminal send update before deadline; Expected behavior: uncertain, probe, no blind resend; Related contracts: C002; Related invariants: I002; Why this matters: prevents duplicates; Status: send returns incomplete uncertain exactly once; journal/restart blocks repeat until reconciliation.
 
 ## Assumptions
 
@@ -161,10 +170,12 @@ budgets, exporter/status surface и live Telegram fault injection принадл
 
 ## Coverage Notes
 
-- Kernel coverage: generated risk/retry admission, eight typed lease scopes with owner ceiling,
-  exact-plan Ed25519 approval, queue/rate scopes, bounded retry, durable journal, fixed metrics
-  и redacted owner-only audit implemented; P5 Acceptance passed.
-- Modeled: protected operator UI/wire delivery and domain-specific reconciliation probes.
-- Partial: production budget values, domain workflow reconciliation wiring and P6 exporter/status surface.
+- Implemented: generated risk/retry admission, eight typed lease scopes with owner ceiling,
+  exact-plan Ed25519 approval, raw queue/rate admission, bounded flood retry, durable raw/
+  reconcile-workflow journal, fixed status metrics и redacted owner-only raw audit.
+- Modeled: protected operator UI/wire delivery; unavailable authoritative probes remain
+  explicit `reconciliation_required`, never an automatic repeat.
+- Partial: measured multi-read production budgets and live Telegram fault injection belong
+  to Q001/P10 and do not weaken synthetic Acceptance.
 - Unknown: measured production thresholds.
 - Not applicable: domain-specific data shapes.

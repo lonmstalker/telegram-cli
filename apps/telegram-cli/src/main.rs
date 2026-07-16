@@ -817,8 +817,17 @@ fn write_machine(writer: &mut impl Write, envelope: &MachineEnvelope) -> io::Res
 
 fn human_response(writer: &mut impl Write, response: &DaemonResponse) -> io::Result<()> {
     match response {
-        DaemonResponse::SessionStatus { active_leases } => {
-            writeln!(writer, "Активных leases: {active_leases}")
+        DaemonResponse::SessionStatus { metrics } => {
+            writeln!(writer, "Активных leases: {}", metrics.active_leases)?;
+            writeln!(
+                writer,
+                "Запросов: {} (ok={} failed={} uncertain={} denied={})",
+                metrics.requests,
+                metrics.succeeded,
+                metrics.failed,
+                metrics.uncertain,
+                metrics.denied,
+            )
         }
         DaemonResponse::LoginStatus {
             state,
@@ -854,7 +863,17 @@ fn human_response(writer: &mut impl Write, response: &DaemonResponse) -> io::Res
         }
         DaemonResponse::SchemaDescription { description } => pretty(writer, description),
         DaemonResponse::TdPlanPreview { preview } => pretty(writer, preview),
-        DaemonResponse::TdResult { result } => pretty(writer, result),
+        DaemonResponse::TdResult {
+            result,
+            retries,
+            reconciliation_required,
+        } => {
+            writeln!(
+                writer,
+                "retries={retries} reconciliation_required={reconciliation_required}"
+            )?;
+            pretty(writer, result)
+        }
         DaemonResponse::WorkflowList { workflows } => {
             for workflow in workflows {
                 writeln!(writer, "{workflow}")?;
@@ -931,7 +950,7 @@ mod tests {
     use std::thread;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use telegram_protocol::{LeaseView, MachineStatus};
+    use telegram_protocol::{LeaseView, MachineStatus, OperationalMetrics};
 
     use super::*;
 
@@ -1090,13 +1109,19 @@ mod tests {
 
     #[test]
     fn machine_envelope_is_versioned_and_keeps_partial_and_error_structured() {
-        let ok = MachineEnvelope::from_response(DaemonResponse::SessionStatus { active_leases: 2 });
+        let metrics = OperationalMetrics {
+            active_leases: 2,
+            ..Default::default()
+        };
+        let ok = MachineEnvelope::from_response(DaemonResponse::SessionStatus {
+            metrics: Box::new(metrics.clone()),
+        });
         assert_eq!(
             serde_json::to_value(&ok).unwrap(),
             serde_json::json!({
-                "version": 1,
+                "version": 2,
                 "status": "ok",
-                "data": {"type": "session_status", "active_leases": 2},
+                "data": {"type": "session_status", "metrics": metrics},
             })
         );
 
@@ -1107,12 +1132,21 @@ mod tests {
         });
         assert_eq!(partial.status(), MachineStatus::Partial);
         assert_eq!(
+            MachineEnvelope::from_response(DaemonResponse::TdResult {
+                result: serde_json::json!({"@type":"ok"}),
+                retries: 0,
+                reconciliation_required: true,
+            })
+            .status(),
+            MachineStatus::Partial
+        );
+        assert_eq!(
             serde_json::to_value(MachineEnvelope::client_error(
                 ClientErrorCode::InvalidArguments,
             ))
             .unwrap(),
             serde_json::json!({
-                "version": 1,
+                "version": 2,
                 "status": "error",
                 "error": {"domain": "client", "code": "invalid_arguments"},
             })
@@ -1175,7 +1209,12 @@ mod tests {
             );
             serde_json::to_writer(
                 &mut stream,
-                &DaemonResponse::SessionStatus { active_leases: 2 },
+                &DaemonResponse::SessionStatus {
+                    metrics: Box::new(OperationalMetrics {
+                        active_leases: 2,
+                        ..Default::default()
+                    }),
+                },
             )
             .unwrap();
             stream.write_all(b"\n").unwrap();
@@ -1183,7 +1222,12 @@ mod tests {
 
         assert_eq!(
             exchange(&profile, &DaemonRequest::SessionStatus).unwrap(),
-            DaemonResponse::SessionStatus { active_leases: 2 }
+            DaemonResponse::SessionStatus {
+                metrics: Box::new(OperationalMetrics {
+                    active_leases: 2,
+                    ..Default::default()
+                }),
+            }
         );
         server.join().unwrap();
         fs::remove_file(path).unwrap();

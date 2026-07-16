@@ -121,6 +121,7 @@
 - F018 Stars-only exact payment and ledger proof: [D-20260715-085](../decisions/decisions.md), [W-20260715-090](../logs/work.md), [`docs/stars-payment-workflow.md`](../../docs/stars-payment-workflow.md).
 - F019 terminal graph and redacted resource snapshot: [D-20260715-086](../decisions/decisions.md), [W-20260715-091](../logs/work.md), [`docs/members-statistics-workflow.md`](../../docs/members-statistics-workflow.md).
 - F020 generated platform coverage and proxy transition: [D-20260715-087](../decisions/decisions.md), [W-20260715-092](../logs/work.md), [`docs/platform-utilities-workflow.md`](../../docs/platform-utilities-workflow.md).
+- F021 cross-cutting reliability dispatch: [D-20260715-088](../decisions/decisions.md), [W-20260715-093](../logs/work.md), [`docs/feature-logic-harness/reliability-policy-observability.md`](../../docs/feature-logic-harness/reliability-policy-observability.md).
 
 ## Operating rules
 

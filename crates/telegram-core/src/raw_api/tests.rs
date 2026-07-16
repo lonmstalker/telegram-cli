@@ -52,3 +52,19 @@ fn policy_is_default_deny_and_requires_account_and_risk() {
         Err(PolicyError::AccountScopeDenied)
     );
 }
+
+#[test]
+fn flood_delay_comes_only_from_tdlib_rate_limit_errors() {
+    assert_eq!(
+        flood_delay(&serde_json::json!({
+            "@type": "error",
+            "code": 429,
+            "message": "Too Many Requests: retry after 3",
+        })),
+        Some(std::time::Duration::from_secs(3))
+    );
+    assert_eq!(
+        flood_delay(&serde_json::json!({"@type":"error","code":400,"message":"retry after 3"})),
+        None
+    );
+}

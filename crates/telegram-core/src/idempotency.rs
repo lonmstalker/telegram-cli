@@ -8,6 +8,7 @@ use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::registry::ValidatedRequest;
@@ -27,6 +28,12 @@ impl OperationFingerprint {
         let canonical = serde_json::to_vec(request.as_value())
             .expect("serde_json::Value serialization is infallible");
         Self(hash(b"telegram-cli-operation-v1", &canonical))
+    }
+
+    pub fn for_workflow(name: &str, input: &Value) -> Self {
+        let canonical = serde_json::to_vec(&(name, input))
+            .expect("workflow name and JSON input are serializable");
+        Self(hash(b"telegram-cli-workflow-v1", &canonical))
     }
 
     fn from_hex(value: &str) -> Option<Self> {

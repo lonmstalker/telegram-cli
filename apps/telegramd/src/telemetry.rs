@@ -10,6 +10,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::json;
 use telegram_core::registry::{self, CapabilityDisposition, RiskClass, ValidatedRequest};
+use telegram_protocol::OperationalMetrics;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OperationOutcome {
@@ -27,33 +28,8 @@ pub enum Freshness {
     Partial,
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct MetricsSnapshot {
-    pub requests: u64,
-    pub succeeded: u64,
-    pub failed: u64,
-    pub uncertain: u64,
-    pub denied: u64,
-    pub request_latency_ms_total: u64,
-    pub request_latency_ms_max: u64,
-    pub queue_depth: usize,
-    pub queue_depth_max: usize,
-    pub queue_rejections: u64,
-    pub retries: u64,
-    pub flood_waits: u64,
-    pub flood_delay_ms_total: u64,
-    pub update_lag_events: u64,
-    pub update_lag_ms_max: u64,
-    pub fresh_results: u64,
-    pub cached_results: u64,
-    pub stale_results: u64,
-    pub partial_results: u64,
-    pub active_leases: usize,
-    pub active_leases_max: usize,
-}
-
 #[derive(Clone, Default)]
-pub struct Telemetry(Arc<Mutex<MetricsSnapshot>>);
+pub struct Telemetry(Arc<Mutex<OperationalMetrics>>);
 
 impl Telemetry {
     pub fn record_request(&self, latency: Duration, outcome: OperationOutcome) {
@@ -118,11 +94,11 @@ impl Telemetry {
         metrics.active_leases_max = metrics.active_leases_max.max(active);
     }
 
-    pub fn snapshot(&self) -> MetricsSnapshot {
+    pub fn snapshot(&self) -> OperationalMetrics {
         self.lock().clone()
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, MetricsSnapshot> {
+    fn lock(&self) -> std::sync::MutexGuard<'_, OperationalMetrics> {
         self.0
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -331,7 +307,7 @@ mod tests {
 
         assert_eq!(
             telemetry.snapshot(),
-            MetricsSnapshot {
+            OperationalMetrics {
                 requests: 1,
                 succeeded: 1,
                 failed: 0,

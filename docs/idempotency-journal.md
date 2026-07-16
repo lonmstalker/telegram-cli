@@ -22,6 +22,20 @@ evidence digest. Только доказанный `NotApplied` переводи
 новый explicit `begin` может разрешить повтор exact fingerprint. `Applied` становится
 `succeeded`; `Unknown` остаётся `uncertain`.
 
+## Daemon dispatch
+
+Universal raw call с любым generated retry class кроме `safe_read` проходит `begin` после
+lease/policy/approval и scheduler admission, но до transport. Generic mutation result не
+является domain terminal proof, поэтому raw response возвращается с
+`reconciliation_required=true`, а record остаётся `uncertain`; TDLib error закрывает его как
+`failed`. Повтор exact fingerprint получает stable `reconciliation_required`, а не новый
+dispatch.
+
+Curated workflows, для которых повтор может создать новый remote artifact, перечислены в
+одной `JOURNALED_WORKFLOWS` data table. Их fingerprint состоит из fixed workflow name и
+canonical input; `complete=false` сохраняется как `uncertain`. Convergent desired-state
+workflows не дублируют journal: они уже перечитывают current state перед mutation.
+
 ## Filesystem boundary
 
 Journal открывается без symlink following, обязан быть regular current-user file с одним

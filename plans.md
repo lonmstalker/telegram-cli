@@ -262,7 +262,7 @@ flowchart LR
 - [x] F018 payments/digital assets.
 - [x] F019 statistics/resources.
 - [x] F020 platform utilities.
-- [ ] F021 reliability как сквозной contract.
+- [x] F021 reliability как сквозной contract.
 - [ ] F022 agent skill.
 
 Acceptance: критерии соответствующего harness-файла выполнены и подтверждены тестами — зачем: harness уже описывает intended behavior; дублировать его в плане — расхождение двух источников.

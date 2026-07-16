@@ -23,6 +23,7 @@ use config::DaemonConfig;
 use lease::LeaseManager;
 use lifecycle::Lifecycle;
 use ownership::ProfileDatabaseLock;
+use scheduler::{serial_daemon_budgets, AccountScheduler};
 use server::LeaseServer;
 use socket::DaemonSocket;
 use telemetry::{AuditLog, Telemetry};
@@ -45,12 +46,12 @@ fn run() -> Result<(), Box<dyn Error>> {
         .approval_public_key_hex()
         .map(ApprovalVerifier::from_hex)
         .transpose()?;
-    let _idempotency_journal = IdempotencyJournal::open(
+    let idempotency_journal = IdempotencyJournal::open(
         ownership
             .canonical_database_directory()
             .join(".telegramd-idempotency.jsonl"),
     )?;
-    let _audit_log = AuditLog::open(
+    let audit_log = AuditLog::open(
         ownership
             .canonical_database_directory()
             .join(".telegramd-audit.jsonl"),
@@ -69,10 +70,15 @@ fn run() -> Result<(), Box<dyn Error>> {
     let files_directory = config.files_directory().to_owned();
     drop(database_key);
     drop(config);
-    let mut server = LeaseServer::new(LeaseManager::with_telemetry(
-        risk_scopes,
-        Telemetry::default(),
-    ))
+    let telemetry = Telemetry::default();
+    let scheduler = AccountScheduler::with_telemetry(serial_daemon_budgets(), telemetry.clone())?;
+    let mut server = LeaseServer::new(
+        LeaseManager::with_telemetry(risk_scopes, telemetry.clone()),
+        scheduler,
+        telemetry,
+        idempotency_journal,
+        audit_log,
+    )
     .with_artifact_root(files_directory)
     .with_approval_verifier(approval_verifier);
     if let lifecycle::AuthorizationReadiness::Ready(account) = readiness {

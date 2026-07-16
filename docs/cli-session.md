@@ -14,6 +14,10 @@ telegram-cli session release <lease_id>
 default `telegram-cli`. Missing scope/TTL означают `read` и `60000` ms. Неизвестный scope
 отклоняется клиентом, а daemon повторно применяет owner ceiling и TTL bounds.
 
+Status возвращает fixed-shape operational metrics: active/max leases, request outcomes и
+latency, queue/rejections, retry/flood, update lag и freshness counters. Human output
+показывает компактный lease/request digest; JSON сохраняет весь typed snapshot.
+
 CLI не открывает TDLib database и не зависит от `telegram-core`: он отправляет один
 `telegram-protocol::DaemonRequest` в private profile socket и печатает один JSON response.
 Перед connect проверяются profile grammar, current-user directory `0700` и socket

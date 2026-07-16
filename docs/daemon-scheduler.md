@@ -36,15 +36,18 @@ maximum. Если server delay больше automatic budget, scheduler сохр
 но возвращает `automatic_delay=None`: caller не может автоматически retry раньше или
 обрезать Telegram delay.
 
-Read/queue/rate/backoff limits передаются явным consumer configuration и не фиксируются как
-Telegram truth. Измеренные deployment values появятся только вместе с daemon dispatch
-consumer; механизм уже fail closed по отсутствующим budgets.
+Read/queue/rate/backoff limits не фиксируются как Telegram truth. Текущий однопоточный
+socket consumer использует technical serial budget и effectively unbounded rate window;
+полученный от TDLib flood delay блокирует generated method class и передаётся bounded
+safe-read retry без сокращения.
 
 ## Current runtime boundary
 
 Lease operations не проходят через scheduler: они управляют правом на session, а не являются
-TDLib calls. Generated method-class lookup уже реализован; фактический daemon workflow/raw
-dispatch появится с protocol consumer, поэтому production budget values пока не заявлены.
+TDLib calls. Universal raw dispatch входит в scheduler после policy/approval и до journal/
+transport. Curated workflows уже сериализованы одним daemon request loop; их внутренние
+TDLib reads используют тот же generated safe-read retry, а mutation reconciliation остаётся
+в typed workflow. Измеренные multi-read production budgets остаются Q001.
 
 ## Verification
 

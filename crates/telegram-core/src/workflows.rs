@@ -6683,6 +6683,7 @@ mod tests {
         methods: Arc<Mutex<Vec<String>>>,
         snapshot_calls: usize,
         drop_send_message_response: bool,
+        flood_history_once: bool,
     }
 
     impl TerminalWorkflowBackend {
@@ -6694,6 +6695,7 @@ mod tests {
                     methods: Arc::clone(&methods),
                     snapshot_calls: 0,
                     drop_send_message_response: false,
+                    flood_history_once: false,
                 },
                 methods,
             )
@@ -6779,9 +6781,14 @@ mod tests {
                     }
                 }
                 "getChatHistory" => {
-                    self.push(json!({"@type":"messages","total_count":1,"messages":[
-                        {"@type":"message","id":12,"chat_id":9,"date":10}
-                    ],"@extra":extra}));
+                    if self.flood_history_once {
+                        self.flood_history_once = false;
+                        self.push(json!({"@type":"error","code":429,"message":"Too Many Requests: retry after 0","@extra":extra}));
+                    } else {
+                        self.push(json!({"@type":"messages","total_count":1,"messages":[
+                            {"@type":"message","id":12,"chat_id":9,"date":10}
+                        ],"@extra":extra}));
+                    }
                 }
                 "viewMessages" => {
                     assert_eq!(request["message_ids"], json!([12]));
@@ -7184,6 +7191,45 @@ mod tests {
                 .filter(|method| method.as_str() == "sendMessage")
                 .count(),
             1
+        );
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn safe_read_retries_tdlib_flood_once() {
+        let (mut backend, methods) = TerminalWorkflowBackend::new();
+        backend.flood_history_once = true;
+        let runtime = CoreRuntime::start(backend, test_deadline()).unwrap();
+        let policy = RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![RiskClass::Read],
+        );
+
+        let page = chat_history(
+            &runtime,
+            &policy,
+            HistoryQuery {
+                chat_id: 9,
+                only_local: false,
+                mark_read: false,
+                page: PageOptions {
+                    count: 1,
+                    min_date: None,
+                    page_limit: 100,
+                },
+            },
+            test_deadline(),
+        )
+        .unwrap();
+        assert!(page.complete);
+        assert_eq!(
+            methods
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|method| method.as_str() == "getChatHistory")
+                .count(),
+            2
         );
         runtime.shutdown().unwrap();
     }

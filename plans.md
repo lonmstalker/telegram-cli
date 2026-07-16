@@ -254,7 +254,7 @@ flowchart LR
 - [x] F010 files/media.
 - [x] F011 groups/channels/moderation.
 - [x] F012 bots/testing.
-- [ ] F013 Mini Apps.
+- [x] F013 Mini Apps.
 - [ ] F014 stickers/custom emoji.
 - [ ] F015 stories/calls/live; F016 account settings; F017 Business; F018 payments/digital assets.
 - [ ] F019 statistics/resources; F020 platform utilities; F021 reliability как сквозной contract; F022 agent skill.

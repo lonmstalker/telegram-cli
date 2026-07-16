@@ -876,6 +876,12 @@ fn human_response(writer: &mut impl Write, response: &DaemonResponse) -> io::Res
             writeln!(writer, "Workflow {workflow}: complete={complete}")?;
             pretty(writer, result)
         }
+        DaemonResponse::WebAppArtifact { launch_id, .. } => {
+            writeln!(
+                writer,
+                "Web App artifact {launch_id}: <redacted runner-only>"
+            )
+        }
         DaemonResponse::Events {
             events,
             next_cursor,

@@ -1359,6 +1359,11 @@ impl WebAppLease<'_> {
         self.require_same_origin
     }
 
+    pub fn handoff(mut self) -> i64 {
+        self.active = false;
+        self.launch_id
+    }
+
     pub fn wait_message_sent(&mut self) -> Result<WebAppMessageReceipt, ChatWorkflowError> {
         loop {
             if self
@@ -1390,7 +1395,7 @@ impl WebAppLease<'_> {
     }
 
     pub fn close(mut self) -> Result<(), ChatWorkflowError> {
-        close_web_app(self.runtime, self.policy, self.launch_id, self.deadline)?;
+        close_web_app_launch(self.runtime, self.policy, self.launch_id, self.deadline)?;
         self.active = false;
         Ok(())
     }
@@ -1400,7 +1405,7 @@ impl Drop for WebAppLease<'_> {
     fn drop(&mut self) {
         if self.active {
             self.active = false;
-            let _ = close_web_app(self.runtime, self.policy, self.launch_id, self.deadline);
+            let _ = close_web_app_launch(self.runtime, self.policy, self.launch_id, self.deadline);
         }
     }
 }
@@ -1754,7 +1759,7 @@ fn text_message_receipt(
     }
 }
 
-fn close_web_app(
+pub fn close_web_app_launch(
     runtime: &CoreRuntime,
     policy: &RawPolicy,
     launch_id: i64,
@@ -4099,6 +4104,42 @@ mod tests {
                 .count(),
             2
         );
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn web_app_handoff_defers_close_until_browser_finally_step() {
+        let (backend, methods) = TerminalWorkflowBackend::new();
+        let mut runtime = CoreRuntime::start(backend, test_deadline()).unwrap();
+        let policy = RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![RiskClass::Presence],
+        );
+        let lease = open_web_app(
+            &mut runtime,
+            &policy,
+            WebAppRequest {
+                chat_id: 9,
+                bot_user_id: 8,
+                button_url: "https://example.invalid/",
+                application_name: "telegram_cli",
+                mode: WebAppMode::FullSize,
+            },
+            test_deadline(),
+        )
+        .unwrap();
+        let launch_id = lease.handoff();
+        assert!(!methods
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|method| method == "closeWebApp"));
+        close_web_app_launch(&runtime, &policy, launch_id, test_deadline()).unwrap();
+        assert!(methods
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|method| method == "closeWebApp"));
         runtime.shutdown().unwrap();
     }
 

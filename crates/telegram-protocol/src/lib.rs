@@ -118,6 +118,10 @@ pub enum DaemonRequest {
         input: Value,
         approval: Option<PlanApproval>,
     },
+    WebAppArtifactTake {
+        handle: String,
+        principal: String,
+    },
     EventsWatch {
         lease_id: LeaseId,
         principal: String,
@@ -189,6 +193,11 @@ pub enum DaemonResponse {
         workflow: String,
         result: Value,
         complete: bool,
+    },
+    WebAppArtifact {
+        launch_id: i64,
+        url: ProtectedString,
+        require_same_origin: bool,
     },
     Events {
         events: Vec<EventRecord>,
@@ -291,7 +300,7 @@ impl fmt::Debug for LoginInput {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct ProtectedString(String);
 
 impl ProtectedString {
@@ -379,6 +388,7 @@ pub enum CommandErrorCode {
     WorkflowResyncRequired,
     WorkflowNoResyncRequired,
     WorkflowFailed,
+    WebAppArtifactUnavailable,
     LoginChallengeInvalid,
     LoginSubmissionPending,
     LoginSubmissionRejected,
@@ -489,6 +499,25 @@ pub enum MachineError {
     Client { code: ClientErrorCode },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BrowserEvidence {
+    pub passed: bool,
+    pub dom_assertions: u32,
+    pub bridge_assertions: u32,
+    pub network_assertions: u32,
+    pub js_errors: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WebAppBrowserReport {
+    pub launch_id: i64,
+    pub telegram_prepared: bool,
+    pub browser: BrowserEvidence,
+    pub artifact_consumed: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -525,5 +554,16 @@ mod tests {
         assert!(wire.contains(canary));
         wire.zeroize();
         assert!(wire.is_empty());
+    }
+
+    #[test]
+    fn web_app_artifact_url_is_redacted_from_debug() {
+        let canary = "WEB_APP_INIT_DATA_CANARY";
+        let response = DaemonResponse::WebAppArtifact {
+            launch_id: 11,
+            url: ProtectedString::new(canary.to_owned()),
+            require_same_origin: true,
+        };
+        assert!(!format!("{response:?}").contains(canary));
     }
 }

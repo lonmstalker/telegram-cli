@@ -28,7 +28,8 @@
 - SRC001: product.md; type: file; supports: Mini App boundary; limits: none.
 - SRC002: HARNESS.md; type: file; supports: secret/browser invariants; limits: none.
 - SRC003: pinned official schema; type: supplied; supports: Web App/OAuth/link method families; limits: source alone does not prove generated registry.
-- SRC004: plans.md P4/P7/P10; type: file; supports: workflow/browser gate; limits: implementation absent.
+- SRC004: plans.md P4/P7/P10; type: file; supports: workflow/browser gate; limits: live proof remains P10.
+- SRC005: `apps/telegram-webapp-runner`, `apps/telegramd/src/server.rs`, `crates/telegram-core/src/workflows.rs`; type: file; supports: one-shot owner/TTL artifact, stdin adapter bridge, separate closed browser evidence and exact close; limits: remote topology and live DOM untested.
 
 ## TDLib API Coverage
 
@@ -63,9 +64,9 @@ Bot/Web App/attachment-menu/OAuth availability and user consent are checked; bro
 ## Live Verification Boundary
 
 Synthetic runtime test proves typed `openWebApp`, redacted/zeroizing launch URL,
-launch-ID-correlated `updateWebAppMessageSent` and paired `closeWebApp`. No Mini App was
-opened and no browser/UI proof exists. Existing tg-analytics Playwright runner is a reuse
-candidate, not current project evidence.
+launch-ID-correlated update and paired close. Artifact-store tests prove owner/TTL/one-shot;
+runner adapter test proves secret-only stdin and separate failed browser evidence. No live
+Mini App was opened; existing tg-analytics Playwright runner remains only a reuse candidate.
 
 ## Scope
 
@@ -156,9 +157,9 @@ candidate, not current project evidence.
 
 ## Coverage Notes
 
-- Kernel coverage: Telegram open/message/close lifecycle and secret URL boundary
-  implemented; browser/artifact bridge remains modeled.
-- Modeled: end-to-end test phases.
-- Partial: remote handoff and exact schema classification.
+- Kernel coverage: Telegram open/close lifecycle, one-shot local artifact broker and
+  bounded browser-adapter evidence implemented.
+- Modeled: live DOM/network assertions and remote topology.
+- Partial: remote handoff and exact schema classification; Q001 remains explicit.
 - Unknown: deployment-specific browser topology.
 - Not applicable: general chat analytics.

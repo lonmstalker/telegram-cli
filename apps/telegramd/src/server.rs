@@ -1,6 +1,6 @@
 //! Bounded JSONL lease protocol поверх private profile socket.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::fs;
 use std::io::{self, BufRead, BufReader, Read, Write};
@@ -29,7 +29,7 @@ use telegram_core::workflows::{
 };
 use telegram_protocol::{
     CommandErrorCode, DaemonRequest, DaemonResponse, EventKind, EventRecord, LeaseErrorCode,
-    LoginInput, LoginState, PlanApproval,
+    LoginInput, LoginState, PlanApproval, ProtectedString,
 };
 use zeroize::Zeroizing;
 
@@ -39,6 +39,7 @@ const MAX_REQUEST_BYTES: u64 = 16 * 1024;
 const CLIENT_IO_TIMEOUT: Duration = Duration::from_secs(5);
 const CALL_TIMEOUT: Duration = Duration::from_secs(30);
 const EVENT_BUFFER_CAPACITY: usize = 1024;
+const WEB_APP_ARTIFACT_TTL: Duration = Duration::from_secs(60);
 const WORKFLOWS: &[(&str, &str)] = &[
     (
         "user_profile",
@@ -108,7 +109,80 @@ const WORKFLOWS: &[(&str, &str)] = &[
         "open_web_app",
         r#"{"chat_id":0,"bot_user_id":0,"button_url":"https://example.invalid","application_name":"main","mode":"compact"}"#,
     ),
+    (
+        "prepare_web_app_handoff",
+        r#"{"chat_id":0,"bot_user_id":0,"button_url":"https://example.invalid","application_name":"main","mode":"compact"}"#,
+    ),
+    ("close_web_app_handoff", r#"{"launch_id":0}"#),
 ];
+
+struct WebAppArtifact {
+    principal: String,
+    launch_id: i64,
+    url: ProtectedString,
+    require_same_origin: bool,
+    expires_at: Instant,
+}
+
+struct WebAppArtifactStore {
+    epoch: u128,
+    next_id: u64,
+    artifacts: HashMap<String, WebAppArtifact>,
+}
+
+impl Default for WebAppArtifactStore {
+    fn default() -> Self {
+        let epoch = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+            ^ ((std::process::id() as u128) << 64);
+        Self {
+            epoch,
+            next_id: 1,
+            artifacts: HashMap::new(),
+        }
+    }
+}
+
+impl WebAppArtifactStore {
+    fn insert(
+        &mut self,
+        principal: String,
+        launch_id: i64,
+        url: ProtectedString,
+        require_same_origin: bool,
+        now: Instant,
+    ) -> Option<(String, u64)> {
+        self.expire(now);
+        let id = self.next_id;
+        self.next_id = self.next_id.checked_add(1)?;
+        let expires_at = now.checked_add(WEB_APP_ARTIFACT_TTL)?;
+        let handle = format!("webapp-{:032x}-{id:016x}", self.epoch);
+        self.artifacts.insert(
+            handle.clone(),
+            WebAppArtifact {
+                principal,
+                launch_id,
+                url,
+                require_same_origin,
+                expires_at,
+            },
+        );
+        Some((handle, WEB_APP_ARTIFACT_TTL.as_millis() as u64))
+    }
+
+    fn take(&mut self, handle: &str, principal: &str, now: Instant) -> Option<WebAppArtifact> {
+        self.expire(now);
+        (self.artifacts.get(handle)?.principal == principal)
+            .then(|| self.artifacts.remove(handle))?
+    }
+
+    fn expire(&mut self, now: Instant) {
+        self.artifacts
+            .retain(|_, artifact| artifact.expires_at > now);
+    }
+}
 
 pub struct LeaseServer {
     leases: LeaseManager,
@@ -117,6 +191,7 @@ pub struct LeaseServer {
     authorization: AuthorizationBroker,
     artifact_root: Option<PathBuf>,
     approval_verifier: Option<ApprovalVerifier>,
+    web_app_artifacts: WebAppArtifactStore,
 }
 
 impl LeaseServer {
@@ -128,6 +203,7 @@ impl LeaseServer {
             authorization: AuthorizationBroker::default(),
             artifact_root: None,
             approval_verifier: None,
+            web_app_artifacts: WebAppArtifactStore::default(),
         }
     }
 
@@ -172,6 +248,7 @@ impl LeaseServer {
         now: Instant,
     ) -> Result<(), ServerError> {
         self.leases.expire(now);
+        self.web_app_artifacts.expire(now);
         loop {
             match self.serve_once(listener, Some(&mut *runtime)) {
                 Ok(()) => {}
@@ -430,9 +507,11 @@ impl LeaseServer {
                     input,
                     WorkflowContext {
                         policy,
+                        principal,
                         approval,
                         approval_verifier: self.approval_verifier.as_ref(),
                         artifact_root: self.artifact_root.as_deref(),
+                        web_app_artifacts: &mut self.web_app_artifacts,
                         deadline,
                     },
                 );
@@ -450,6 +529,18 @@ impl LeaseServer {
                     },
                     Err(error) => DaemonResponse::CommandError {
                         code: workflow_error(error),
+                    },
+                }
+            }
+            DaemonRequest::WebAppArtifactTake { handle, principal } => {
+                match self.web_app_artifacts.take(&handle, &principal, now) {
+                    Some(artifact) => DaemonResponse::WebAppArtifact {
+                        launch_id: artifact.launch_id,
+                        url: artifact.url,
+                        require_same_origin: artifact.require_same_origin,
+                    },
+                    None => DaemonResponse::CommandError {
+                        code: CommandErrorCode::WebAppArtifactUnavailable,
                     },
                 }
             }
@@ -691,9 +782,11 @@ fn event_kind(kind: CachedUpdateKind) -> EventKind {
 
 struct WorkflowContext<'server> {
     policy: telegram_core::raw_api::RawPolicy,
+    principal: String,
     approval: Option<PlanApproval>,
     approval_verifier: Option<&'server ApprovalVerifier>,
     artifact_root: Option<&'server Path>,
+    web_app_artifacts: &'server mut WebAppArtifactStore,
     deadline: Instant,
 }
 
@@ -705,9 +798,11 @@ fn run_workflow(
 ) -> Result<WorkflowOutput, WorkflowDispatchError> {
     let WorkflowContext {
         policy,
+        principal,
         approval,
         approval_verifier,
         artifact_root,
+        web_app_artifacts,
         deadline,
     } = context;
     if approval.is_some() && name != "apply_chat_title" {
@@ -1011,6 +1106,57 @@ fn run_workflow(
                 complete,
             )
         }
+        "prepare_web_app_handoff" => {
+            let input: WebAppInput = parse(input)?;
+            let lease = workflows::open_web_app(
+                runtime,
+                &policy,
+                WebAppRequest {
+                    chat_id: input.chat_id,
+                    bot_user_id: input.bot_user_id,
+                    button_url: &input.button_url,
+                    application_name: &input.application_name,
+                    mode: input.mode.into(),
+                },
+                deadline,
+            )?;
+            let launch_id = lease.launch_id();
+            let require_same_origin = lease.require_same_origin();
+            let (artifact_handle, artifact_ttl_ms) = web_app_artifacts
+                .insert(
+                    principal,
+                    launch_id,
+                    ProtectedString::new(lease.launch_url().expose_secret().to_owned()),
+                    require_same_origin,
+                    Instant::now(),
+                )
+                .ok_or(WorkflowDispatchError::ArtifactUnavailable)?;
+            let _ = lease.handoff();
+            output(
+                json!({
+                    "launch_id": launch_id,
+                    "telegram_status": "prepared",
+                    "browser_status": "pending",
+                    "artifact_handle": artifact_handle,
+                    "artifact_ttl_ms": artifact_ttl_ms,
+                    "require_same_origin": require_same_origin,
+                    "next_action": "run_browser_then_close",
+                }),
+                false,
+            )
+        }
+        "close_web_app_handoff" => {
+            let input: CloseWebAppInput = parse(input)?;
+            workflows::close_web_app_launch(runtime, &policy, input.launch_id, deadline)?;
+            output(
+                json!({
+                    "launch_id": input.launch_id,
+                    "telegram_status": "closed",
+                    "browser_proof": "separate",
+                }),
+                true,
+            )
+        }
         _ => Err(WorkflowDispatchError::Unknown),
     }
 }
@@ -1099,6 +1245,7 @@ fn output(
 enum WorkflowDispatchError {
     Unknown,
     InvalidInput,
+    ArtifactUnavailable,
     Approval(CommandErrorCode),
     Core(ChatWorkflowError),
 }
@@ -1473,6 +1620,12 @@ struct WebAppInput {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CloseWebAppInput {
+    launch_id: i64,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum WebAppModeInput {
     Compact,
@@ -1494,6 +1647,7 @@ fn workflow_error(error: WorkflowDispatchError) -> CommandErrorCode {
     match error {
         WorkflowDispatchError::Unknown => CommandErrorCode::WorkflowNotFound,
         WorkflowDispatchError::InvalidInput => CommandErrorCode::InvalidWorkflowInput,
+        WorkflowDispatchError::ArtifactUnavailable => CommandErrorCode::WebAppArtifactUnavailable,
         WorkflowDispatchError::Approval(code) => code,
         WorkflowDispatchError::Core(ChatWorkflowError::Call(error)) => raw_error(error),
         WorkflowDispatchError::Core(ChatWorkflowError::PrerequisiteMissing { .. }) => {
@@ -1813,6 +1967,40 @@ mod tests {
     }
 
     #[test]
+    fn web_app_artifact_is_owner_scoped_one_shot_and_expiring() {
+        let now = Instant::now();
+        let mut artifacts = WebAppArtifactStore::default();
+        let (handle, ttl_ms) = artifacts
+            .insert(
+                "runner".to_owned(),
+                11,
+                ProtectedString::new("INIT_DATA_CANARY".to_owned()),
+                true,
+                now,
+            )
+            .unwrap();
+        assert_eq!(ttl_ms, WEB_APP_ARTIFACT_TTL.as_millis() as u64);
+        assert!(artifacts.take(&handle, "other", now).is_none());
+        let artifact = artifacts.take(&handle, "runner", now).unwrap();
+        assert_eq!(artifact.launch_id, 11);
+        assert!(!format!("{:?}", artifact.url).contains("INIT_DATA_CANARY"));
+        assert!(artifacts.take(&handle, "runner", now).is_none());
+
+        let (expired, _) = artifacts
+            .insert(
+                "runner".to_owned(),
+                12,
+                ProtectedString::new("EXPIRED_CANARY".to_owned()),
+                false,
+                now,
+            )
+            .unwrap();
+        assert!(artifacts
+            .take(&expired, "runner", now + WEB_APP_ARTIFACT_TTL)
+            .is_none());
+    }
+
+    #[test]
     fn every_discoverable_workflow_example_matches_its_input_contract() {
         for (name, _) in WORKFLOWS {
             let input = workflow_input_example(name).unwrap();
@@ -1837,7 +2025,8 @@ mod tests {
                 "upload_sticker_file" => parse::<UploadInput>(input).is_ok(),
                 "start_bot" | "start_bot_and_wait_reply" => parse::<StartBotInput>(input).is_ok(),
                 "click_bot_callback" => parse::<BotCallbackInput>(input).is_ok(),
-                "open_web_app" => parse::<WebAppInput>(input).is_ok(),
+                "open_web_app" | "prepare_web_app_handoff" => parse::<WebAppInput>(input).is_ok(),
+                "close_web_app_handoff" => parse::<CloseWebAppInput>(input).is_ok(),
                 _ => false,
             };
             assert!(valid, "invalid input example for {name}");

@@ -39,6 +39,11 @@ CLI/MCP. `wait_message_sent` принимает только matching `updateWeb
 launch boundary. Explicit `close` и Drop fallback отправляют `closeWebApp`; Telegram
 launch/message proof не является browser/DOM proof.
 
+Для browser handoff lease можно disarm только после помещения URL в owner-scoped
+in-memory artifact store daemon. One-shot handle живёт 60 секунд и забирается runner через
+тот же private `0600` socket; expiry/take удаляют и zeroize URL. После browser evidence
+caller закрывает exact launch отдельным `close_web_app_handoff` даже при failed UI.
+
 `InputFileSource::Local/Generated` — только local core boundary. Daemon canonicalize-ит
 source и configured `TDLIB_FILES_DIR`, требует absolute regular file внутри этого root и
 отклоняет traversal/symlink escape. Remote MCP обязан использовать будущий owner-scoped

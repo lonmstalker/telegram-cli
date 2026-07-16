@@ -5,7 +5,7 @@
 ## Verified
 
 - Документационный bootstrap: `product.md`, `plans.md`, `HARNESS.md` (F001–F022), harness-файлы, `docs/tdlib-api-coverage.md`.
-- Cargo workspace из шести пакетов; границы под gate `scripts/check-workspace-boundaries.py`; `telegramd` — working shared-session owner, остальные product binaries пока fail-closed.
+- Cargo workspace из шести пакетов; границы под gate `scripts/check-workspace-boundaries.py`; `telegramd`, `telegram-cli` и local Web App runner имеют working scoped surfaces, MCP остаётся fail-closed до P8.
 - Pinned schema: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`; 1010 functions, 2168 definitions, 184 updates, 13 auth states; gate `scripts/check-tdlib-pin.py`.
 - Strict schema parser в `telegram-core::schema` (12 тестов, без внешних dependencies).
 - macOS arm64 и Linux x86_64 `tdjson` с provenance в content-addressed cache; общий gate `scripts/check-tdlib-native-pin.py`, локальная проверка обоих artifacts — с `--require-local-artifact`.
@@ -63,10 +63,11 @@
 - Четвёртый подпункт P7/F010 закрыт: file transfer ждёт terminal update и сверяет известный размер; cancel reconciles state, local/generated path confined to daemon files root ([D-20260715-077](../decisions/decisions.md)).
 - Пятый подпункт P7/F011 закрыт: fresh right + exact external plan защищают title configuration; matching update доказывает completion, а membership/pending/no-progress boundaries переиспользуют existing workflows ([D-20260715-078](../decisions/decisions.md)).
 - Шестой подпункт P7/F012 закрыт: pre-action sequence и exact bot/chat фильтр коррелируют redacted reply; callback payload остаётся в core, timeout/uncertainty не повторяются ([D-20260715-079](../decisions/decisions.md)).
+- Седьмой подпункт P7/F013 закрыт: owner/TTL one-shot handle держит init data в daemon memory, runner передаёт URL adapter только по stdin и отделяет browser counters от Telegram proof ([D-20260715-080](../decisions/decisions.md)).
 
 ## Not implemented
 
-- Оставшиеся подпункты P7/F013–F022 и фазы P8–P10: domain workflows, optional MCP, packaging и live acceptance.
+- Оставшиеся подпункты P7/F014–F022 и фазы P8–P10: domain workflows, optional MCP, packaging и live acceptance.
 
 ## Active boundary
 
@@ -75,4 +76,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: P7/F013 Mini Apps.
+- Следующий implementation boundary: P7/F014 stickers/custom emoji.

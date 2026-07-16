@@ -1,7 +1,7 @@
 # P6 cold-agent eval
 
 Eval context ограничен [`SKILL.md`](../.agents/skills/telegram-cli/SKILL.md) и machine
-responses `workflow list/describe`; repo source, каталог TDLib и human output не выдаются.
+responses v2 `workflow list/describe`; repo source, каталог TDLib и human output не выдаются.
 Проверяется action trace, а не формулировка ответа. Во всех сценариях обязательны minimal
 lease, discovery-before-execution, root status/continuation check и release в finally.
 
@@ -16,9 +16,10 @@ lease, discovery-before-execution, root status/continuation check и release в 
 Raw fallback control отдельно проходит `schema search -> schema describe -> td call`; agent
 использует caller-authored `@type` только в этом escape hatch. Destructive/auth control
 останавливается на external approval или owner `login tty`, не создаёт approval и не просит
-secret в чате.
+secret в чате. Raw mutation с `reconciliation_required=true` остаётся partial и не вызывает
+второй exact `td call`.
 
 Все пять traces проходят rubric C001–C003/I001–I003 F022. Skill не перечисляет TDLib
-methods: pinned `tiktoken 0.12.0` дал 774 `cl100k_base` и 633 `o200k_base` tokens, оба ниже
+methods: pinned `tiktoken 0.12.0` дал 806 `cl100k_base` и 662 `o200k_base` tokens, оба ниже
 limit 1500. Это offline contract eval; Telegram live side effects не выполнялись и
 относятся к P10.

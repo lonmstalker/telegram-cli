@@ -110,8 +110,8 @@ flowchart LR
 | P4 | Stateful request-chain engine | accepted |
 | P5 | Reliability, policy, limits и observability | accepted |
 | P6 | Полный CLI и компактный agent skill | complete |
-| P7 | Domain workflows по F007–F020 | pending |
-| P8 | Optional MCP | deferred until P0–P7 accepted |
+| P7 | Domain workflows по F007–F020 | accepted |
+| P8 | Optional MCP | pending |
 | P9 | Local/server packaging и upgrade/rollback | pending |
 | P10 | Live end-to-end acceptance | pending |
 
@@ -263,7 +263,7 @@ flowchart LR
 - [x] F019 statistics/resources.
 - [x] F020 platform utilities.
 - [x] F021 reliability как сквозной contract.
-- [ ] F022 agent skill.
+- [x] F022 agent skill.
 
 Acceptance: критерии соответствующего harness-файла выполнены и подтверждены тестами — зачем: harness уже описывает intended behavior; дублировать его в плане — расхождение двух источников.
 

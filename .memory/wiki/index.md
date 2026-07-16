@@ -122,6 +122,7 @@
 - F019 terminal graph and redacted resource snapshot: [D-20260715-086](../decisions/decisions.md), [W-20260715-091](../logs/work.md), [`docs/members-statistics-workflow.md`](../../docs/members-statistics-workflow.md).
 - F020 generated platform coverage and proxy transition: [D-20260715-087](../decisions/decisions.md), [W-20260715-092](../logs/work.md), [`docs/platform-utilities-workflow.md`](../../docs/platform-utilities-workflow.md).
 - F021 cross-cutting reliability dispatch: [D-20260715-088](../decisions/decisions.md), [W-20260715-093](../logs/work.md), [`docs/feature-logic-harness/reliability-policy-observability.md`](../../docs/feature-logic-harness/reliability-policy-observability.md).
+- F022 compact v2 agent skill и P7 Acceptance: [D-20260715-073](../decisions/decisions.md), [D-20260715-088](../decisions/decisions.md), [W-20260715-094](../logs/work.md), [`docs/agent-skill-eval.md`](../../docs/agent-skill-eval.md).
 
 ## Operating rules
 

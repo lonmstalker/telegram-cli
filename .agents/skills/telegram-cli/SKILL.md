@@ -7,7 +7,7 @@ description: "Безопасная работа с Telegram через singleton
 
 Работай только через `telegram-cli`; не открывай TDLib DB, не запускай второй TDLib owner и
 не вызывай native TDLib напрямую. Для machine decisions всегда добавляй `--output json` и
-читай только envelope `version/status/data/error`, не human prose.
+читай только envelope v2 `version/status/data/error`, не human prose.
 
 ## Цикл
 
@@ -26,15 +26,16 @@ description: "Безопасная работа с Telegram через singleton
    затем один `td call <lease_id> '<json>'`. `@type` нужен только здесь как TDJSON wire
    discriminator; generated Rust registry проверит method и nested objects. Не изобретай
    wrapper и не угадывай поля.
-5. После каждого ответа проверь root `status`. `partial`, `complete=false`, `pending`,
-   `gap` или `next_action` не означают success/absence: выполни указанный continuation,
-   resync либо operator action. Не делай blind retry mutation и не объявляй `not_found` по
-   неполной chain.
+5. После каждого ответа проверь root `status`. `partial`, `complete=false`,
+   `reconciliation_required=true`, `pending`, `gap` или `next_action` не означают
+   success/absence: выполни указанный continuation, resync либо operator action. Не делай
+   blind retry mutation и не объявляй `not_found` по неполной chain.
 
 ## Границы
 
 - Не расширяй scopes и не подделывай approval. `admin/destructive/financial/auth_security`
-  требуют внешнего exact-plan approval; остановись на structured denial/uncertain outcome.
+  требуют внешнего exact-plan approval. На `reconciliation_required` не повторяй exact
+  operation; используй typed probe/next action или передай владельцу structured outcome.
 - Не запускай `login tty` вместо владельца и никогда не помещай secret в args, stdin,
   output, log или memory.
 - Для Mini App TDLib workflow доказывает только Telegram-side launch/control. Передай

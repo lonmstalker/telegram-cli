@@ -72,10 +72,12 @@
 - Тринадцатый подпункт P7/F019 закрыт: existing capability-first async graph walker переиспользован; resource read агрегирует storage/database/network и редактирует opaque database report без implicit optimization ([D-20260715-086](../decisions/decisions.md)).
 - Четырнадцатый подпункт P7/F020 закрыт: generated pin/default-deny покрывают редкие utilities; proxy status redacted, exact-ID setter требует ordered Ready proof и сохраняет rollback ID без repeat ([D-20260715-087](../decisions/decisions.md)).
 - Пятнадцатый подпункт P7/F021 закрыт: common raw path применяет bounded flood retry, scheduler, durable journal и redacted audit; raw mutation возвращает partial reconciliation state, shared metrics доступны через CLI status ([D-20260715-088](../decisions/decisions.md)).
+- Шестнадцатый подпункт P7/F022 закрыт: compact skill использует machine envelope v2, on-demand discovery и explicit reconciliation stop; offline cold traces green, token budget 806/662 < 1500 ([D-20260715-073](../decisions/decisions.md), [D-20260715-088](../decisions/decisions.md)).
+- P7 accepted: все F007–F022 harness criteria подтверждены synthetic/offline tests; live side effects остаются только P10.
 
 ## Not implemented
 
-- Оставшийся подпункт P7/F022 и фазы P8–P10: agent skill, optional MCP, packaging и live acceptance.
+- Фазы P8–P10: optional MCP, packaging и live acceptance.
 
 ## Active boundary
 
@@ -84,4 +86,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: P7/F022 agent skill.
+- Следующий implementation boundary: первый Tasks-пункт P8 optional MCP adapter.

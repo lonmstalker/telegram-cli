@@ -274,7 +274,7 @@ Decision gate: начинать только после acceptance P0–P7.
 ### Tasks
 
 - [x] MCP — adapter к daemon/protocol; небольшой набор tools (session, auth.begin/status/wait, schema, workflow, call, events).
-- [ ] Local stdio и аутентифицированный remote transport.
+- [x] Local stdio и аутентифицированный remote transport.
 - [ ] Brokered login: challenge ID/next action; secret вводится вне model-visible transport.
 
 ### Acceptance

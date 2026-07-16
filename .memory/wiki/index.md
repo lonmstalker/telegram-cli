@@ -28,6 +28,7 @@
 - [CLI workflow routes contract](../../docs/cli-workflows.md)
 - [CLI secure login contract](../../docs/cli-secure-login.md)
 - [P6 cold-agent eval](../../docs/agent-skill-eval.md)
+- [MCP stdio/SSH transport contract](../../docs/mcp-transport.md)
 - [F007 user/profile workflow](../../docs/user-profile-workflow.md)
 - [F008 chat/folder/topic workflows](../../docs/forum-topic-workflow.md)
 - [F009 message workflows](../../docs/message-workflow.md)
@@ -124,6 +125,7 @@
 - F021 cross-cutting reliability dispatch: [D-20260715-088](../decisions/decisions.md), [W-20260715-093](../logs/work.md), [`docs/feature-logic-harness/reliability-policy-observability.md`](../../docs/feature-logic-harness/reliability-policy-observability.md).
 - F022 compact v2 agent skill и P7 Acceptance: [D-20260715-073](../decisions/decisions.md), [D-20260715-088](../decisions/decisions.md), [W-20260715-094](../logs/work.md), [`docs/agent-skill-eval.md`](../../docs/agent-skill-eval.md).
 - MCP small tool adapter: [D-20260715-089](../decisions/decisions.md), [W-20260715-095](../logs/work.md), [`docs/feature-logic-harness/mcp.md`](../../docs/feature-logic-harness/mcp.md).
+- MCP local/SSH transport: [D-20260715-090](../decisions/decisions.md), [W-20260715-096](../logs/work.md), [`docs/mcp-transport.md`](../../docs/mcp-transport.md).
 
 ## Operating rules
 

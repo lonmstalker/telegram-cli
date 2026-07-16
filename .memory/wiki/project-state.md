@@ -75,10 +75,11 @@
 - Шестнадцатый подпункт P7/F022 закрыт: compact skill использует machine envelope v2, on-demand discovery и explicit reconciliation stop; offline cold traces green, token budget 806/662 < 1500 ([D-20260715-073](../decisions/decisions.md), [D-20260715-088](../decisions/decisions.md)).
 - P7 accepted: все F007–F022 harness criteria подтверждены synthetic/offline tests; live side effects остаются только P10.
 - Первый пункт P8 закрыт: восемь MCP tools строго переводятся в shared `DaemonRequest`; transport principal не является model argument, auth принимает только challenge metadata, curated workflows скрывают `@type` ([D-20260715-089](../decisions/decisions.md)).
+- Второй пункт P8 закрыт: official MCP 2025-11-25 stdio запускается локально или через OpenSSH forced command; remote identity/profile/scopes bound к root-owned policy, TCP listener отсутствует ([D-20260715-090](../decisions/decisions.md)).
 
 ## Not implemented
 
-- Оставшиеся пункты P8, фазы P9–P10: MCP transports/brokered secret channel, packaging и live acceptance.
+- Последний пункт P8, фазы P9–P10: MCP brokered secret channel, packaging и live acceptance.
 
 ## Active boundary
 
@@ -87,4 +88,4 @@
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
 - Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: второй Tasks-пункт P8 — local stdio и authenticated remote transport.
+- Следующий implementation boundary: третий Tasks-пункт P8 — brokered login с secret entry вне model-visible transport.

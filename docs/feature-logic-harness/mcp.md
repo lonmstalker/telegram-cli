@@ -3,16 +3,16 @@
 ## Summary
 
 - Feature ID: F006
-- Context sufficiency: blocked_by_decision
+- Context sufficiency: sufficient
 - Mode: draft
 - Source priority: user request -> product_context_source -> repo sources -> assumptions
-- draft_reason: blocked_by_decision
+- draft_reason: missing_contracts
 - Product context: loaded
 - Product context source type: file
 - product_context_source: product.md
 - Feature purpose: опционально открыть тот же broker/protocol MCP-клиентам без второго TDLib owner.
 - Product workflow/job served: brokered login, status/discovery/call/workflow/events через local или authenticated remote transport.
-- Primary ambiguity to keep explicit: feature начинается только после acceptance CLI/core.
+- Primary ambiguity to keep explicit: protected remote operator secret entry остаётся следующим P8 task.
 
 ## Product Context
 
@@ -27,7 +27,8 @@
 
 - SRC001: product.md; type: file; supports: optional MCP rule; limits: none.
 - SRC002: HARNESS.md; type: file; supports: parity/one-owner invariants; limits: none.
-- SRC003: plans.md P8/P9 и `apps/telegram-mcp`; type: file/code; supports: decision gate, small tool inventory, strict protocol translation and transport-owned principal; limits: transport choice deferred.
+- SRC003: plans.md P8/P9, `apps/telegram-mcp` и `docs/mcp-transport.md`; type: file/code; supports: decision gate, small tool inventory, strict protocol translation, local stdio and SSH transport identity/scope policy; limits: brokered secret channel deferred.
+- SRC004: official MCP 2025-11-25 [tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools), [transports](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports), [lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle) and official `rmcp 2.2.0`; type: external primary; supports: tool names/schema, newline stdio and lifecycle negotiation; limits: OpenSSH deployment policy remains product-owned.
 
 ## TDLib API Coverage
 
@@ -51,7 +52,7 @@ MCP subscribes to broker events with sequence/gap handling; it owns no cache.
 
 ## Retry and Reconciliation
 
-Transport reconnect does not replay non-idempotent operations. Request/idempotency IDs survive reconnect.
+Transport reconnect does not replay non-idempotent operations. SSH reconnect creates a new MCP lifecycle; daemon journal/envelope remains authoritative for uncertain writes.
 
 ## CLI/MCP Exposure
 
@@ -63,7 +64,7 @@ Remote principal identity maps to scopes/policy; public unauthenticated access i
 
 ## Live Verification Boundary
 
-The strict adapter and its MCP 2025-11-25-compatible tool schemas are unit-tested against shared `DaemonRequest`; binary startup still fails closed because local/remote transports belong to the next P8 task. No live endpoint has been started.
+The strict adapter runs over MCP 2025-11-25 stdio through official `rmcp 2.2.0`. Synthetic initialize/list succeeds without daemon access. Authenticated remote mode is the same stdio behind OpenSSH restricted forced command; it requires sshd context and root-owned identity policy. No live SSH endpoint or Telegram call has been started.
 
 ## Scope
 
@@ -77,16 +78,16 @@ The strict adapter and its MCP 2025-11-25-compatible tool schemas are unit-teste
 
 ### Ambiguous
 
-- The exact remote transport/auth stack remains an implementation decision; see Q001.
+- Live server installation and operator secret channel remain deferred; transport stack is resolved in Q001.
 
 ## Context Map
 
 - User surfaces: MCP tools/resources.
 - Backend surfaces: MCP adapter and protocol client.
 - Data entities: Principal, Scope, ToolEnvelope, EventCursor.
-- External dependencies: MCP runtime and secure transport.
+- External dependencies: pinned official Rust MCP SDK and operator-managed OpenSSH.
 - Async flows: event streaming/reconnect.
-- Config flags: local/remote mode, identity provider, TLS/SSH settings.
+- Config flags: local scopes/profile; fixed root-owned SSH identity policies and forced commands.
 - Tests/examples/docs: generated parity and no-second-owner tests.
 - Observability: principal/request/scope without Telegram payload labels.
 
@@ -131,7 +132,7 @@ The strict adapter and its MCP 2025-11-25-compatible tool schemas are unit-teste
 ## Dimensions
 
 - D001 - Deployment
-  - Description: disabled/local/server; Status: filled; Values: three; Boundary values: public bind; Why it matters: trust boundary; Related entities: Principal; Related contracts: C001-C003; Related invariants: I001-I003; Unknowns: Q001.
+  - Description: disabled/local/server; Status: filled; Values: three; Boundary values: public bind; Why it matters: trust boundary; Related entities: Principal; Related contracts: C001-C003; Related invariants: I001-I003; Unknowns: none.
 - D002 - Exposure
   - Description: direct/brokered/blocked; Status: filled; Values: three; Boundary values: auth-secret/financial method; Why it matters: tool behavior; Related entities: ExposureDecision; Related contracts: C002; Related invariants: I002; Unknowns: none.
 
@@ -148,16 +149,16 @@ The strict adapter and its MCP 2025-11-25-compatible tool schemas are unit-teste
 
 ## Assumptions
 
-- A001: server operator can provide authenticated transport identity; support_basis: inference.
+- A001: server operator can provide restricted OpenSSH forced-command keys and root-owned policies; support_basis: implementation contract.
 
 ## Open Questions
 
-- Q001: выбрать SSH-tunneled local transport или TLS/OIDC remote service; owner: operator; blocking for P8 only.
+- Q001: resolved 2026-07-15 — SSH-tunneled stdio selected; Streamable HTTP/OAuth is unnecessary for current consumer and remains out of scope.
 
 ## Coverage Notes
 
-- Kernel coverage: small adapter surface, protocol translation and principal-injection boundary verified; transport parity/security/reconnect modeled.
-- Modeled: optional transport and brokered wait behavior.
-- Partial: remote transport decision.
-- Unknown: exact MCP version/hosting stack.
+- Kernel coverage: small adapter, protocol translation, stdio lifecycle, principal injection, SSH context and root-policy scope boundary verified.
+- Modeled: brokered wait and protected operator submission behavior.
+- Partial: live SSH deployment and brokered secret channel.
+- Unknown: none for transport topology.
 - Not applicable: direct secret entry in MCP arguments.

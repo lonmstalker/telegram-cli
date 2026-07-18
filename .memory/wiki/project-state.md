@@ -1,8 +1,26 @@
 # Текущее состояние проекта
 
-Последняя проверка: 2026-07-15.
+Последняя полная проверка: 2026-07-18.
 
 ## Verified
+
+- Первый Tasks-пункт P9 закрыт: для macOS arm64 и Linux x86_64 две independent exact-recipe builds совпали bit-for-bit; rebuild сверяет новый artifact с committed reference digest до публикации ([D-20260718-007](../decisions/decisions.md), [W-20260718-011](../logs/work.md)).
+- P10 authorization slice accepted: отдельный profile прошёл owner TTY first login, daemon terminal `Ready + getMe`, graceful `Draining -> Closed` и returning restart до `Ready` без повторного phone/OTP ([W-20260718-008](../logs/work.md)).
+- Supplied authorization review закрыт requirement-by-requirement: uncertain timeout не replay-ится,
+  boot-scoped token защищает restart/profile boundary, auth-loss снимает verified Ready и leases,
+  следующий Ready повторяет identity proof; owner QR/ToS/privacy/email-resend paths и redacted
+  reducer Debug покрыты детерминированными regressions ([D-20260718-005](../decisions/decisions.md),
+  [P-20260718-003](../problems/problems.md), [W-20260718-009](../logs/work.md)).
+- Authorization ownership консолидирован: один daemon coordinator проходит startup → interactive
+  login → re-auth и единолично хранит verified account; CLI protocol loop извлечён в тестируемый
+  driver с socket/TTY/runtime adapters ([D-20260718-006](../decisions/decisions.md),
+  [W-20260718-010](../logs/work.md)).
+- Immediate `SecureTtyFailed` в Codex app terminal исправлен: live retry устойчиво ждал скрытый input до owner `Ctrl+C`, terminal восстановился, challenge не сменился; prompts теперь явно объясняют hidden echo ([P-20260718-001](../problems/problems.md)).
+- По текущему owner decision phone/OTP/email/registration видны в `/dev/tty`; cloud password default-visible и hidden только после `[y/N]` opt-in. Authorization values по-прежнему отсутствуют в args/stdin/env/machine output ([D-20260718-003](../decisions/decisions.md), supersedes [D-20260718-001](../decisions/decisions.md)).
+- Default human `telegram-cli login` теперь сам проходит phone/code/2FA/email/registration chain без ручного `challenge_id`; machine JSON/JSONL status и MCP one-shot handoff остаются разделены ([D-20260718-002](../decisions/decisions.md)).
+- Общая P10 остаётся pending по domain/live-failure scenarios; authorization first-login/returning больше не является её незакрытой границей. Actual expired-code resend остаётся узким follow-up [P-20260718-002](../problems/problems.md).
+- External `tg-analytics` prod session не переиспользуется: canonical `scripts/tg-agent.sh me` fail closed с wrong database key; repair/re-auth не выполнялись, phone number не раскрывался ([P-20260717-001](../problems/problems.md)).
+- Пользовательский source-checkout flow и brokered authorization описаны зеркально на русском и английском; P9 packaging и общая P10 остаются незавершёнными ([W-20260718-001](../logs/work.md)).
 
 - Документационный bootstrap: `product.md`, `plans.md`, `HARNESS.md` (F001–F022), harness-файлы, `docs/tdlib-api-coverage.md`.
 - Cargo workspace из шести product-пакетов и generator tool; границы под gate `scripts/check-workspace-boundaries.py`; `telegramd`, `telegram-cli` и local Web App runner имеют working scoped surfaces, MCP adapter реализован, а endpoint остаётся fail-closed до transport-пункта P8.
@@ -76,7 +94,7 @@
 - P7 accepted: все F007–F022 harness criteria подтверждены synthetic/offline tests; live side effects остаются только P10.
 - Первый пункт P8 закрыт: восемь MCP tools строго переводятся в shared `DaemonRequest`; transport principal не является model argument, auth принимает только challenge metadata, curated workflows скрывают `@type` ([D-20260715-089](../decisions/decisions.md)).
 - Второй пункт P8 закрыт: official MCP 2025-11-25 stdio запускается локально или через OpenSSH forced command; remote identity/profile/scopes bound к root-owned policy, TCP listener отсутствует ([D-20260715-090](../decisions/decisions.md)).
-- Третий пункт P8 закрыт: protocol v3 отдаёт typed auth `next_action`, а owner one-shot `login tty <challenge_id>` fail closed сверяет ID до protected TTY prompt; secret submission отсутствует в MCP ([D-20260715-091](../decisions/decisions.md)).
+- Третий пункт P8 закрыт: protocol v4 отдаёт typed auth `next_action` и boot-scoped opaque token, а owner one-shot `login tty <challenge_id>` fail closed сверяет token до protected TTY prompt; secret submission отсутствует в MCP ([D-20260715-091](../decisions/decisions.md)).
 - P8 accepted: MCP не создаёт TDLib session, remote transport требует OpenSSH identity/root-owned scopes, context ограничен восемью on-demand tool families.
 
 ## Not implemented
@@ -88,6 +106,6 @@
 - Full API означает L0–L2 для всей pinned schema; curated workflows и live proofs учитываются отдельно.
 - Секреты — вне model-visible interfaces.
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.
-- Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility не заявлена.
+- Linux artifact boundary закрыта в [P-20260715-003](../problems/problems.md); bit-for-bit reproducibility обоих targets доказана в первом Tasks-пункте P9.
 - Неотревьюенные методы — default-deny; это валидное состояние, не блокер (см. `plans.md`, «Правила работы»).
-- Следующий implementation boundary: первый Tasks-пункт P9 — reproducible pinned TDLib builds для macOS arm64 и Linux x86_64.
+- Следующий implementation boundary: второй Tasks-пункт P9 — launchd/systemd socket activation, persistent DB и keychain/file-secret integration.

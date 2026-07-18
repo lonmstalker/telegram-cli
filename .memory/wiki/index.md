@@ -7,6 +7,8 @@
 - [Product boundary](../../product.md)
 - [Living plan](../../plans.md) — фазы, правила работы, зоны ответственности, acceptance
 - [Feature inventory](../../HARNESS.md)
+- [User guide: RU](../../docs/user-guide.ru.md) / [EN](../../docs/user-guide.en.md)
+- [Authorization guide: RU](../../docs/authorization-guide.ru.md) / [EN](../../docs/authorization-guide.en.md)
 - [TDLib coverage contract](../../docs/tdlib-api-coverage.md)
 - [Reviewed capability contracts](../../docs/capability-notes.md)
 - [`tg-analytics` reuse boundary](../../docs/tg-analytics-reuse.md)
@@ -63,11 +65,32 @@
 - [P1 runtime acceptance](../raw/2026-07-15-p1-runtime-acceptance.md) — native handshake, wrong/missing-key, secret canary и returning live session
 - [P2 daemon lifecycle acceptance](../raw/2026-07-15-p2-daemon-lifecycle-acceptance.md) — concurrency, TTL, crash recovery и graceful idle restart
 - [P3 Rust bindings evaluation](../raw/2026-07-15-p3-rust-bindings-evaluation.md) — почему exact generated registry не заменён version-mismatched crate
+- [P10 authorization returning check](../raw/2026-07-17-p10-authorization-returning-check.md) — свежий daemon/CLI `Ready + getMe`, lease release и graceful `Closed`; first login остаётся pending
+- [`tg-analytics` TDLib authorization preflight](../raw/2026-07-17-tg-analytics-tdlib-auth-preflight.md) — source prod session fail closed на wrong database key; номер не раскрывался
+- [P10 isolated first-login challenge](../raw/2026-07-18-p10-first-login-challenge.md) — новый profile дошёл до sanitized `phone_number/challenge_id=1`; owner TTY input и terminal proof pending
+- [P10 owner TTY failure](../raw/2026-07-18-p10-owner-tty-failure.md) — input не был submitted; local `/dev/tty` reader исправлен и ждёт live owner retry
+- [P10 owner TTY retry](../raw/2026-07-18-p10-owner-tty-retry.md) — corrected prompt ждал скрытый ввод до owner cancellation; immediate failure resolved, phone submission pending
+- [P10 first-login and returning acceptance](../raw/2026-07-18-p10-first-login-returning-acceptance.md) — owner TTY first login, `Ready + getMe`, graceful `Closed` и returning `Ready` без повторного secret input
+- [P9 reproducible native builds](../raw/2026-07-18-p9-reproducible-native-builds.md) — два independent exact-recipe build для macOS arm64 и Linux x86_64 совпали bit-for-bit; свежий provenance gate и guard suite green
 
 ## Current records
 
-- Implementation: P0–P8 accepted; следующий пункт — P9 reproducible pinned TDLib builds для обоих targets; см. [project-state.md](project-state.md).
-- Открытые проблемы: active blockers отсутствуют. Gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
+- Implementation: P0–P8 accepted; первый Tasks-пункт P9 про reproducible pinned TDLib builds закрыт, P9 продолжается с launchd/systemd packaging; см. [project-state.md](project-state.md) и [W-20260718-011](../logs/work.md).
+- P10 authorization slice принят: 2026-07-18 отдельный profile прошёл owner TTY first login, daemon `Ready + getMe`, graceful `Closed` и returning `Ready` без повторного phone/OTP; общая P10 остаётся pending по другим scenarios; см. [W-20260718-008](../logs/work.md).
+- Authorization review hardening: timeout после dispatch остаётся uncertain без blind replay;
+  challenge token boot-scoped; re-auth Ready повторяет `getMe`/identity proof и отзывает leases;
+  QR/ToS/privacy/email resend идут через owner-only prompt. Protocol machine envelope — v4;
+  см. [D-20260718-005](../decisions/decisions.md), [P-20260718-003](../problems/problems.md),
+  [W-20260718-009](../logs/work.md).
+- Authorization architecture consolidated: один coordinator владеет startup, broker state,
+  uncertain outcome и verified account; lifecycle видит только closed observation. CLI login loop
+  отделён от socket/TTY/runtime adapters и покрыт deterministic multi-step tests; см.
+  [D-20260718-006](../decisions/decisions.md), [W-20260718-010](../logs/work.md).
+- Owner TTY echo boundary: phone/OTP/email/registration видны; cloud password спрашивает `[y/N]` и hidden только по opt-in, никакого args/stdin/env/machine-output path не добавлено; [D-20260718-003](../decisions/decisions.md) supersedes [D-20260718-001](../decisions/decisions.md).
+- Primary human auth UX: один `telegram-cli login` сам проходит всю fresh challenge chain; JSON/JSONL остаётся status-only, exact-token handoff — только MCP/operator compatibility; см. [D-20260718-002](../decisions/decisions.md), [D-20260718-005](../decisions/decisions.md).
+- Code resend: TDLib `timeout` считается eligibility delay, не guessed OTP TTL; при `next_type` human flow сам запрашивает fresh code и ждёт новый challenge. First login принят, но actual expired-code resend остаётся узким live follow-up [P-20260718-002](../problems/problems.md); см. [D-20260718-004](../decisions/decisions.md), [W-20260718-007](../logs/work.md).
+- Двуязычные пользовательские инструкции добавлены для source checkout и brokered authorization; acceptance-границы P9/P10 в них названы явно; см. [W-20260718-001](../logs/work.md).
+- Открытые проблемы: external source-session blocker [P-20260717-001](../problems/problems.md); live code resend [P-20260718-002](../problems/problems.md); owner TTY failure закрыт в [P-20260718-001](../problems/problems.md); local gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
 - Reuse/account model: [D-20260715-036](../decisions/decisions.md), [W-20260715-041](../logs/work.md), [`docs/tg-analytics-reuse.md`](../../docs/tg-analytics-reuse.md).

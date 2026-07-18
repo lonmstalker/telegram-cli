@@ -358,9 +358,9 @@ def linux_provenance_errors(
             errors.append("Linux glibc builder identity differs")
 
     expected_reproducibility = {
-        "status": "not_verified",
-        "independent_builds": 1,
-        "claim": "exact source and pinned builder observation only; bit-for-bit reproducibility is not established",
+        "status": "verified",
+        "independent_builds": 2,
+        "claim": "independent exact-recipe builds are bit-for-bit identical",
     }
     if provenance.get("reproducibility") != expected_reproducibility:
         errors.append("Linux provenance reproducibility overclaims or differs")

@@ -112,7 +112,7 @@ flowchart LR
 | P6 | Полный CLI и компактный agent skill | complete |
 | P7 | Domain workflows по F007–F020 | accepted |
 | P8 | Optional MCP | accepted |
-| P9 | Local/server packaging и upgrade/rollback | pending |
+| P9 | Local/server packaging и upgrade/rollback | in progress |
 | P10 | Live end-to-end acceptance | pending |
 
 ## P0 — Contract и pinned TDLib snapshot
@@ -287,7 +287,7 @@ Decision gate: начинать только после acceptance P0–P7.
 
 ### Tasks
 
-- [ ] Reproducible pinned TDLib builds для обоих targets.
+- [x] Reproducible pinned TDLib builds для обоих targets.
 - [ ] launchd/systemd socket activation, persistent DB, keychain/file-secret integration.
 - [ ] Backup только после Closed; restore, schema upgrade, rollback на копии DB.
 - [ ] Server deployment без публичного unauthenticated port.

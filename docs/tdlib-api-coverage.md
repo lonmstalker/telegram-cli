@@ -45,7 +45,7 @@ Core equality: `schema_functions(1010) == registry_methods(1010) == core_raw_met
 - Общий provenance gate: `python3 scripts/check-tdlib-native-pin.py`; проверка обоих локальных artifacts: `python3 scripts/check-tdlib-native-pin.py --require-local-artifact`.
 - TDJSON transport contract: [`tdjson-transport.md`](tdjson-transport.md); native no-client proof: `.memory/raw/2026-07-15-tdjson-transport-native-smoke.md`.
 
-Exact schema pin принят в `D-20260715-003`, strict parser — в `D-20260715-006`. Текущий macOS arm64 artifact и crash ownership доказаны correction checkpoint `W-20260715-008`; Linux x86_64 artifact закреплён в `W-20260715-040`. Для обоих artifacts bit-for-bit reproducibility не заявлена. Удаление numeric feature taxonomy из исполняемой архитектуры принято в `D-20260715-017`.
+Exact schema pin принят в `D-20260715-003`, strict parser — в `D-20260715-006`. Текущий macOS arm64 artifact и crash ownership доказаны correction checkpoint `W-20260715-008`; Linux x86_64 artifact закреплён в `W-20260715-040`. Для обоих targets две independent exact-recipe builds дали byte-for-byte identical artifacts; fail-closed contract и sanitized evidence закреплены в `D-20260718-007` и `W-20260718-011`. Удаление numeric feature taxonomy из исполняемой архитектуры принято в `D-20260715-017`.
 
 ## Граница planning inventory и исполняемой архитектуры
 

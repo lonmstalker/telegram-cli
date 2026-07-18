@@ -29,7 +29,7 @@
 - SRC002: HARNESS.md; type: file; supports: classification gates; limits: planning IDs are documentation-only.
 - SRC003: docs/tdlib-api-coverage.md; type: file; supports: baseline/counts/formula; limits: capability and dispatch coverage pending.
 - SRC004: `vendor/tdlib/manifest.json`, exact official commit `07d3a097...` и raw digest `.memory/raw/2026-07-15-tdlib-1.8.66-schema-pin.md`; type: verified repo source; supports: 1010 functions/2168 definitions/184 updates/13 auth states; limits: source identity сама по себе не доказывает generated artifact.
-- SRC005: native policies/provenance в `vendor/tdlib/`, macOS/Linux raw digests и `.memory/raw/2026-07-15-tdjson-transport-native-smoke.md`; type: verified repo source/runtime; supports: exact artifacts обоих targets и прямой TDJSON request/response; limits: bit-for-bit reproducibility не доказана, источник сам по себе не доказывает registry.
+- SRC005: native policies/provenance в `vendor/tdlib/`, macOS/Linux raw digests, `.memory/raw/2026-07-15-tdjson-transport-native-smoke.md` и `.memory/raw/2026-07-18-p9-reproducible-native-builds.md`; type: verified repo source/runtime; supports: exact artifacts обоих targets, two-build bit-for-bit reproducibility и прямой TDJSON request/response; limits: источник сам по себе не доказывает registry, а fresh local-artifact gate требует доступный Docker daemon.
 - SRC006: `crates/telegram-core/src/registry.rs`, generated artifact и `docs/tdlib-generated-registry.md`; type: verified repo source/tests; supports: exact descriptors, recursive request validation и lossless unknown fields/constructors; limits: live runtime requirements не вычисляются.
 - SRC007: `tools/tdlib-registry-gen/capabilities.json`; type: reviewed repo data; supports: risk/account/runtime/retry rows и generated default-deny для unreviewed methods; limits: runtime requirements ещё не вычисляются по live state.
 - SRC008: `crates/telegram-core/src/raw_api.rs`, `docs/core-raw-api.md`; type: verified repo source/tests; supports: runtime version, capability discovery, schema search/describe, generic validated call и account/risk/default-deny policy before send; limits: daemon/CLI wiring принадлежит следующим phases.
@@ -150,7 +150,7 @@ Current counts/hash проверены against upstream и vendored offline; art
 
 ## Assumptions
 
-- A001: exact upstream commit remains retrievable for bounded repeat builds; bit-for-bit reproducibility после одной сборки не заявляется; support_basis: repo_source.
+- A001: exact upstream commit remains retrievable for bounded repeat builds; две independent exact-recipe builds уже совпали bit-for-bit, а дальнейший rebuild fail closed при отличии от committed reference digest; support_basis: repo_source_and_verified_provenance.
 
 ## Open Questions
 

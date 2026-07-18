@@ -23,7 +23,7 @@
       },
       "platform": "linux/amd64"
     },
-    "built_at_utc": "2026-07-15T16:41:08.217205Z",
+    "built_at_utc": "2026-07-16T05:11:31.576167Z",
     "executor": {
       "docker_client": "28.5.2",
       "docker_server": "28.5.2",
@@ -32,17 +32,17 @@
     },
     "phases": {
       "build": {
-        "duration_seconds": 4892.2,
-        "log_bytes": null,
-        "log_retained": false,
-        "log_sha256": null,
+        "duration_seconds": 3097.299,
+        "log_bytes": 51716,
+        "log_retained": true,
+        "log_sha256": "7314ebc30105098f583e57b8687144d559cfd860ef93db10b25fc72898d6fa66",
         "return_code": 0
       },
       "configure": {
-        "duration_seconds": 20.3,
-        "log_bytes": null,
-        "log_retained": false,
-        "log_sha256": null,
+        "duration_seconds": 20.323,
+        "log_bytes": 4989,
+        "log_retained": true,
+        "log_sha256": "cec0750c13dc48b2f799b7c21c2cea1475b5e89b3489ecb76ebe12ac701ff361",
         "return_code": 0
       }
     },
@@ -64,17 +64,17 @@
   "format_version": 1,
   "policy_sha256": "f8e49f1110850d657199c24706dcb1fa6e3f054b586a0e301ccf0e24a938e25b",
   "reproducibility": {
-    "claim": "exact source and pinned builder observation only; bit-for-bit reproducibility is not established",
-    "independent_builds": 1,
-    "status": "not_verified"
+    "claim": "independent exact-recipe builds are bit-for-bit identical",
+    "independent_builds": 2,
+    "status": "verified"
   },
   "reviewed_recipe": {
     "files": {
-      "scripts/build-tdlib-linux-native.py": "d39cd62f0623bdd84ef6907ac155a7ebe33fd7c858484ea605f1d4fec52f79c7",
+      "scripts/build-tdlib-linux-native.py": "504ad0aefb6805c8c3f55bcc85b7088e613dc7a841d7a91a61f771a736fc385e",
       "scripts/inspect-tdlib-linux-native.py": "bc29459f6a17bc6898a7363210ab6b1db76d293a8142505af8bd6bdcf00fc222",
       "scripts/smoke-tdlib-native.py": "96415d673eaa2800582b472e740a47f75d24aa4109601816521df0aaab33407e",
-      "scripts/tdlib_linux_native.py": "3fc34c99ed74fdba39dc7ba6fb22a166d2942a11547c649fa55a06ef41d23c74",
-      "scripts/tdlib_native.py": "ebd1a4dde7bdfc93d150a763411d67de8bebbb7197b881b0429e4f92ca339c0d",
+      "scripts/tdlib_linux_native.py": "a8f908a9a74bf1f74cb78edf21519f2742efa62cf4ecd0ef0f13051e1648b6f1",
+      "scripts/tdlib_native.py": "243c712b947925066ea9b4ba09ed7e1511c28023d4fe72b78abe2d778b464966",
       "vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.Dockerfile": "534693e8b3b19ff8e2eaa0815b66ceaf3730a589133cebdb143801db6591f5bd"
     }
   },

@@ -1914,12 +1914,9 @@ def provenance_errors(
     verification = provenance.get("verification")
     errors.extend(_verification_record_errors(verification, policy))
     expected_reproducibility = {
-        "status": "not_verified",
-        "independent_builds": 1,
-        "claim": (
-            "exact source and bounded local recipe only; bit-for-bit "
-            "reproducibility is not established"
-        ),
+        "status": "verified",
+        "independent_builds": 2,
+        "claim": "independent exact-recipe builds are bit-for-bit identical",
     }
     if provenance.get("reproducibility") != expected_reproducibility:
         errors.append("provenance.reproducibility overclaims or differs")

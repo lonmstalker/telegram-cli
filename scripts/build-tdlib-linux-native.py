@@ -321,7 +321,29 @@ def try_reuse(policy: dict[str, Any], source: dict[str, Any]) -> bool:
     return True
 
 
-def perform_build(policy: dict[str, Any], source: dict[str, Any], *, offline: bool) -> None:
+def reference_digest(policy: dict[str, Any], source: dict[str, Any]) -> str:
+    reference = read_json_bounded(
+        LINUX_PROVENANCE_PATH, MAX_PROVENANCE_BYTES, "reference Linux provenance"
+    )
+    digest = reference.get("artifact", {}).get("sha256")
+    if (
+        reference.get("source") != source
+        or reference.get("target") != expected_linux_target_record(policy)
+        or not isinstance(digest, str)
+        or len(digest) != 64
+        or any(character not in "0123456789abcdef" for character in digest)
+    ):
+        raise NativeBuildError("reference Linux provenance is not exact")
+    return digest
+
+
+def perform_build(
+    policy: dict[str, Any],
+    source: dict[str, Any],
+    expected_digest: str,
+    *,
+    offline: bool,
+) -> None:
     manifest = read_json_bounded(SCHEMA_MANIFEST_PATH, MAX_SCHEMA_MANIFEST_BYTES, "schema manifest")
     recipe = linux_recipe_fingerprints()
     archive, archive_reused = source_archive(source, policy, offline=offline)
@@ -420,6 +442,8 @@ def perform_build(policy: dict[str, Any], source: dict[str, Any], *, offline: bo
         if not stat.S_ISREG(artifact.lstat().st_mode) or artifact.is_symlink():
             raise NativeBuildError("copied Linux artifact is not a regular file")
         inspection = inspect_linux_artifact(artifact, policy, source)
+        if inspection["sha256"] != expected_digest:
+            raise NativeBuildError("rebuilt Linux artifact differs from committed reference")
         current_policy, current_source = load_linux_contracts()
         if current_policy != policy or current_source != source or linux_recipe_fingerprints() != recipe:
             raise NativeBuildError("Linux build inputs changed during execution")
@@ -462,12 +486,9 @@ def perform_build(policy: dict[str, Any], source: dict[str, Any], *, offline: bo
             },
             "verification": inspection["verification"],
             "reproducibility": {
-                "status": "not_verified",
-                "independent_builds": 1,
-                "claim": (
-                    "exact source and pinned builder observation only; bit-for-bit "
-                    "reproducibility is not established"
-                ),
+                "status": "verified",
+                "independent_builds": 2,
+                "claim": "independent exact-recipe builds are bit-for-bit identical",
             },
         }
         errors = linux_provenance_errors(provenance, policy, source)
@@ -483,7 +504,7 @@ def perform_build(policy: dict[str, Any], source: dict[str, Any], *, offline: bo
         prune_cache(policy, digest)
         print(
             "tdlib Linux native build: published exact artifact provenance "
-            f"(sha256={digest}, bytes={inspection['bytes']}, reproducibility=not_verified)"
+            f"(sha256={digest}, bytes={inspection['bytes']}, reproducibility=verified)"
         )
 
 
@@ -504,7 +525,12 @@ def main() -> int:
         ensure_builder_image(policy, offline=arguments.offline)
         if not arguments.force and try_reuse(policy, source):
             return 0
-        perform_build(policy, source, offline=arguments.offline)
+        perform_build(
+            policy,
+            source,
+            reference_digest(policy, source),
+            offline=arguments.offline,
+        )
     return 0
 
 

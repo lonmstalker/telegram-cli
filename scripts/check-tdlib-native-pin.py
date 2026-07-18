@@ -71,7 +71,7 @@ def negative_control_errors(
         ("artifact target", ("target", "triple"), "x86_64-apple-darwin"),
         ("runtime version", ("verification", "options", "version"), "9.9.9"),
         ("dynamic dependency", ("verification", "dynamic_dependencies", 0), "/tmp/libssl.dylib"),
-        ("reproducibility", ("reproducibility", "status"), "verified"),
+        ("reproducibility", ("reproducibility", "status"), "not_verified"),
         (
             "commit injection",
             ("build", "source_preparation", "commit_identity", "commit"),

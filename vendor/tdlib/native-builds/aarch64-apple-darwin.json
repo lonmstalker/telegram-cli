@@ -1,11 +1,11 @@
 {
   "artifact": {
-    "bytes": 27654296,
-    "cache_path": "target/tdlib-native/aarch64-apple-darwin/by-sha256/5dbd30094b4fbfd35904e88d88e413f423ea7283bd81b34305eac31be6852e7e/libtdjson.1.8.66.dylib",
-    "sha256": "5dbd30094b4fbfd35904e88d88e413f423ea7283bd81b34305eac31be6852e7e"
+    "bytes": 27571720,
+    "cache_path": "target/tdlib-native/aarch64-apple-darwin/by-sha256/80d17ed3da7ea209b42789ef18319099b9489819b6a78495530777c91efbeba7/libtdjson.1.8.66.dylib",
+    "sha256": "80d17ed3da7ea209b42789ef18319099b9489819b6a78495530777c91efbeba7"
   },
   "build": {
-    "built_at_utc": "2026-07-15T00:29:56.532097Z",
+    "built_at_utc": "2026-07-16T04:19:18.730885Z",
     "dependencies": {
       "openssl": {
         "cellar_path": "/opt/homebrew/Cellar/openssl@3/3.6.2",
@@ -30,21 +30,21 @@
     },
     "phases": {
       "build": {
-        "duration_seconds": 330.225,
+        "duration_seconds": 328.902,
         "log_bytes": 373275,
-        "log_sha256": "7a0cc6b0972f1809689f67689750f8c051ef773d4f635a9680c96202eae868b4",
+        "log_sha256": "96ffa62aad16b188fc4f5b8838e6a8d61060c88e8ca63b1ab658c56479ebad2d",
         "peak_group_processes": 13,
-        "peak_group_rss_bytes": 2064613376,
-        "peak_tree_bytes": 310298581,
+        "peak_group_rss_bytes": 2174992384,
+        "peak_tree_bytes": 309561288,
         "return_code": 0
       },
       "configure": {
-        "duration_seconds": 4.27,
+        "duration_seconds": 4.238,
         "log_bytes": 5182,
-        "log_sha256": "dc0e3781a378f57831370424750b3e47beeb599fc904af5a7a03d3f479953fda",
-        "peak_group_processes": 8,
-        "peak_group_rss_bytes": 83869696,
-        "peak_tree_bytes": 40614071,
+        "log_sha256": "dbd3da015e33321c4020637a697f66c717cbb4ee688157093339c3ce3c3625fa",
+        "peak_group_processes": 6,
+        "peak_group_rss_bytes": 58753024,
+        "peak_tree_bytes": 40902042,
         "return_code": 0
       }
     },
@@ -75,17 +75,17 @@
   "policy_sha256": "32fa3e3875b822945fe25a873f3202da763b9bc7828df17215bf26df80583c72",
   "recipe": {
     "files": {
-      "scripts/build-tdlib-native.py": "9c96e4567d0bde8489bd65c837e0c00baca8d3b0fec4e37c551353a50d2ba91b",
+      "scripts/build-tdlib-native.py": "c4395ab78c9723a494254a0d793c1858115ba25e2cb0e957eb22f1d933bb2fd6",
       "scripts/process-group-target-gate.py": "b1fabf796f6921c478cd4c73baf1dbbb5b828973d25e061882b0140c8327afbd",
       "scripts/process-group-watchdog.py": "104992eac60e95035eada6f345ed127c4a6bfc20a096928884d535fb599df9b3",
       "scripts/smoke-tdlib-native.py": "96415d673eaa2800582b472e740a47f75d24aa4109601816521df0aaab33407e",
-      "scripts/tdlib_native.py": "ebd1a4dde7bdfc93d150a763411d67de8bebbb7197b881b0429e4f92ca339c0d"
+      "scripts/tdlib_native.py": "243c712b947925066ea9b4ba09ed7e1511c28023d4fe72b78abe2d778b464966"
     }
   },
   "reproducibility": {
-    "claim": "exact source and bounded local recipe only; bit-for-bit reproducibility is not established",
-    "independent_builds": 1,
-    "status": "not_verified"
+    "claim": "independent exact-recipe builds are bit-for-bit identical",
+    "independent_builds": 2,
+    "status": "verified"
   },
   "source": {
     "archive_bytes": 5785154,

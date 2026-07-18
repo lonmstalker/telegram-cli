@@ -24,6 +24,7 @@ import urllib.request
 from tdlib_native import (
     BuildLease,
     BuildGuardError,
+    MAX_PROVENANCE_BYTES,
     NativeBuildError,
     NATIVE_ROOT,
     PROVENANCE_PATH,
@@ -562,14 +563,27 @@ def build_provenance(
         },
         "verification": inspection["verification"],
         "reproducibility": {
-            "status": "not_verified",
-            "independent_builds": 1,
-            "claim": (
-                "exact source and bounded local recipe only; bit-for-bit "
-                "reproducibility is not established"
-            ),
+            "status": "verified",
+            "independent_builds": 2,
+            "claim": "independent exact-recipe builds are bit-for-bit identical",
         },
     }
+
+
+def reference_digest(policy: dict[str, Any]) -> str:
+    reference = read_json_bounded(
+        PROVENANCE_PATH, MAX_PROVENANCE_BYTES, "reference native provenance"
+    )
+    digest = reference.get("artifact", {}).get("sha256")
+    if (
+        reference.get("source") != policy["source"]
+        or reference.get("target") != expected_target_record(policy)
+        or not isinstance(digest, str)
+        or len(digest) != 64
+        or any(character not in "0123456789abcdef" for character in digest)
+    ):
+        raise NativeBuildError("reference native provenance is not exact")
+    return digest
 
 
 def _prune_artifact_cache(policy: dict[str, Any], keep_digest: str) -> None:
@@ -635,6 +649,7 @@ def perform_build(
     policy: dict[str, Any],
     schema_manifest: dict[str, Any],
     recipe_snapshot: dict[str, str],
+    expected_digest: str,
     *,
     offline: bool,
     build_lease: BuildLease,
@@ -696,8 +711,16 @@ def perform_build(
         )
         environment = minimal_environment(work_directory, paths["sdk"])
         resolved_defines = [f"-D{value}" for value in policy["target"]["cmake_defines"]]
+        prefix_maps = " ".join(
+            (
+                f"-ffile-prefix-map={source_root}=/usr/src/tdlib",
+                f"-ffile-prefix-map={build_root}=/usr/src/tdlib-build",
+            )
+        )
         resolved_defines.extend(
             [
+                f"-DCMAKE_C_FLAGS={prefix_maps}",
+                f"-DCMAKE_CXX_FLAGS={prefix_maps}",
                 f"-DCMAKE_OSX_SYSROOT={paths['sdk']}",
                 f"-DCMAKE_MAKE_PROGRAM={paths['make']}",
                 f"-DOPENSSL_ROOT_DIR={paths['openssl']}",
@@ -785,6 +808,8 @@ def perform_build(
         inspection = inspect_artifact(
             built_artifact, policy, **inspection_arguments
         )
+        if inspection["sha256"] != expected_digest:
+            raise NativeBuildError("rebuilt artifact differs from committed reference")
         assert_build_inputs_unchanged(policy, schema_manifest, recipe_snapshot)
         provenance = build_provenance(
             policy=policy,
@@ -822,7 +847,7 @@ def perform_build(
         print(
             "tdlib native build: published exact artifact provenance "
             f"(sha256={digest}, bytes={copied_bytes}, jobs=2, "
-            "reproducibility=not_verified)",
+            "reproducibility=verified)",
             flush=True,
         )
 def main() -> int:
@@ -851,6 +876,7 @@ def main() -> int:
             policy,
             schema_manifest,
             recipe_snapshot,
+            reference_digest(policy),
             offline=arguments.offline,
             build_lease=build_lease,
         )

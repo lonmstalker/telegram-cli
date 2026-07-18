@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 use telegram_core::NativeTdJson;
-use telegram_core::authorization::AuthorizationError;
+use telegram_core::authorization::{AuthorizationError, ChallengeId};
 use telegram_core::database_key::DatabaseKey;
 use telegram_core::reducer::CachedUpdateKind;
 use telegram_core::registry::AccountKind;
@@ -134,35 +134,19 @@ pub fn reach_ready(
     authorization: &mut AuthorizationCoordinator,
 ) -> Result<AuthorizationReadiness, LifecycleError> {
     let deadline = deadline_after(AUTHORIZATION_TIMEOUT)?;
-    let initial = runtime
-        .state()
-        .authorization()
-        .ok_or(LifecycleError::MissingAuthorizationState)?;
-    let mut step = authorization
-        .observe(&initial.value, Instant::now())
-        .map_err(LifecycleError::Authorization)?;
+    let mut step = initial_authorization_observation(runtime, authorization)?;
 
     loop {
         match step {
             AuthorizationObservation::ParametersRequired { generation } => {
-                let request = authorization
-                    .submit_parameters(generation, config.tdlib_parameters(), database_key)
-                    .map_err(LifecycleError::Authorization)?;
-                let response = runtime
-                    .transport()
-                    .call_until(request.into_value(), deadline)
-                    .map_err(LifecycleError::Transport)?;
-                if response.get("@type").and_then(Value::as_str) != Some("ok") {
-                    let code = response
-                        .get("code")
-                        .and_then(Value::as_i64)
-                        .and_then(|code| i32::try_from(code).ok())
-                        .unwrap_or_default();
-                    authorization
-                        .parameters_failed(generation, code)
-                        .map_err(LifecycleError::Authorization)?;
-                    return Err(LifecycleError::TdlibParametersRejected);
-                }
+                submit_tdlib_parameters(
+                    runtime,
+                    config,
+                    database_key,
+                    authorization,
+                    generation,
+                    deadline,
+                )?;
                 step = wait_for_authorization(runtime, authorization, deadline)?;
             }
             AuthorizationObservation::ReadyObserved => {
@@ -185,6 +169,48 @@ pub fn reach_ready(
     }
 }
 
+fn initial_authorization_observation(
+    runtime: &CoreRuntime,
+    authorization: &mut AuthorizationCoordinator,
+) -> Result<AuthorizationObservation, LifecycleError> {
+    let initial = runtime
+        .state()
+        .authorization()
+        .ok_or(LifecycleError::MissingAuthorizationState)?;
+    authorization
+        .observe(&initial.value, Instant::now())
+        .map_err(LifecycleError::Authorization)
+}
+
+fn submit_tdlib_parameters(
+    runtime: &mut CoreRuntime,
+    config: &DaemonConfig,
+    database_key: &DatabaseKey,
+    authorization: &mut AuthorizationCoordinator,
+    generation: ChallengeId,
+    deadline: Instant,
+) -> Result<(), LifecycleError> {
+    let request = authorization
+        .submit_parameters(generation, config.tdlib_parameters(), database_key)
+        .map_err(LifecycleError::Authorization)?;
+    let response = runtime
+        .transport()
+        .call_until(request.into_value(), deadline)
+        .map_err(LifecycleError::Transport)?;
+    if response.get("@type").and_then(Value::as_str) == Some("ok") {
+        return Ok(());
+    }
+    let code = response
+        .get("code")
+        .and_then(Value::as_i64)
+        .and_then(|code| i32::try_from(code).ok())
+        .unwrap_or_default();
+    authorization
+        .parameters_failed(generation, code)
+        .map_err(LifecycleError::Authorization)?;
+    Err(LifecycleError::TdlibParametersRejected)
+}
+
 pub fn serve_until_authorized(
     runtime: &mut CoreRuntime,
     socket: &DaemonSocket,
@@ -192,54 +218,96 @@ pub fn serve_until_authorized(
     ownership: &ProfileDatabaseLock,
     expected_user_id: Option<i64>,
 ) -> Result<(), LifecycleError> {
-    socket
-        .listener()
-        .set_nonblocking(true)
-        .map_err(|error| LifecycleError::SocketMode(error.kind()))?;
+    configure_socket(socket)?;
     loop {
         let now = Instant::now();
         server
             .poll(socket.listener(), runtime, now)
             .map_err(LifecycleError::Server)?;
         let event_deadline = now.checked_add(READY_POLL).unwrap_or(now);
-        match runtime.next_event_until(event_deadline) {
-            Ok(CoreRuntimeEvent::State(applied)) => {
-                server.record_event(applied);
-                if applied.kind == CachedUpdateKind::Authorization {
-                    let tdlib_ready = server
-                        .observe_authorization(runtime, Instant::now())
-                        .map_err(LifecycleError::Server)?;
-                    if tdlib_ready {
-                        let deadline = deadline_after(AUTHORIZATION_TIMEOUT)?;
-                        let account =
-                            verify_ready_identity(runtime, ownership, expected_user_id, deadline)?;
-                        server
-                            .mark_identity_verified(account)
-                            .map_err(LifecycleError::Server)?;
-                        return Ok(());
-                    }
-                    if matches!(
-                        authorization_type(runtime),
-                        Some(
-                            "authorizationStateLoggingOut"
-                                | "authorizationStateClosing"
-                                | "authorizationStateClosed"
-                        )
-                    ) {
-                        return Err(LifecycleError::UnexpectedAuthorizationState);
-                    }
-                }
+        match poll_authorization_event(runtime, server, event_deadline)? {
+            AuthorizationEvent::Ready => {
+                verify_server_identity(runtime, server, ownership, expected_user_id)?;
+                return Ok(());
             }
-            Ok(CoreRuntimeEvent::UnmatchedResponse { extra, response }) => {
-                if let Some(correlation_id) = extra.as_u64() {
-                    server
-                        .reconcile_authorization_response(correlation_id, &response)
-                        .map_err(LifecycleError::Server)?;
-                }
-            }
-            Err(RuntimeError::DeadlineExceeded) => {}
-            Err(error) => return Err(LifecycleError::Runtime(error)),
+            AuthorizationEvent::Lost => ensure_authorization_active(runtime)?,
+            AuthorizationEvent::None => {}
         }
+    }
+}
+
+fn configure_socket(socket: &DaemonSocket) -> Result<(), LifecycleError> {
+    socket
+        .listener()
+        .set_nonblocking(true)
+        .map_err(|error| LifecycleError::SocketMode(error.kind()))
+}
+
+#[derive(Clone, Copy)]
+enum AuthorizationEvent {
+    None,
+    Ready,
+    Lost,
+}
+
+fn poll_authorization_event(
+    runtime: &mut CoreRuntime,
+    server: &mut LeaseServer,
+    deadline: Instant,
+) -> Result<AuthorizationEvent, LifecycleError> {
+    match runtime.next_event_until(deadline) {
+        Ok(CoreRuntimeEvent::State(applied)) => {
+            server.record_event(applied);
+            if applied.kind != CachedUpdateKind::Authorization {
+                return Ok(AuthorizationEvent::None);
+            }
+            let ready = server
+                .observe_authorization(runtime, Instant::now())
+                .map_err(LifecycleError::Server)?;
+            Ok(if ready {
+                AuthorizationEvent::Ready
+            } else {
+                AuthorizationEvent::Lost
+            })
+        }
+        Ok(CoreRuntimeEvent::UnmatchedResponse { extra, response }) => {
+            if let Some(correlation_id) = extra.as_u64() {
+                server
+                    .reconcile_authorization_response(correlation_id, &response)
+                    .map_err(LifecycleError::Server)?;
+            }
+            Ok(AuthorizationEvent::None)
+        }
+        Err(RuntimeError::DeadlineExceeded) => Ok(AuthorizationEvent::None),
+        Err(error) => Err(LifecycleError::Runtime(error)),
+    }
+}
+
+fn verify_server_identity(
+    runtime: &mut CoreRuntime,
+    server: &mut LeaseServer,
+    ownership: &ProfileDatabaseLock,
+    expected_user_id: Option<i64>,
+) -> Result<(), LifecycleError> {
+    let deadline = deadline_after(AUTHORIZATION_TIMEOUT)?;
+    let account = verify_ready_identity(runtime, ownership, expected_user_id, deadline)?;
+    server
+        .mark_identity_verified(account)
+        .map_err(LifecycleError::Server)
+}
+
+fn ensure_authorization_active(runtime: &CoreRuntime) -> Result<(), LifecycleError> {
+    if matches!(
+        authorization_type(runtime),
+        Some(
+            "authorizationStateLoggingOut"
+                | "authorizationStateClosing"
+                | "authorizationStateClosed"
+        )
+    ) {
+        Err(LifecycleError::UnexpectedAuthorizationState)
+    } else {
+        Ok(())
     }
 }
 
@@ -296,10 +364,7 @@ pub fn serve_until_idle(
     ownership: &ProfileDatabaseLock,
     expected_user_id: Option<i64>,
 ) -> Result<(), LifecycleError> {
-    socket
-        .listener()
-        .set_nonblocking(true)
-        .map_err(|error| LifecycleError::SocketMode(error.kind()))?;
+    configure_socket(&socket)?;
 
     loop {
         let now = Instant::now();
@@ -307,50 +372,15 @@ pub fn serve_until_idle(
             .poll(socket.listener(), &mut runtime, now)
             .map_err(LifecycleError::Server)?;
         let event_deadline = now.checked_add(READY_POLL).unwrap_or(now);
-        match runtime.next_event_until(event_deadline) {
-            Ok(CoreRuntimeEvent::State(applied)) => {
-                server.record_event(applied);
-                if applied.kind == CachedUpdateKind::Authorization {
-                    let tdlib_ready = server
-                        .observe_authorization(&runtime, Instant::now())
-                        .map_err(LifecycleError::Server)?;
-                    if tdlib_ready {
-                        let deadline = deadline_after(AUTHORIZATION_TIMEOUT)?;
-                        let account = verify_ready_identity(
-                            &mut runtime,
-                            ownership,
-                            expected_user_id,
-                            deadline,
-                        )?;
-                        server
-                            .mark_identity_verified(account)
-                            .map_err(LifecycleError::Server)?;
-                        lifecycle.authorization_verified(Instant::now())?;
-                    } else {
-                        lifecycle.authorization_lost()?;
-                        if matches!(
-                            authorization_type(&runtime),
-                            Some(
-                                "authorizationStateLoggingOut"
-                                    | "authorizationStateClosing"
-                                    | "authorizationStateClosed"
-                            )
-                        ) {
-                            return Err(LifecycleError::UnexpectedAuthorizationState);
-                        }
-                    }
-                }
-            }
-            Ok(CoreRuntimeEvent::UnmatchedResponse { extra, response }) => {
-                if let Some(correlation_id) = extra.as_u64() {
-                    server
-                        .reconcile_authorization_response(correlation_id, &response)
-                        .map_err(LifecycleError::Server)?;
-                }
-            }
-            Err(RuntimeError::DeadlineExceeded) => {}
-            Err(error) => return Err(LifecycleError::Runtime(error)),
-        }
+        let event = poll_authorization_event(&mut runtime, &mut server, event_deadline)?;
+        update_authorization_lifecycle(
+            event,
+            &mut runtime,
+            &mut server,
+            lifecycle,
+            ownership,
+            expected_user_id,
+        )?;
 
         let has_activity = server.active_leases() != 0;
         if lifecycle.idle_elapsed(Instant::now(), has_activity) {
@@ -363,6 +393,27 @@ pub fn serve_until_idle(
     drop(socket);
     graceful_close(runtime)?;
     lifecycle.closed()
+}
+
+fn update_authorization_lifecycle(
+    event: AuthorizationEvent,
+    runtime: &mut CoreRuntime,
+    server: &mut LeaseServer,
+    lifecycle: &mut Lifecycle,
+    ownership: &ProfileDatabaseLock,
+    expected_user_id: Option<i64>,
+) -> Result<(), LifecycleError> {
+    match event {
+        AuthorizationEvent::Ready => {
+            verify_server_identity(runtime, server, ownership, expected_user_id)?;
+            lifecycle.authorization_verified(Instant::now())
+        }
+        AuthorizationEvent::Lost => {
+            lifecycle.authorization_lost()?;
+            ensure_authorization_active(runtime)
+        }
+        AuthorizationEvent::None => Ok(()),
+    }
 }
 
 fn graceful_close(mut runtime: CoreRuntime) -> Result<(), LifecycleError> {

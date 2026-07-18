@@ -84,8 +84,11 @@
   [W-20260718-009](../logs/work.md).
 - Authorization architecture consolidated: один coordinator владеет startup, broker state,
   uncertain outcome и verified account; lifecycle видит только closed observation. CLI login loop
-  отделён от socket/TTY/runtime adapters и покрыт deterministic multi-step tests; см.
-  [D-20260718-006](../decisions/decisions.md), [W-20260718-010](../logs/work.md).
+  отделён от socket/TTY/runtime adapters и покрыт deterministic multi-step tests. Mixed
+  orchestration разделена по transition/outcome; большие auth unit tests лежат в sibling
+  `tests.rs`, а exhaustive state mappings остаются цельными; см.
+  [D-20260718-006](../decisions/decisions.md), [D-20260718-008](../decisions/decisions.md),
+  [W-20260718-010](../logs/work.md), [W-20260718-012](../logs/work.md).
 - Owner TTY echo boundary: phone/OTP/email/registration видны; cloud password спрашивает `[y/N]` и hidden только по opt-in, никакого args/stdin/env/machine-output path не добавлено; [D-20260718-003](../decisions/decisions.md) supersedes [D-20260718-001](../decisions/decisions.md).
 - Primary human auth UX: один `telegram-cli login` сам проходит всю fresh challenge chain; JSON/JSONL остаётся status-only, exact-token handoff — только MCP/operator compatibility; см. [D-20260718-002](../decisions/decisions.md), [D-20260718-005](../decisions/decisions.md).
 - Code resend: TDLib `timeout` считается eligibility delay, не guessed OTP TTL; при `next_type` human flow сам запрашивает fresh code и ждёт новый challenge. First login принят, но actual expired-code resend остаётся узким live follow-up [P-20260718-002](../problems/problems.md); см. [D-20260718-004](../decisions/decisions.md), [W-20260718-007](../logs/work.md).

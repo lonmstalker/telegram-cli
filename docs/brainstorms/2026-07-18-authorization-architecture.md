@@ -31,6 +31,12 @@ runtime cancellation/polling подключаются адаптерами.
 - Submit и resend используют один dispatch/outcome path; timeout остаётся `Uncertain`.
 - CLI driver не знает про Unix socket или `/dev/tty`; tests управляют broker, prompts и временем
   без sleep и реального TDLib.
+- Размер функции используется как сигнал к проверке ответственности, а не как формальный лимит:
+  смешанная orchestration разделяется по transition/outcome, но исчерпывающие `match`-таблицы
+  состояний остаются цельными и локально проверяемыми.
+- Большие unit-test модули authorization лежат в соседних `tests.rs`; маленькие тесты, которым
+  важен доступ к приватной реализации одного модуля, могут оставаться inline — оба варианта
+  являются обычной Rust-практикой.
 - Protocol v4, owner-only prompt/redaction и текущий capability scope не меняются.
 
 ## Acceptance
@@ -39,6 +45,8 @@ runtime cancellation/polling подключаются адаптерами.
 - Startup interactive login, returning login и re-auth используют один coordinator instance.
 - Driver tests покрывают multi-step chain, resend, one-shot handoff, cancellation и malformed
   response; production TTY остаётся только owner adapter.
+- Production auth source не смешан с сотнями строк test fixtures: крупные unit tests подключены
+  через `#[cfg(test)] mod tests;` из sibling files.
 - Workspace tests, clippy `-D warnings`, formatting, boundary и wiki gates зелёные.
 
 ## Открытые вопросы

@@ -5,7 +5,7 @@ use std::thread;
 
 use telegram_protocol::{
     ClientErrorCode, CommandErrorCode, DaemonRequest, DaemonResponse, LoginChallengeId, LoginInput,
-    LoginState, OwnerLoginPrompt,
+    LoginNextAction, LoginState, OwnerLoginPrompt, ProtectedString,
 };
 use zeroize::Zeroize;
 
@@ -51,6 +51,11 @@ enum LoginAction {
     Wait,
 }
 
+enum DriverStep {
+    Continue,
+    Return(DaemonResponse),
+}
+
 struct LoginDriver<B, P, R> {
     broker: B,
     prompt: P,
@@ -84,133 +89,215 @@ where
                 return Err(CliError::new(ClientErrorCode::Cancelled));
             }
             let response = self.broker.exchange(DaemonRequest::LoginStatus)?;
-            if let (Some(expected), DaemonResponse::LoginStatus { challenge_id, .. }) =
-                (expected_challenge.as_ref(), &response)
-                && challenge_id.as_ref() != Some(expected)
-            {
+            if !challenge_matches(&response, expected_challenge.as_ref()) {
                 return Ok(command_error(CommandErrorCode::LoginChallengeInvalid));
             }
-            match response {
-                response @ DaemonResponse::LoginStatus {
-                    state: LoginState::Ready,
-                    ..
-                }
-                | response @ DaemonResponse::LoginStatus {
-                    state:
-                        LoginState::LoggingOut
-                        | LoginState::Closing
-                        | LoginState::Closed
-                        | LoginState::Unknown,
-                    ..
-                } => return Ok(response),
-                ref response @ DaemonResponse::LoginStatus {
-                    state,
-                    challenge_id: Some(ref challenge_id),
-                    ..
-                } => {
-                    if self.waiting_for.as_ref() == Some(challenge_id) {
-                        self.runtime.wait();
-                        continue;
-                    }
-                    if expected_challenge.is_none()
-                        && state == LoginState::Code
-                        && self.automatic_resend_for.as_ref() != Some(challenge_id)
-                    {
-                        self.automatic_resend_for = Some(challenge_id.clone());
-                        match self.resend(challenge_id)? {
-                            DaemonResponse::LoginCodeResent {
-                                challenge_id: resent_id,
-                            } if resent_id == *challenge_id => {
-                                self.prompt.notice("Запрошен новый код Telegram.\n")?;
-                                self.waiting_for = Some(challenge_id.clone());
-                                continue;
-                            }
-                            DaemonResponse::CommandError {
-                                code: CommandErrorCode::LoginCodeResendUnavailable,
-                            } => {}
-                            response @ (DaemonResponse::CommandError { .. }
-                            | DaemonResponse::Error { .. }) => return Ok(response),
-                            _ => return Err(invalid_response()),
-                        }
-                    }
-                    let prompt = self.fetch_prompt(challenge_id)?;
-                    let input = match self.prompt.action(state, prompt)? {
-                        LoginAction::Submit(input) => input,
-                        LoginAction::ResendCode => {
-                            let response = self.resend(challenge_id)?;
-                            match response {
-                                ref response @ DaemonResponse::LoginCodeResent {
-                                    challenge_id: ref resent_id,
-                                } if resent_id == challenge_id => {
-                                    if expected_challenge.is_some() {
-                                        return Ok(response.clone());
-                                    }
-                                    self.waiting_for = Some(challenge_id.clone());
-                                    continue;
-                                }
-                                response @ (DaemonResponse::CommandError { .. }
-                                | DaemonResponse::Error { .. }) => return Ok(response),
-                                _ => return Err(invalid_response()),
-                            }
-                        }
-                        LoginAction::Wait => {
-                            if expected_challenge.is_some() {
-                                return Ok(response.clone());
-                            }
-                            self.waiting_for = Some(challenge_id.clone());
-                            self.runtime.wait();
-                            continue;
-                        }
-                    };
-                    let submitted = self.broker.exchange(DaemonRequest::LoginSubmit {
-                        challenge_id: challenge_id.clone(),
-                        input,
-                    })?;
-                    match submitted {
-                        ref response @ DaemonResponse::LoginSubmitted {
-                            challenge_id: ref submitted_id,
-                        } if submitted_id == challenge_id => {
-                            if expected_challenge.is_some() {
-                                return Ok(response.clone());
-                            }
-                            self.waiting_for = Some(challenge_id.clone());
-                        }
-                        DaemonResponse::CommandError {
-                            code: CommandErrorCode::LoginSubmissionRejected,
-                        } if expected_challenge.is_none() && state == LoginState::Code => {
-                            match self.resend(challenge_id)? {
-                                DaemonResponse::LoginCodeResent {
-                                    challenge_id: resent_id,
-                                } if resent_id == *challenge_id => {
-                                    self.prompt
-                                        .notice("Код отклонён. Запрошен новый код Telegram.\n")?;
-                                    self.waiting_for = Some(challenge_id.clone());
-                                }
-                                DaemonResponse::CommandError {
-                                    code: CommandErrorCode::LoginCodeResendUnavailable,
-                                } => {
-                                    self.prompt
-                                        .notice("Код отклонён Telegram. Введите код ещё раз.\n")?;
-                                    self.waiting_for = None;
-                                }
-                                response @ (DaemonResponse::CommandError { .. }
-                                | DaemonResponse::Error { .. }) => return Ok(response),
-                                _ => return Err(invalid_response()),
-                            }
-                        }
-                        response @ (DaemonResponse::CommandError { .. }
-                        | DaemonResponse::Error { .. }) => return Ok(response),
-                        _ => return Err(invalid_response()),
-                    }
-                }
-                DaemonResponse::LoginStatus {
-                    challenge_id: None, ..
-                } => self.runtime.wait(),
-                response @ (DaemonResponse::CommandError { .. } | DaemonResponse::Error { .. }) => {
-                    return Ok(response);
-                }
-                _ => return Err(invalid_response()),
+            match self.handle_response(response, expected_challenge.as_ref())? {
+                DriverStep::Continue => {}
+                DriverStep::Return(response) => return Ok(response),
             }
+        }
+    }
+
+    fn handle_response(
+        &mut self,
+        response: DaemonResponse,
+        expected_challenge: Option<&LoginChallengeId>,
+    ) -> Result<DriverStep, CliError> {
+        match response {
+            response @ DaemonResponse::LoginStatus {
+                state:
+                    LoginState::Ready
+                    | LoginState::LoggingOut
+                    | LoginState::Closing
+                    | LoginState::Closed
+                    | LoginState::Unknown,
+                ..
+            } => Ok(DriverStep::Return(response)),
+            DaemonResponse::LoginStatus {
+                state,
+                challenge_id: Some(challenge_id),
+                next_action,
+            } => self.handle_challenge(state, challenge_id, next_action, expected_challenge),
+            DaemonResponse::LoginStatus {
+                challenge_id: None, ..
+            } => {
+                self.runtime.wait();
+                Ok(DriverStep::Continue)
+            }
+            response @ (DaemonResponse::CommandError { .. } | DaemonResponse::Error { .. }) => {
+                Ok(DriverStep::Return(response))
+            }
+            _ => Err(invalid_response()),
+        }
+    }
+
+    fn handle_challenge(
+        &mut self,
+        state: LoginState,
+        challenge_id: LoginChallengeId,
+        next_action: LoginNextAction,
+        expected_challenge: Option<&LoginChallengeId>,
+    ) -> Result<DriverStep, CliError> {
+        if self.waiting_for.as_ref() == Some(&challenge_id) {
+            self.runtime.wait();
+            return Ok(DriverStep::Continue);
+        }
+        if let Some(step) =
+            self.try_automatic_resend(state, &challenge_id, expected_challenge.is_none())?
+        {
+            return Ok(step);
+        }
+        let prompt = self.fetch_prompt(&challenge_id)?;
+        let action = self.prompt.action(state, prompt)?;
+        self.handle_action(action, state, challenge_id, next_action, expected_challenge)
+    }
+
+    fn try_automatic_resend(
+        &mut self,
+        state: LoginState,
+        challenge_id: &LoginChallengeId,
+        enabled: bool,
+    ) -> Result<Option<DriverStep>, CliError> {
+        if !enabled
+            || state != LoginState::Code
+            || self.automatic_resend_for.as_ref() == Some(challenge_id)
+        {
+            return Ok(None);
+        }
+        self.automatic_resend_for = Some(challenge_id.clone());
+        match self.resend(challenge_id)? {
+            DaemonResponse::LoginCodeResent {
+                challenge_id: resent_id,
+            } if resent_id == *challenge_id => {
+                self.prompt.notice("Запрошен новый код Telegram.\n")?;
+                self.waiting_for = Some(challenge_id.clone());
+                Ok(Some(DriverStep::Continue))
+            }
+            DaemonResponse::CommandError {
+                code: CommandErrorCode::LoginCodeResendUnavailable,
+            } => Ok(None),
+            response @ (DaemonResponse::CommandError { .. } | DaemonResponse::Error { .. }) => {
+                Ok(Some(DriverStep::Return(response)))
+            }
+            _ => Err(invalid_response()),
+        }
+    }
+
+    fn handle_action(
+        &mut self,
+        action: LoginAction,
+        state: LoginState,
+        challenge_id: LoginChallengeId,
+        next_action: LoginNextAction,
+        expected_challenge: Option<&LoginChallengeId>,
+    ) -> Result<DriverStep, CliError> {
+        match action {
+            LoginAction::Submit(input) => {
+                self.submit_input(state, challenge_id, input, expected_challenge)
+            }
+            LoginAction::ResendCode => self.manual_resend(&challenge_id, expected_challenge),
+            LoginAction::Wait if expected_challenge.is_some() => {
+                Ok(DriverStep::Return(DaemonResponse::LoginStatus {
+                    state,
+                    challenge_id: Some(challenge_id),
+                    next_action,
+                }))
+            }
+            LoginAction::Wait => {
+                self.waiting_for = Some(challenge_id);
+                self.runtime.wait();
+                Ok(DriverStep::Continue)
+            }
+        }
+    }
+
+    fn manual_resend(
+        &mut self,
+        challenge_id: &LoginChallengeId,
+        expected_challenge: Option<&LoginChallengeId>,
+    ) -> Result<DriverStep, CliError> {
+        match self.resend(challenge_id)? {
+            DaemonResponse::LoginCodeResent {
+                challenge_id: resent_id,
+            } if resent_id == *challenge_id => {
+                if expected_challenge.is_some() {
+                    Ok(DriverStep::Return(DaemonResponse::LoginCodeResent {
+                        challenge_id: resent_id,
+                    }))
+                } else {
+                    self.waiting_for = Some(challenge_id.clone());
+                    Ok(DriverStep::Continue)
+                }
+            }
+            response @ (DaemonResponse::CommandError { .. } | DaemonResponse::Error { .. }) => {
+                Ok(DriverStep::Return(response))
+            }
+            _ => Err(invalid_response()),
+        }
+    }
+
+    fn submit_input(
+        &mut self,
+        state: LoginState,
+        challenge_id: LoginChallengeId,
+        input: LoginInput,
+        expected_challenge: Option<&LoginChallengeId>,
+    ) -> Result<DriverStep, CliError> {
+        let response = self.broker.exchange(DaemonRequest::LoginSubmit {
+            challenge_id: challenge_id.clone(),
+            input,
+        })?;
+        match response {
+            DaemonResponse::LoginSubmitted {
+                challenge_id: submitted_id,
+            } if submitted_id == challenge_id => {
+                if expected_challenge.is_some() {
+                    Ok(DriverStep::Return(DaemonResponse::LoginSubmitted {
+                        challenge_id: submitted_id,
+                    }))
+                } else {
+                    self.waiting_for = Some(challenge_id);
+                    Ok(DriverStep::Continue)
+                }
+            }
+            DaemonResponse::CommandError {
+                code: CommandErrorCode::LoginSubmissionRejected,
+            } if expected_challenge.is_none() && state == LoginState::Code => {
+                self.handle_code_rejection(&challenge_id)
+            }
+            response @ (DaemonResponse::CommandError { .. } | DaemonResponse::Error { .. }) => {
+                Ok(DriverStep::Return(response))
+            }
+            _ => Err(invalid_response()),
+        }
+    }
+
+    fn handle_code_rejection(
+        &mut self,
+        challenge_id: &LoginChallengeId,
+    ) -> Result<DriverStep, CliError> {
+        match self.resend(challenge_id)? {
+            DaemonResponse::LoginCodeResent {
+                challenge_id: resent_id,
+            } if resent_id == *challenge_id => {
+                self.prompt
+                    .notice("Код отклонён. Запрошен новый код Telegram.\n")?;
+                self.waiting_for = Some(challenge_id.clone());
+                Ok(DriverStep::Continue)
+            }
+            DaemonResponse::CommandError {
+                code: CommandErrorCode::LoginCodeResendUnavailable,
+            } => {
+                self.prompt
+                    .notice("Код отклонён Telegram. Введите код ещё раз.\n")?;
+                self.waiting_for = None;
+                Ok(DriverStep::Continue)
+            }
+            response @ (DaemonResponse::CommandError { .. } | DaemonResponse::Error { .. }) => {
+                Ok(DriverStep::Return(response))
+            }
+            _ => Err(invalid_response()),
         }
     }
 
@@ -275,101 +362,155 @@ impl LoginRuntime for SystemLoginRuntime {
 }
 
 fn tty_login_action(state: LoginState, prompt: OwnerLoginPrompt) -> Result<LoginAction, CliError> {
-    let input = match (state, prompt) {
+    if !prompt_matches_state(state, &prompt) {
+        return Err(invalid_response());
+    }
+    match prompt {
+        OwnerLoginPrompt::PhoneNumber | OwnerLoginPrompt::PremiumPurchase => phone_login_action(),
+        OwnerLoginPrompt::AuthenticationCode => authentication_code_login_action(),
+        OwnerLoginPrompt::Password {
+            hint,
+            has_recovery_email_address,
+            recovery_email_address_pattern,
+        } => password_login_action(
+            hint,
+            has_recovery_email_address,
+            recovery_email_address_pattern,
+        ),
+        OwnerLoginPrompt::EmailAddress {
+            allow_apple_id,
+            allow_google_id,
+        } => email_address_login_action(allow_apple_id, allow_google_id),
+        OwnerLoginPrompt::EmailCode {
+            allow_apple_id,
+            allow_google_id,
+        } => email_code_login_action(allow_apple_id, allow_google_id),
+        OwnerLoginPrompt::Registration {
+            terms,
+            minimum_user_age,
+            show_popup,
+        } => registration_login_action(terms, minimum_user_age, show_popup),
+        OwnerLoginPrompt::QrCode { link } => qr_login_action(link),
+    }
+}
+
+fn authentication_code_login_action() -> Result<LoginAction, CliError> {
+    Ok(LoginAction::Submit(LoginInput::AuthenticationCode {
+        value: read_tty_visible("Код Telegram: ")?,
+    }))
+}
+
+fn email_address_login_action(
+    allow_apple_id: bool,
+    allow_google_id: bool,
+) -> Result<LoginAction, CliError> {
+    Ok(LoginAction::Submit(email_login_input(
+        allow_apple_id,
+        allow_google_id,
+        false,
+    )?))
+}
+
+fn email_code_login_action(
+    allow_apple_id: bool,
+    allow_google_id: bool,
+) -> Result<LoginAction, CliError> {
+    if read_yes_no("Запросить новый email-код? [y/N]: ")? {
+        return Ok(LoginAction::ResendCode);
+    }
+    Ok(LoginAction::Submit(email_login_input(
+        allow_apple_id,
+        allow_google_id,
+        true,
+    )?))
+}
+
+fn prompt_matches_state(state: LoginState, prompt: &OwnerLoginPrompt) -> bool {
+    matches!(
+        (state, prompt),
         (LoginState::PhoneNumber, OwnerLoginPrompt::PhoneNumber)
-        | (LoginState::PremiumPurchase, OwnerLoginPrompt::PremiumPurchase) => {
-            if read_yes_no("Войти по QR вместо номера? [y/N]: ")? {
-                LoginInput::QrCode
-            } else {
-                LoginInput::PhoneNumber {
-                    value: read_tty_visible("Телефон: ")?,
-                }
-            }
+            | (
+                LoginState::PremiumPurchase,
+                OwnerLoginPrompt::PremiumPurchase
+            )
+            | (LoginState::Code, OwnerLoginPrompt::AuthenticationCode)
+            | (LoginState::Password, OwnerLoginPrompt::Password { .. })
+            | (
+                LoginState::EmailAddress,
+                OwnerLoginPrompt::EmailAddress { .. }
+            )
+            | (LoginState::EmailCode, OwnerLoginPrompt::EmailCode { .. })
+            | (
+                LoginState::Registration,
+                OwnerLoginPrompt::Registration { .. }
+            )
+            | (LoginState::QrCode, OwnerLoginPrompt::QrCode { .. })
+    )
+}
+
+fn phone_login_action() -> Result<LoginAction, CliError> {
+    let input = if read_yes_no("Войти по QR вместо номера? [y/N]: ")? {
+        LoginInput::QrCode
+    } else {
+        LoginInput::PhoneNumber {
+            value: read_tty_visible("Телефон: ")?,
         }
-        (LoginState::Code, OwnerLoginPrompt::AuthenticationCode) => {
-            LoginInput::AuthenticationCode {
-                value: read_tty_visible("Код Telegram: ")?,
-            }
-        }
-        (
-            LoginState::Password,
-            OwnerLoginPrompt::Password {
-                hint,
-                has_recovery_email_address,
-                recovery_email_address_pattern,
-            },
-        ) => {
-            let hint = hint.into_inner();
-            if !hint.is_empty() {
-                write_tty_notice(&format!("Подсказка Telegram: {hint}\n"))?;
-            }
-            if has_recovery_email_address {
-                let pattern = recovery_email_address_pattern.into_inner();
-                write_tty_notice(&format!("Recovery email: {pattern}\n"))?;
-            }
-            LoginInput::Password {
-                value: read_cloud_password()?,
-            }
-        }
-        (
-            LoginState::EmailAddress,
-            OwnerLoginPrompt::EmailAddress {
-                allow_apple_id,
-                allow_google_id,
-            },
-        ) => email_login_input(allow_apple_id, allow_google_id, false)?,
-        (
-            LoginState::EmailCode,
-            OwnerLoginPrompt::EmailCode {
-                allow_apple_id,
-                allow_google_id,
-            },
-        ) => {
-            if read_yes_no("Запросить новый email-код? [y/N]: ")? {
-                return Ok(LoginAction::ResendCode);
-            }
-            email_login_input(allow_apple_id, allow_google_id, true)?
-        }
-        (
-            LoginState::Registration,
-            OwnerLoginPrompt::Registration {
-                terms,
-                minimum_user_age,
-                show_popup,
-            },
-        ) => {
-            let terms = terms.into_inner();
-            write_tty_notice("Условия использования Telegram:\n")?;
-            write_tty_notice(&terms)?;
-            write_tty_notice("\n")?;
-            if minimum_user_age > 0 {
-                write_tty_notice(&format!("Минимальный возраст: {minimum_user_age}.\n"))?;
-            }
-            if show_popup {
-                write_tty_notice("Telegram требует явного подтверждения этих условий.\n")?;
-            }
-            if !read_yes_no("Принять условия использования? [y/N]: ")? {
-                return Err(CliError::new(ClientErrorCode::Cancelled));
-            }
-            let notify_contacts =
-                read_yes_no("Уведомить контакты, которые добавили вас, о регистрации? [y/N]: ")?;
-            LoginInput::Registration {
-                first_name: read_tty_visible("Имя: ")?,
-                last_name: read_tty_visible("Фамилия (можно пустую): ")?,
-                terms_accepted: true,
-                disable_notification: !notify_contacts,
-            }
-        }
-        (LoginState::QrCode, OwnerLoginPrompt::QrCode { link }) => {
-            let link = link.into_inner();
-            write_tty_notice("Откройте эту ссылку на уже авторизованном устройстве Telegram:\n")?;
-            write_tty_notice(&link)?;
-            write_tty_notice("\n")?;
-            return Ok(LoginAction::Wait);
-        }
-        _ => return Err(invalid_response()),
     };
     Ok(LoginAction::Submit(input))
+}
+
+fn password_login_action(
+    hint: ProtectedString,
+    has_recovery_email_address: bool,
+    recovery_email_address_pattern: ProtectedString,
+) -> Result<LoginAction, CliError> {
+    let hint = hint.into_inner();
+    if !hint.is_empty() {
+        write_tty_notice(&format!("Подсказка Telegram: {hint}\n"))?;
+    }
+    if has_recovery_email_address {
+        let pattern = recovery_email_address_pattern.into_inner();
+        write_tty_notice(&format!("Recovery email: {pattern}\n"))?;
+    }
+    Ok(LoginAction::Submit(LoginInput::Password {
+        value: read_cloud_password()?,
+    }))
+}
+
+fn registration_login_action(
+    terms: ProtectedString,
+    minimum_user_age: i32,
+    show_popup: bool,
+) -> Result<LoginAction, CliError> {
+    let terms = terms.into_inner();
+    write_tty_notice("Условия использования Telegram:\n")?;
+    write_tty_notice(&terms)?;
+    write_tty_notice("\n")?;
+    if minimum_user_age > 0 {
+        write_tty_notice(&format!("Минимальный возраст: {minimum_user_age}.\n"))?;
+    }
+    if show_popup {
+        write_tty_notice("Telegram требует явного подтверждения этих условий.\n")?;
+    }
+    if !read_yes_no("Принять условия использования? [y/N]: ")? {
+        return Err(CliError::new(ClientErrorCode::Cancelled));
+    }
+    let notify_contacts =
+        read_yes_no("Уведомить контакты, которые добавили вас, о регистрации? [y/N]: ")?;
+    Ok(LoginAction::Submit(LoginInput::Registration {
+        first_name: read_tty_visible("Имя: ")?,
+        last_name: read_tty_visible("Фамилия (можно пустую): ")?,
+        terms_accepted: true,
+        disable_notification: !notify_contacts,
+    }))
+}
+
+fn qr_login_action(link: ProtectedString) -> Result<LoginAction, CliError> {
+    let link = link.into_inner();
+    write_tty_notice("Откройте эту ссылку на уже авторизованном устройстве Telegram:\n")?;
+    write_tty_notice(&link)?;
+    write_tty_notice("\n")?;
+    Ok(LoginAction::Wait)
 }
 
 fn email_login_input(
@@ -418,302 +559,14 @@ fn command_error(code: CommandErrorCode) -> DaemonResponse {
     DaemonResponse::CommandError { code }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::collections::VecDeque;
-
-    use telegram_protocol::{
-        ClientErrorCode, DaemonRequest, DaemonResponse, LoginChallengeId, LoginInput,
-        LoginNextAction, LoginState, OwnerLoginPrompt, ProtectedString,
-    };
-
-    use super::{LoginAction, LoginBroker, LoginDriver, LoginRuntime, OwnerPrompt};
-    use crate::CliError;
-
-    struct FakeBroker {
-        script: VecDeque<(DaemonRequest, DaemonResponse)>,
-    }
-
-    impl LoginBroker for FakeBroker {
-        fn exchange(&mut self, request: DaemonRequest) -> Result<DaemonResponse, CliError> {
-            let (expected, response) = self.script.pop_front().expect("unexpected broker call");
-            assert_eq!(request, expected);
-            Ok(response)
+fn challenge_matches(response: &DaemonResponse, expected: Option<&LoginChallengeId>) -> bool {
+    match (expected, response) {
+        (Some(expected), DaemonResponse::LoginStatus { challenge_id, .. }) => {
+            challenge_id.as_ref() == Some(expected)
         }
-    }
-
-    struct FakePrompt {
-        actions: VecDeque<LoginAction>,
-        notices: Vec<&'static str>,
-    }
-
-    impl OwnerPrompt for FakePrompt {
-        fn action(
-            &mut self,
-            _state: LoginState,
-            _prompt: OwnerLoginPrompt,
-        ) -> Result<LoginAction, CliError> {
-            Ok(self.actions.pop_front().expect("unexpected owner prompt"))
-        }
-
-        fn notice(&mut self, message: &'static str) -> Result<(), CliError> {
-            self.notices.push(message);
-            Ok(())
-        }
-    }
-
-    #[derive(Default)]
-    struct FakeRuntime {
-        cancelled: bool,
-        waits: usize,
-    }
-
-    impl LoginRuntime for FakeRuntime {
-        fn cancelled(&self) -> bool {
-            self.cancelled
-        }
-
-        fn wait(&mut self) {
-            self.waits += 1;
-        }
-    }
-
-    #[test]
-    fn driver_completes_multi_step_chain_without_transport_or_tty_knowledge() {
-        let phone = token(1);
-        let code = token(2);
-        let password = token(3);
-        let mut driver = LoginDriver::new(
-            FakeBroker {
-                script: VecDeque::from([
-                    (
-                        DaemonRequest::LoginStatus,
-                        status(LoginState::PhoneNumber, Some(&phone)),
-                    ),
-                    (
-                        DaemonRequest::LoginPrompt {
-                            challenge_id: phone.clone(),
-                        },
-                        prompt(&phone, OwnerLoginPrompt::PhoneNumber),
-                    ),
-                    (
-                        DaemonRequest::LoginSubmit {
-                            challenge_id: phone.clone(),
-                            input: phone_input(),
-                        },
-                        DaemonResponse::LoginSubmitted {
-                            challenge_id: phone.clone(),
-                        },
-                    ),
-                    (
-                        DaemonRequest::LoginStatus,
-                        status(LoginState::Code, Some(&code)),
-                    ),
-                    (
-                        DaemonRequest::LoginCodeResend {
-                            challenge_id: code.clone(),
-                        },
-                        DaemonResponse::CommandError {
-                            code: telegram_protocol::CommandErrorCode::LoginCodeResendUnavailable,
-                        },
-                    ),
-                    (
-                        DaemonRequest::LoginPrompt {
-                            challenge_id: code.clone(),
-                        },
-                        prompt(&code, OwnerLoginPrompt::AuthenticationCode),
-                    ),
-                    (
-                        DaemonRequest::LoginSubmit {
-                            challenge_id: code.clone(),
-                            input: code_input(),
-                        },
-                        DaemonResponse::LoginSubmitted {
-                            challenge_id: code.clone(),
-                        },
-                    ),
-                    (
-                        DaemonRequest::LoginStatus,
-                        status(LoginState::Password, Some(&password)),
-                    ),
-                    (
-                        DaemonRequest::LoginPrompt {
-                            challenge_id: password.clone(),
-                        },
-                        prompt(
-                            &password,
-                            OwnerLoginPrompt::Password {
-                                hint: ProtectedString::new(String::new()),
-                                has_recovery_email_address: false,
-                                recovery_email_address_pattern: ProtectedString::new(String::new()),
-                            },
-                        ),
-                    ),
-                    (
-                        DaemonRequest::LoginSubmit {
-                            challenge_id: password.clone(),
-                            input: password_input(),
-                        },
-                        DaemonResponse::LoginSubmitted {
-                            challenge_id: password,
-                        },
-                    ),
-                    (DaemonRequest::LoginStatus, status(LoginState::Ready, None)),
-                ]),
-            },
-            FakePrompt {
-                actions: VecDeque::from([
-                    LoginAction::Submit(phone_input()),
-                    LoginAction::Submit(code_input()),
-                    LoginAction::Submit(password_input()),
-                ]),
-                notices: Vec::new(),
-            },
-            FakeRuntime::default(),
-        );
-
-        assert!(matches!(
-            driver.run(None).unwrap(),
-            DaemonResponse::LoginStatus {
-                state: LoginState::Ready,
-                ..
-            }
-        ));
-        assert!(driver.broker.script.is_empty());
-    }
-
-    #[test]
-    fn one_shot_handoff_stops_after_exact_submission() {
-        let challenge = token(4);
-        let mut driver = LoginDriver::new(
-            FakeBroker {
-                script: VecDeque::from([
-                    (
-                        DaemonRequest::LoginStatus,
-                        status(LoginState::PhoneNumber, Some(&challenge)),
-                    ),
-                    (
-                        DaemonRequest::LoginPrompt {
-                            challenge_id: challenge.clone(),
-                        },
-                        prompt(&challenge, OwnerLoginPrompt::PhoneNumber),
-                    ),
-                    (
-                        DaemonRequest::LoginSubmit {
-                            challenge_id: challenge.clone(),
-                            input: phone_input(),
-                        },
-                        DaemonResponse::LoginSubmitted {
-                            challenge_id: challenge.clone(),
-                        },
-                    ),
-                ]),
-            },
-            FakePrompt {
-                actions: VecDeque::from([LoginAction::Submit(phone_input())]),
-                notices: Vec::new(),
-            },
-            FakeRuntime::default(),
-        );
-
-        assert_eq!(
-            driver.run(Some(challenge.clone())).unwrap(),
-            DaemonResponse::LoginSubmitted {
-                challenge_id: challenge
-            }
-        );
-        assert!(driver.broker.script.is_empty());
-    }
-
-    #[test]
-    fn cancellation_is_checked_before_any_broker_call() {
-        let mut driver = LoginDriver::new(
-            FakeBroker {
-                script: VecDeque::new(),
-            },
-            FakePrompt {
-                actions: VecDeque::new(),
-                notices: Vec::new(),
-            },
-            FakeRuntime {
-                cancelled: true,
-                waits: 0,
-            },
-        );
-        assert_eq!(
-            driver.run(None),
-            Err(CliError::new(ClientErrorCode::Cancelled))
-        );
-    }
-
-    #[test]
-    fn mismatched_owner_prompt_fails_closed() {
-        let challenge = token(5);
-        let other = token(6);
-        let mut driver = LoginDriver::new(
-            FakeBroker {
-                script: VecDeque::from([
-                    (
-                        DaemonRequest::LoginStatus,
-                        status(LoginState::PhoneNumber, Some(&challenge)),
-                    ),
-                    (
-                        DaemonRequest::LoginPrompt {
-                            challenge_id: challenge,
-                        },
-                        prompt(&other, OwnerLoginPrompt::PhoneNumber),
-                    ),
-                ]),
-            },
-            FakePrompt {
-                actions: VecDeque::new(),
-                notices: Vec::new(),
-            },
-            FakeRuntime::default(),
-        );
-        assert_eq!(
-            driver.run(None),
-            Err(CliError::new(ClientErrorCode::InvalidResponse))
-        );
-    }
-
-    fn token(generation: u64) -> LoginChallengeId {
-        LoginChallengeId::new(format!("auth-{:032x}-{generation:016x}", 1))
-    }
-
-    fn status(state: LoginState, challenge: Option<&LoginChallengeId>) -> DaemonResponse {
-        DaemonResponse::LoginStatus {
-            state,
-            challenge_id: challenge.cloned(),
-            next_action: match state {
-                LoginState::Ready => LoginNextAction::Ready,
-                _ => LoginNextAction::SubmitViaProtectedChannel,
-            },
-        }
-    }
-
-    fn prompt(challenge: &LoginChallengeId, prompt: OwnerLoginPrompt) -> DaemonResponse {
-        DaemonResponse::LoginPrompt {
-            challenge_id: challenge.clone(),
-            prompt,
-        }
-    }
-
-    fn phone_input() -> LoginInput {
-        LoginInput::PhoneNumber {
-            value: ProtectedString::new("+10000000000".to_owned()),
-        }
-    }
-
-    fn code_input() -> LoginInput {
-        LoginInput::AuthenticationCode {
-            value: ProtectedString::new("12345".to_owned()),
-        }
-    }
-
-    fn password_input() -> LoginInput {
-        LoginInput::Password {
-            value: ProtectedString::new("secret".to_owned()),
-        }
+        _ => true,
     }
 }
+
+#[cfg(test)]
+mod tests;

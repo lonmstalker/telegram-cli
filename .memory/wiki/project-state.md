@@ -15,6 +15,9 @@
   login → re-auth и единолично хранит verified account; CLI protocol loop извлечён в тестируемый
   driver с socket/TTY/runtime adapters ([D-20260718-006](../decisions/decisions.md),
   [W-20260718-010](../logs/work.md)).
+- Authorization maintainability pass разделил mixed orchestration по transition/outcome и вынес
+  крупные unit-test модули в sibling `tests.rs`; exhaustive state mappings оставлены цельными
+  ([D-20260718-008](../decisions/decisions.md), [W-20260718-012](../logs/work.md)).
 - Immediate `SecureTtyFailed` в Codex app terminal исправлен: live retry устойчиво ждал скрытый input до owner `Ctrl+C`, terminal восстановился, challenge не сменился; prompts теперь явно объясняют hidden echo ([P-20260718-001](../problems/problems.md)).
 - По текущему owner decision phone/OTP/email/registration видны в `/dev/tty`; cloud password default-visible и hidden только после `[y/N]` opt-in. Authorization values по-прежнему отсутствуют в args/stdin/env/machine output ([D-20260718-003](../decisions/decisions.md), supersedes [D-20260718-001](../decisions/decisions.md)).
 - Default human `telegram-cli login` теперь сам проходит phone/code/2FA/email/registration chain без ручного `challenge_id`; machine JSON/JSONL status и MCP one-shot handoff остаются разделены ([D-20260718-002](../decisions/decisions.md)).

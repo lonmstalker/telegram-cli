@@ -309,6 +309,9 @@ Decision gate: начинать только после acceptance P0–P7.
 - [x] Authorization architecture consolidation: один daemon-owned coordinator от startup до
   re-auth, без параллельных readiness/account полей; тестируемый CLI LoginDriver с broker/prompt/
   runtime adapters; wire/secret/capability behavior не меняется.
+- [x] Authorization maintainability: mixed orchestration разделена по transition/outcome,
+  большие unit-test модули вынесены в sibling `tests.rs`, exhaustive state mappings сохранены
+  цельными; protocol/secret/capability behavior не меняется.
 - [ ] First login и returning encrypted login; два параллельных агента; crash одного lease holder.
 - [ ] List/resolve/open/history/search/full info/members/statistics.
 - [ ] Channel configuration и moderation с preview/verify.

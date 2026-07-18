@@ -11,19 +11,23 @@ fn generated_registry_matches_parser_and_supports_lookup() {
         schema.inventory().constructor_names().len()
     );
     assert!(METHODS.windows(2).all(|pair| pair[0].name < pair[1].name));
-    assert!(CONSTRUCTORS
-        .windows(2)
-        .all(|pair| pair[0].name < pair[1].name));
+    assert!(
+        CONSTRUCTORS
+            .windows(2)
+            .all(|pair| pair[0].name < pair[1].name)
+    );
     assert!(UPDATES.iter().all(|name| {
         constructor(name).is_some_and(|descriptor| descriptor.result.name == "Update")
     }));
     assert_eq!(method("getMe").unwrap().result.name, "User");
     assert_eq!(constructor("user").unwrap().result.name, "User");
     assert_eq!(CAPABILITIES.len(), METHODS.len());
-    assert!(CAPABILITIES
-        .iter()
-        .zip(METHODS)
-        .all(|(capability, method)| capability.method == method.name));
+    assert!(
+        CAPABILITIES
+            .iter()
+            .zip(METHODS)
+            .all(|(capability, method)| capability.method == method.name)
+    );
 }
 
 #[test]

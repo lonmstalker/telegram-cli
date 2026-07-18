@@ -4,7 +4,7 @@ use std::fmt;
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::time::Instant;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::reducer::{AppliedUpdate, ReducerError, StateReducer, UpdateGap};
 use crate::transport::{TdJsonBackend, TdJsonEvent, TdJsonTransport, TransportError};

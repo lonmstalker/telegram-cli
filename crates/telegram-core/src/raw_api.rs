@@ -8,10 +8,11 @@ use std::num::NonZeroUsize;
 use std::time::Duration;
 use std::time::{Instant, SystemTime};
 
-use crate::approval::{approval_required, ApprovedPlan, PlanAuthorizationError};
+use crate::approval::{ApprovedPlan, PlanAuthorizationError, approval_required};
 use crate::registry::{
-    self, AccountKind, CapabilityDescriptor, CapabilityDisposition, RiskClass, SymbolDescriptor,
-    TdObject, ValidatedRequest, ValidationError, BUILTINS, CAPABILITIES, CONSTRUCTORS, TYPES,
+    self, AccountKind, BUILTINS, CAPABILITIES, CONSTRUCTORS, CapabilityDescriptor,
+    CapabilityDisposition, RiskClass, SymbolDescriptor, TYPES, TdObject, ValidatedRequest,
+    ValidationError,
 };
 use crate::retry::{self, AttemptFailure, RetryExecution};
 use crate::runtime::CoreRuntime;

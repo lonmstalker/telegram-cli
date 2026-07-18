@@ -7,11 +7,11 @@ use std::path::Path;
 use std::time::{Instant, SystemTime};
 
 use serde::Serialize;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 use crate::approval::PlanPreview;
 use crate::authorization::SensitiveString;
-use crate::raw_api::{td_call, td_call_with_boundary, RawApiError, RawPolicy};
+use crate::raw_api::{RawApiError, RawPolicy, td_call, td_call_with_boundary};
 use crate::reducer::{ChatList, ChatListPosition, MessageSendKey, MessageSendState, ReducerError};
 use crate::registry::{RetryClass, RiskClass, TdObject, ValidatedRequest};
 use crate::runtime::{CoreRuntime, RuntimeError};
@@ -2315,7 +2315,7 @@ fn create_custom_emoji_set(
     let response = match call("createNewStickerSet", custom_emoji_set_request(action)?) {
         Ok(response) => response,
         Err(error) if response_timed_out(&error) => {
-            return reconcile_created_custom_emoji_set(action, sticker_file_id, call)
+            return reconcile_created_custom_emoji_set(action, sticker_file_id, call);
         }
         Err(error) => return Err(error),
     };
@@ -3523,7 +3523,7 @@ fn star_payment_form(value: &Value) -> Result<(i64, i64, i64), ChatWorkflowError
         _ => {
             return Err(ChatWorkflowError::CapabilityDenied {
                 capability: "stars_only_payment",
-            })
+            });
         }
     };
     let payment_form_id = required_i64(value, "id", "getPaymentForm")?;
@@ -5550,7 +5550,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::registry::{capability, CapabilityDisposition, RiskClass};
+    use crate::registry::{CapabilityDisposition, RiskClass, capability};
     use crate::transport::{BackendError, TdJsonBackend};
     use ed25519_dalek::{Signer, SigningKey};
 
@@ -5988,9 +5988,11 @@ mod tests {
         redact_message_content(true, &mut page);
         assert!(page.content_redacted);
         assert_eq!(page.messages[0]["content"]["@type"], "messageText");
-        assert!(!serde_json::to_string(&page)
-            .unwrap()
-            .contains("PROTECTED_CONTENT_CANARY"));
+        assert!(
+            !serde_json::to_string(&page)
+                .unwrap()
+                .contains("PROTECTED_CONTENT_CANARY")
+        );
     }
 
     #[test]
@@ -6013,14 +6015,16 @@ mod tests {
 
         assert_eq!(receipt.outcome, TransferCancellationOutcome::Verified);
         assert!(receipt.complete);
-        assert!(file_size_verified(
-            &json!({
-                "size":10,"expected_size":10,
-                "local":{"downloaded_size":9},"remote":{"uploaded_size":0}
-            }),
-            FileDirection::Download,
-        )
-        .is_err());
+        assert!(
+            file_size_verified(
+                &json!({
+                    "size":10,"expected_size":10,
+                    "local":{"downloaded_size":9},"remote":{"uploaded_size":0}
+                }),
+                FileDirection::Download,
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -6351,9 +6355,11 @@ mod tests {
             .unwrap();
         assert_eq!(sent.outcome, BusinessMessageOutcome::Sent);
         assert_eq!(sent.message_id, Some(11));
-        assert!(!serde_json::to_string(&sent)
-            .unwrap()
-            .contains("CUSTOMER_TEXT_CANARY"));
+        assert!(
+            !serde_json::to_string(&sent)
+                .unwrap()
+                .contains("CUSTOMER_TEXT_CANARY")
+        );
 
         let mut reads = 0;
         let mut sends = 0;
@@ -6480,9 +6486,11 @@ mod tests {
             verification.outcome,
             StarPaymentOutcome::VerificationRequired
         );
-        assert!(!serde_json::to_string(&verification)
-            .unwrap()
-            .contains("VERIFICATION_URL_CANARY"));
+        assert!(
+            !serde_json::to_string(&verification)
+                .unwrap()
+                .contains("VERIFICATION_URL_CANARY")
+        );
     }
 
     #[test]
@@ -6562,9 +6570,11 @@ mod tests {
         );
         assert_eq!((snapshot.sent_bytes, snapshot.received_bytes), (20, 28));
         assert!(snapshot.database_report_redacted);
-        assert!(!serde_json::to_string(&snapshot)
-            .unwrap()
-            .contains("DATABASE_REPORT_CANARY"));
+        assert!(
+            !serde_json::to_string(&snapshot)
+                .unwrap()
+                .contains("DATABASE_REPORT_CANARY")
+        );
     }
 
     #[test]
@@ -6924,7 +6934,7 @@ mod tests {
 
     #[test]
     fn chat_title_requires_exact_approval_and_matching_update() {
-        use crate::approval::{approval_payload, ApprovalReceipt, ApprovalVerifier};
+        use crate::approval::{ApprovalReceipt, ApprovalVerifier, approval_payload};
 
         let (backend, methods) = TerminalWorkflowBackend::new();
         let mut runtime = CoreRuntime::start(backend, test_deadline()).unwrap();
@@ -6963,11 +6973,13 @@ mod tests {
         let receipt = apply_chat_title(&mut runtime, &policy, &plan, test_deadline()).unwrap();
         assert_eq!(receipt.outcome, ChatTitleOutcome::Verified);
         assert!(receipt.complete);
-        assert!(methods
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|method| method == "setChatTitle"));
+        assert!(
+            methods
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|method| method == "setChatTitle")
+        );
         runtime.shutdown().unwrap();
     }
 
@@ -7096,9 +7108,11 @@ mod tests {
         assert_eq!(reply.content_type, "messageText");
         assert_eq!(reply.callback_button_count, 2);
         assert!(run.passed && run.complete);
-        assert!(!serde_json::to_string(&run)
-            .unwrap()
-            .contains("PRIVATE_BOT_REPLY_CANARY"));
+        assert!(
+            !serde_json::to_string(&run)
+                .unwrap()
+                .contains("PRIVATE_BOT_REPLY_CANARY")
+        );
 
         let answered = click_bot_callback(&runtime, &policy, 9, 20, 0, 0, test_deadline()).unwrap();
         assert!(answered.passed && answered.complete);
@@ -7148,17 +7162,21 @@ mod tests {
         )
         .unwrap();
         let launch_id = lease.handoff();
-        assert!(!methods
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|method| method == "closeWebApp"));
+        assert!(
+            !methods
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|method| method == "closeWebApp")
+        );
         close_web_app_launch(&runtime, &policy, launch_id, test_deadline()).unwrap();
-        assert!(methods
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|method| method == "closeWebApp"));
+        assert!(
+            methods
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|method| method == "closeWebApp")
+        );
         runtime.shutdown().unwrap();
     }
 
@@ -7250,11 +7268,13 @@ mod tests {
             ChatWorkflowError::ResyncRequired { gap_after_sequence }
                 if gap_after_sequence == gap.after_sequence.map(|value| value.get())
         ));
-        assert!(!methods
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|method| method == "sendBotStartMessage"));
+        assert!(
+            !methods
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|method| method == "sendBotStartMessage")
+        );
 
         let receipt = resync_after_gap(&mut runtime, &policy, test_deadline()).unwrap();
         assert_eq!(

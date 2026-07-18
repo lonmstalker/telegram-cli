@@ -10,12 +10,16 @@ fn discovery_uses_generated_registry_without_method_wrappers() {
     ));
 
     let results = schema_search("chat statistics");
-    assert!(results
-        .iter()
-        .any(|result| result.name() == "getChatStatistics"));
-    assert!(results
-        .windows(2)
-        .all(|pair| pair[0].name() <= pair[1].name()));
+    assert!(
+        results
+            .iter()
+            .any(|result| result.name() == "getChatStatistics")
+    );
+    assert!(
+        results
+            .windows(2)
+            .all(|pair| pair[0].name() <= pair[1].name())
+    );
 
     assert!(matches!(
         schema_describe("getMe"),
@@ -28,9 +32,11 @@ fn discovery_uses_generated_registry_without_method_wrappers() {
     let Some(SchemaDescription::Type { constructors, .. }) = schema_describe("User") else {
         panic!("User type must be described");
     };
-    assert!(constructors
-        .iter()
-        .any(|constructor| constructor.name == "user"));
+    assert!(
+        constructors
+            .iter()
+            .any(|constructor| constructor.name == "user")
+    );
 }
 
 #[test]

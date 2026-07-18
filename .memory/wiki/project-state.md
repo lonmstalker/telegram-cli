@@ -1,9 +1,10 @@
 # Текущее состояние проекта
 
-Последняя полная проверка: 2026-07-18.
+Последняя полная проверка: 2026-07-19.
 
 ## Verified
 
+- Root `Cargo.toml` единолично владеет общими versions/features и workspace-relative paths через `[workspace.dependencies]`; members используют `dep.workspace = true`, а однократные dependencies остаются локальными ([W-20260719-001](../logs/work.md)).
 - Три client-side реализации daemon socket сведены в `telegram-client`: security predicates для uid/type/`0700`/`0600`/`nlink == 1` едины, а CLI/MCP/runner сохраняют прежние timeout, response framing и локальный error mapping через explicit options ([D-20260718-009](../decisions/decisions.md), [W-20260718-013](../logs/work.md)).
 - Первый Tasks-пункт P9 закрыт: для macOS arm64 и Linux x86_64 две independent exact-recipe builds совпали bit-for-bit; rebuild сверяет новый artifact с committed reference digest до публикации ([D-20260718-007](../decisions/decisions.md), [W-20260718-011](../logs/work.md)).
 - P10 authorization slice accepted: отдельный profile прошёл owner TTY first login, daemon terminal `Ready + getMe`, graceful `Draining -> Closed` и returning restart до `Ready` без повторного phone/OTP ([W-20260718-008](../logs/work.md)).

@@ -14,10 +14,12 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use telegram_protocol::{
-    ClientErrorCode, DaemonRequest, DaemonResponse, LeaseErrorCode, LeaseId, LoginInput,
-    LoginState, MachineEnvelope, PlanApproval, ProtectedString, RiskScope,
+    ClientErrorCode, DaemonRequest, DaemonResponse, LeaseErrorCode, LeaseId, LoginChallengeId,
+    MachineEnvelope, PlanApproval, ProtectedString, RiskScope,
 };
 use zeroize::{Zeroize, Zeroizing};
+
+mod login;
 
 const DEFAULT_TTL_MS: u64 = 60_000;
 const IO_TIMEOUT: Duration = Duration::from_secs(35);
@@ -60,6 +62,9 @@ fn execute(arguments: Vec<String>) -> ExitCode {
 fn run(arguments: Vec<String>, format: OutputFormat) -> Result<ExitCode, CliError> {
     let profile = env::var("TELEGRAM_PROFILE").unwrap_or_else(|_| "default".to_owned());
     let principal = env::var("TELEGRAM_PRINCIPAL").unwrap_or_else(|_| "telegram-cli".to_owned());
+    if interactive_login(&arguments, format) {
+        return login_tty(&profile, format, None);
+    }
     if arguments == ["login", "tty"] {
         return login_tty(&profile, format, None);
     }
@@ -95,6 +100,10 @@ fn run(arguments: Vec<String>, format: OutputFormat) -> Result<ExitCode, CliErro
     let exit = response_exit(&response);
     write_response(format, &response).map_err(|_| CliError::new(ClientErrorCode::OutputFailed))?;
     Ok(exit)
+}
+
+fn interactive_login(arguments: &[String], format: OutputFormat) -> bool {
+    format == OutputFormat::Human && arguments == ["login"]
 }
 
 fn command(arguments: &[String], principal: String) -> Result<DaemonRequest, CliError> {
@@ -250,90 +259,11 @@ fn exchange(profile: &str, request: &DaemonRequest) -> Result<DaemonResponse, Cl
 fn login_tty(
     profile: &str,
     format: OutputFormat,
-    expected_challenge: Option<u64>,
+    expected_challenge: Option<LoginChallengeId>,
 ) -> Result<ExitCode, CliError> {
     install_signal_handlers()?;
-    let mut waiting_for = None;
-    loop {
-        if RECEIVED_SIGNAL.load(Ordering::Relaxed) != 0 {
-            return Err(CliError::new(ClientErrorCode::Cancelled));
-        }
-        let response = exchange(profile, &DaemonRequest::LoginStatus)?;
-        if let (Some(expected), DaemonResponse::LoginStatus { challenge_id, .. }) =
-            (expected_challenge, &response)
-            && *challenge_id != Some(expected)
-        {
-            return show_login_response(
-                format,
-                &DaemonResponse::CommandError {
-                    code: telegram_protocol::CommandErrorCode::LoginChallengeInvalid,
-                },
-            );
-        }
-        match response {
-            response @ DaemonResponse::LoginStatus {
-                state: LoginState::Ready,
-                ..
-            }
-            | response @ DaemonResponse::LoginStatus {
-                state:
-                    LoginState::LoggingOut
-                    | LoginState::Closing
-                    | LoginState::Closed
-                    | LoginState::Unknown,
-                ..
-            } => {
-                return show_login_response(format, &response);
-            }
-            response @ DaemonResponse::LoginStatus {
-                state,
-                challenge_id: Some(challenge_id),
-                ..
-            } => {
-                if waiting_for == Some(challenge_id) {
-                    thread::sleep(WATCH_POLL_INTERVAL);
-                    continue;
-                }
-                let Some(input) = tty_login_input(state)? else {
-                    if expected_challenge.is_some() {
-                        return show_login_response(format, &response);
-                    }
-                    waiting_for = Some(challenge_id);
-                    thread::sleep(WATCH_POLL_INTERVAL);
-                    continue;
-                };
-                let submitted = exchange(
-                    profile,
-                    &DaemonRequest::LoginSubmit {
-                        challenge_id,
-                        input,
-                    },
-                )?;
-                match submitted {
-                    response @ DaemonResponse::LoginSubmitted {
-                        challenge_id: submitted_id,
-                    } if submitted_id == challenge_id => {
-                        if expected_challenge.is_some() {
-                            return show_login_response(format, &response);
-                        }
-                        waiting_for = Some(challenge_id);
-                    }
-                    response @ (DaemonResponse::CommandError { .. }
-                    | DaemonResponse::Error { .. }) => {
-                        return show_login_response(format, &response);
-                    }
-                    _ => return Err(CliError::new(ClientErrorCode::InvalidResponse)),
-                }
-            }
-            DaemonResponse::LoginStatus {
-                challenge_id: None, ..
-            } => thread::sleep(WATCH_POLL_INTERVAL),
-            response @ (DaemonResponse::CommandError { .. } | DaemonResponse::Error { .. }) => {
-                return show_login_response(format, &response);
-            }
-            _ => return Err(CliError::new(ClientErrorCode::InvalidResponse)),
-        }
-    }
+    let response = login::run(profile, expected_challenge)?;
+    show_login_response(format, &response)
 }
 
 fn show_login_response(
@@ -344,82 +274,103 @@ fn show_login_response(
     Ok(response_exit(response))
 }
 
-fn tty_login_input(state: LoginState) -> Result<Option<LoginInput>, CliError> {
-    let input = match state {
-        LoginState::PhoneNumber | LoginState::PremiumPurchase => LoginInput::PhoneNumber {
-            value: read_tty_secret("Телефон: ")?,
-        },
-        LoginState::Code => LoginInput::AuthenticationCode {
-            value: read_tty_secret("Код Telegram: ")?,
-        },
-        LoginState::Password => LoginInput::Password {
-            value: read_tty_secret("Пароль 2FA: ")?,
-        },
-        LoginState::EmailAddress => LoginInput::EmailAddress {
-            value: read_tty_secret("Email: ")?,
-        },
-        LoginState::EmailCode => LoginInput::EmailCode {
-            value: read_tty_secret("Код из email: ")?,
-        },
-        LoginState::Registration => LoginInput::Registration {
-            first_name: read_tty_secret("Имя: ")?,
-            last_name: read_tty_secret("Фамилия (можно пустую): ")?,
-        },
-        LoginState::QrCode => {
-            write_tty_notice("Подтвердите текущий QR login на другом устройстве.\n")?;
-            return Ok(None);
-        }
-        LoginState::Parameters => return Ok(None),
-        LoginState::Ready
-        | LoginState::LoggingOut
-        | LoginState::Closing
-        | LoginState::Closed
-        | LoginState::Unknown => return Ok(None),
-    };
-    Ok(Some(input))
+const MAX_TTY_SECRET_BYTES: usize = 4096;
+const TTY_READ_RETRY_INTERVAL: Duration = Duration::from_millis(50);
+
+fn read_tty_visible(prompt: &str) -> Result<ProtectedString, CliError> {
+    read_tty_value(prompt, false)
 }
 
-const MAX_TTY_SECRET_BYTES: usize = 4096;
+fn read_cloud_password() -> Result<ProtectedString, CliError> {
+    loop {
+        let mut choice = read_tty_visible("Скрыть cloud password? [y/N]: ")?.into_inner();
+        let hide = parse_hide_choice(&choice);
+        choice.zeroize();
+        match hide {
+            Some(true) => return read_tty_secret("Cloud password: "),
+            Some(false) => return read_tty_visible("Cloud password: "),
+            None => write_tty_notice("Введите y или n.\n")?,
+        }
+    }
+}
+
+fn parse_hide_choice(value: &str) -> Option<bool> {
+    match value.trim() {
+        "" | "n" | "N" | "no" | "No" | "NO" | "н" | "Н" | "нет" | "Нет" | "НЕТ" => {
+            Some(false)
+        }
+        "y" | "Y" | "yes" | "Yes" | "YES" | "д" | "Д" | "да" | "Да" | "ДА" => Some(true),
+        _ => None,
+    }
+}
+
+fn read_yes_no(prompt: &str) -> Result<bool, CliError> {
+    loop {
+        let mut choice = read_tty_visible(prompt)?.into_inner();
+        let answer = parse_hide_choice(&choice);
+        choice.zeroize();
+        match answer {
+            Some(answer) => return Ok(answer),
+            None => write_tty_notice("Введите y или n.\n")?,
+        }
+    }
+}
 
 fn read_tty_secret(prompt: &str) -> Result<ProtectedString, CliError> {
+    read_tty_value(prompt, true)
+}
+
+fn read_tty_value(prompt: &str, hide_input: bool) -> Result<ProtectedString, CliError> {
     let mut tty = open_tty()?;
-    let _echo = EchoGuard::disable(&tty)?;
+    let _echo = if hide_input {
+        Some(EchoGuard::disable(&tty)?)
+    } else {
+        None
+    };
     tty.write_all(prompt.as_bytes())
         .and_then(|_| tty.flush())
         .map_err(|_| CliError::new(ClientErrorCode::SecureTtyFailed))?;
 
+    let bytes = match read_secret_bytes(&mut tty) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            let _ = tty.write_all(b"\n");
+            return Err(error);
+        }
+    };
+    if hide_input {
+        tty.write_all(b"\n")
+            .and_then(|_| tty.flush())
+            .map_err(|_| CliError::new(ClientErrorCode::SecureTtyFailed))?;
+    }
+    let value = match std::str::from_utf8(bytes.as_slice()) {
+        Ok(value) => value.trim_end_matches('\r').to_owned(),
+        Err(_) => return Err(CliError::new(ClientErrorCode::SecureTtyFailed)),
+    };
+    Ok(ProtectedString::new(value))
+}
+
+fn read_secret_bytes(reader: &mut impl Read) -> Result<Zeroizing<Vec<u8>>, CliError> {
     let mut bytes = Zeroizing::new(Vec::new());
     loop {
         if RECEIVED_SIGNAL.load(Ordering::Relaxed) != 0 {
-            let _ = tty.write_all(b"\n");
             return Err(CliError::new(ClientErrorCode::Cancelled));
         }
-        let mut poll = libc::pollfd {
-            fd: tty.as_raw_fd(),
-            events: libc::POLLIN,
-            revents: 0,
-        };
-        // SAFETY: `poll` points to one valid `pollfd` for the duration of the call.
-        let ready = unsafe { libc::poll(&mut poll, 1, 100) };
-        if ready < 0 {
-            if RECEIVED_SIGNAL.load(Ordering::Relaxed) != 0 {
-                continue;
-            }
-            return Err(CliError::new(ClientErrorCode::SecureTtyFailed));
-        }
-        if ready == 0 {
-            continue;
-        }
-        if poll.revents & (libc::POLLERR | libc::POLLHUP | libc::POLLNVAL) != 0 {
-            return Err(CliError::new(ClientErrorCode::SecureTtyFailed));
-        }
         let mut chunk = [0_u8; 256];
-        let read = match tty.read(&mut chunk) {
+        let read = match reader.read(&mut chunk) {
             Ok(0) => {
                 return Err(CliError::new(ClientErrorCode::SecureTtyFailed));
             }
             Ok(read) => read,
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => continue,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                ) =>
+            {
+                thread::sleep(TTY_READ_RETRY_INTERVAL);
+                continue;
+            }
             Err(_) => {
                 return Err(CliError::new(ClientErrorCode::SecureTtyFailed));
             }
@@ -435,14 +386,7 @@ fn read_tty_secret(prompt: &str) -> Result<ProtectedString, CliError> {
             break;
         }
     }
-    tty.write_all(b"\n")
-        .and_then(|_| tty.flush())
-        .map_err(|_| CliError::new(ClientErrorCode::SecureTtyFailed))?;
-    let value = match std::str::from_utf8(bytes.as_slice()) {
-        Ok(value) => value.trim_end_matches('\r').to_owned(),
-        Err(_) => return Err(CliError::new(ClientErrorCode::SecureTtyFailed)),
-    };
-    Ok(ProtectedString::new(value))
+    Ok(bytes)
 }
 
 fn write_tty_notice(message: &str) -> Result<(), CliError> {
@@ -866,10 +810,18 @@ fn human_response(writer: &mut impl Write, response: &DaemonResponse) -> io::Res
         } => writeln!(
             writer,
             "Авторизация: {state:?}{}; next_action={next_action:?}",
-            challenge_id.map_or(String::new(), |id| format!("; challenge={id}")),
+            challenge_id
+                .as_ref()
+                .map_or(String::new(), |id| format!("; challenge={id}")),
         ),
+        DaemonResponse::LoginPrompt { challenge_id, .. } => {
+            writeln!(writer, "Owner prompt для challenge {challenge_id} готов")
+        }
         DaemonResponse::LoginSubmitted { challenge_id } => {
             writeln!(writer, "Challenge {challenge_id} принят")
+        }
+        DaemonResponse::LoginCodeResent { challenge_id } => {
+            writeln!(writer, "Новый код для challenge {challenge_id} запрошен")
         }
         DaemonResponse::SchemaVersion { version } => pretty(writer, version),
         DaemonResponse::SchemaCapabilities { capabilities } => pretty(writer, capabilities),
@@ -975,15 +927,97 @@ fn pretty(writer: &mut impl Write, value: &serde_json::Value) -> io::Result<()> 
 
 #[cfg(test)]
 mod tests {
-    use std::fs::{DirBuilder, Permissions};
+    use std::fs::{DirBuilder, File, Permissions};
+    use std::os::fd::FromRawFd;
     use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
-    use std::os::unix::net::UnixListener;
+    use std::os::unix::net::{UnixListener, UnixStream};
     use std::thread;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use telegram_protocol::{LeaseView, MachineStatus, OperationalMetrics};
 
     use super::*;
+
+    #[test]
+    fn plain_human_login_is_interactive_but_machine_login_is_status_only() {
+        let login = vec!["login".to_owned()];
+        assert!(interactive_login(&login, OutputFormat::Human));
+        assert!(!interactive_login(&login, OutputFormat::Json));
+        assert!(!interactive_login(&login, OutputFormat::Jsonl));
+    }
+
+    #[test]
+    fn cloud_password_visibility_choice_defaults_to_visible() {
+        assert_eq!(parse_hide_choice(""), Some(false));
+        assert_eq!(parse_hide_choice("n"), Some(false));
+        assert_eq!(parse_hide_choice("да"), Some(true));
+        assert_eq!(parse_hide_choice("y"), Some(true));
+        assert_eq!(parse_hide_choice("maybe"), None);
+    }
+
+    #[test]
+    fn protected_reader_waits_for_delayed_nonblocking_tty_input() {
+        RECEIVED_SIGNAL.store(0, Ordering::Relaxed);
+        let (mut reader, mut writer) = UnixStream::pair().unwrap();
+        reader.set_nonblocking(true).unwrap();
+        let sender = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(75));
+            writer.write_all(b"SYNTHETIC_TTY_VALUE\n").unwrap();
+        });
+
+        let mut bytes = read_secret_bytes(&mut reader).unwrap();
+        sender.join().unwrap();
+        let matched = bytes.as_slice() == b"SYNTHETIC_TTY_VALUE";
+        bytes.zeroize();
+        assert!(matched);
+    }
+
+    #[test]
+    fn hidden_tty_echo_is_restored_after_sigint_and_sigterm_cancellation() {
+        let mut master = -1;
+        let mut slave = -1;
+        // SAFETY: all pointers reference valid output slots; optional termios/winsize are null.
+        assert_eq!(
+            unsafe {
+                libc::openpty(
+                    &mut master,
+                    &mut slave,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                )
+            },
+            0
+        );
+        // SAFETY: successful `openpty` returned two owned file descriptors.
+        let _master = unsafe { File::from_raw_fd(master) };
+        // SAFETY: successful `openpty` returned two owned file descriptors.
+        let mut slave = unsafe { File::from_raw_fd(slave) };
+
+        for signal in [libc::SIGINT, libc::SIGTERM] {
+            let before = tty_attributes(&slave);
+            let result = (|| -> Result<(), CliError> {
+                let _echo = EchoGuard::disable(&slave)?;
+                assert_eq!(tty_attributes(&slave).c_lflag & libc::ECHO, 0);
+                RECEIVED_SIGNAL.store(signal, Ordering::Relaxed);
+                read_secret_bytes(&mut slave).map(|_| ())
+            })();
+            assert_eq!(result.unwrap_err().code, ClientErrorCode::Cancelled);
+            assert_eq!(tty_attributes(&slave).c_lflag, before.c_lflag);
+        }
+        RECEIVED_SIGNAL.store(0, Ordering::Relaxed);
+    }
+
+    fn tty_attributes(file: &File) -> libc::termios {
+        // SAFETY: `attributes` is initialized by `tcgetattr` for the valid PTY descriptor.
+        let mut attributes = unsafe { std::mem::zeroed::<libc::termios>() };
+        // SAFETY: descriptor and output pointer are valid for this call.
+        assert_eq!(
+            unsafe { libc::tcgetattr(file.as_raw_fd(), &mut attributes) },
+            0
+        );
+        attributes
+    }
 
     #[test]
     fn commands_build_closed_protocol_requests() {
@@ -995,15 +1029,17 @@ mod tests {
             command(&["login".to_owned()], "cli".to_owned()).unwrap(),
             DaemonRequest::LoginStatus
         );
-        assert!(command(
-            &[
-                "login".to_owned(),
-                "tty".to_owned(),
-                "never-a-secret-argument".to_owned(),
-            ],
-            "cli".to_owned(),
-        )
-        .is_err());
+        assert!(
+            command(
+                &[
+                    "login".to_owned(),
+                    "tty".to_owned(),
+                    "never-a-secret-argument".to_owned(),
+                ],
+                "cli".to_owned(),
+            )
+            .is_err()
+        );
         assert_eq!(
             command(
                 &[
@@ -1059,15 +1095,17 @@ mod tests {
                 approval: None,
             }
         );
-        assert!(command(
-            &[
-                "session".to_owned(),
-                "hold".to_owned(),
-                "unknown".to_owned(),
-            ],
-            "cli".to_owned(),
-        )
-        .is_err());
+        assert!(
+            command(
+                &[
+                    "session".to_owned(),
+                    "hold".to_owned(),
+                    "unknown".to_owned(),
+                ],
+                "cli".to_owned(),
+            )
+            .is_err()
+        );
         assert_eq!(
             command(
                 &[
@@ -1150,7 +1188,7 @@ mod tests {
         assert_eq!(
             serde_json::to_value(&ok).unwrap(),
             serde_json::json!({
-                "version": 3,
+                "version": 4,
                 "status": "ok",
                 "data": {"type": "session_status", "metrics": metrics},
             })
@@ -1177,7 +1215,7 @@ mod tests {
             ))
             .unwrap(),
             serde_json::json!({
-                "version": 3,
+                "version": 4,
                 "status": "error",
                 "error": {"domain": "client", "code": "invalid_arguments"},
             })

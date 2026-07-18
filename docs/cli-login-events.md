@@ -7,14 +7,20 @@ telegram-cli login
 telegram-cli events watch <lease_id> [cursor]
 ```
 
-`login` читает daemon-owned authorization state. Daemon преобразует уже разобранный
-`AuthorizationMachine` step в закрытый `LoginState`; status не содержит phone, OTP, 2FA,
-email, QR link или другие challenge values. `login tty` вводит owner secret только через
-`/dev/tty` с отключённым echo и передаёт typed input для exact challenge ID; flags, stdin и
-caller-authored TDJSON для login запрещены. При первом login daemon остаётся единственным
+Human `login` запускает полный owner TTY loop; `--output json login` читает daemon-owned
+authorization status без prompts. Daemon преобразует уже разобранный `AuthorizationMachine`
+step в закрытый `LoginState`; status не содержит phone, OTP, 2FA,
+email, QR link или другие challenge values. `login tty` вводит phone/auth values только через
+`/dev/tty` и передаёт typed input для exact opaque challenge token: phone/OTP/email/registration видны,
+а echo cloud password выбирает владелец непосредственно перед вводом; flags, stdin и caller-authored TDJSON для login
+запрещены. Между phone/code/password steps human loop сам перечитывает fresh challenge и не
+печатает промежуточный `LoginSubmitted`. Для code state loop после TDLib timeout и только
+при наличии `next_type` запрашивает один resend, ждёт новый challenge и не просит заведомо
+старый OTP. При первом login daemon остаётся единственным
 владельцем DB и держит private socket доступным в состоянии `Starting`. До доказанного
-`Ready -> getMe -> expected identity` raw calls и workflows возвращают
-`runtime_unavailable`. Полный contract: [`cli-secure-login.md`](cli-secure-login.md).
+`Ready -> getMe -> expected identity` lease acquisition, raw calls и workflows возвращают
+`runtime_unavailable`. Auth-loss отзывает старые leases; повторный Ready снова требует
+identity proof. Полный contract: [`cli-secure-login.md`](cli-secure-login.md).
 
 `events watch` требует действующий matching lease и возвращает только bounded metadata:
 monotonic local `sequence`, закрытый `kind`, `next_cursor` и `gap`. Первый вызов без cursor

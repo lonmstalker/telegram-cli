@@ -154,6 +154,11 @@ impl LeaseManager {
         self.leases.len()
     }
 
+    pub fn revoke_all(&mut self) {
+        self.leases.clear();
+        self.telemetry.observe_leases(0);
+    }
+
     pub fn raw_policy(
         &mut self,
         lease_id: &LeaseId,
@@ -323,6 +328,21 @@ mod tests {
             Err(telegram_core::raw_api::PolicyError::RiskDenied {
                 risk: RiskClass::Send,
             })
+        );
+    }
+
+    #[test]
+    fn authorization_generation_change_revokes_existing_leases() {
+        let start = Instant::now();
+        let mut manager = LeaseManager::with_epoch(13, [RiskScope::Read]);
+        let lease = manager
+            .acquire("agent".to_owned(), vec![RiskScope::Read], 1_000, start)
+            .unwrap();
+        manager.revoke_all();
+        assert_eq!(manager.active_count(), 0);
+        assert_eq!(
+            manager.heartbeat(&lease.lease_id, "agent", start),
+            Err(LeaseErrorCode::LeaseNotFound)
         );
     }
 }

@@ -8,14 +8,11 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde::de::DeserializeOwned;
+use serde_json::{Value, json};
 use telegram_core::approval::{ApprovalReceipt, ApprovalVerifier, PlanPreview};
-use telegram_core::authorization::{
-    AuthorizationChallengeKind, AuthorizationError, AuthorizationInput, AuthorizationMachine,
-    AuthorizationRequest, AuthorizationStep, ChallengeId, SensitiveString,
-};
+use telegram_core::authorization::AuthorizationError;
 use telegram_core::idempotency::{
     BeginDecision, IdempotencyJournal, OperationFingerprint, OperationState,
 };
@@ -35,10 +32,11 @@ use telegram_core::workflows::{
 };
 use telegram_protocol::{
     CommandErrorCode, DaemonRequest, DaemonResponse, EventKind, EventRecord, LeaseErrorCode,
-    LoginInput, LoginState, PlanApproval, ProtectedString,
+    PlanApproval, ProtectedString,
 };
 use zeroize::Zeroizing;
 
+use crate::authorization::{AuthorizationCoordinator, AuthorizationObservation};
 use crate::lease::LeaseManager;
 use crate::scheduler::{
     AccountScheduler, FloodScope, OperationClass, OperationContext, OperationPermit,
@@ -261,13 +259,11 @@ pub struct LeaseServer {
     telemetry: Telemetry,
     idempotency: IdempotencyJournal,
     audit: AuditLog,
-    ready: bool,
     events: EventBuffer,
-    authorization: AuthorizationBroker,
+    authorization: AuthorizationCoordinator,
     artifact_root: Option<PathBuf>,
     approval_verifier: Option<ApprovalVerifier>,
     web_app_artifacts: WebAppArtifactStore,
-    account_kind: Option<AccountKind>,
 }
 
 impl LeaseServer {
@@ -277,6 +273,7 @@ impl LeaseServer {
         telemetry: Telemetry,
         idempotency: IdempotencyJournal,
         audit: AuditLog,
+        authorization: AuthorizationCoordinator,
     ) -> Self {
         Self {
             leases,
@@ -284,13 +281,11 @@ impl LeaseServer {
             telemetry,
             idempotency,
             audit,
-            ready: true,
             events: EventBuffer::new(EVENT_BUFFER_CAPACITY),
-            authorization: AuthorizationBroker::default(),
+            authorization,
             artifact_root: None,
             approval_verifier: None,
             web_app_artifacts: WebAppArtifactStore::default(),
-            account_kind: None,
         }
     }
 
@@ -304,12 +299,10 @@ impl LeaseServer {
         self
     }
 
-    pub fn set_ready(&mut self, ready: bool) {
-        self.ready = ready;
-    }
-
-    pub fn set_account_kind(&mut self, account_kind: AccountKind) {
-        self.account_kind = Some(account_kind);
+    pub fn mark_identity_verified(&mut self, account_kind: AccountKind) -> Result<(), ServerError> {
+        self.authorization
+            .mark_identity_verified(account_kind)
+            .map_err(ServerError::Authorization)
     }
 
     pub fn start_events_at(&mut self, sequence: Option<u64>) {
@@ -320,16 +313,31 @@ impl LeaseServer {
         self.events.record(update.sequence.get(), update.kind);
     }
 
-    pub fn observe_authorization(&mut self, runtime: &CoreRuntime) -> Result<(), ServerError> {
+    pub fn observe_authorization(
+        &mut self,
+        runtime: &CoreRuntime,
+        now: Instant,
+    ) -> Result<bool, ServerError> {
         let state = runtime
             .state()
             .authorization()
             .ok_or(ServerError::MissingAuthorizationState)?;
-        self.authorization
-            .observe(&state.value)
+        let step = self
+            .authorization
+            .observe(&state.value, now)
             .map_err(ServerError::Authorization)?;
-        self.ready = matches!(self.authorization.step, Some(AuthorizationStep::Ready));
-        Ok(())
+        self.leases.revoke_all();
+        Ok(matches!(step, AuthorizationObservation::ReadyObserved))
+    }
+
+    pub fn reconcile_authorization_response(
+        &mut self,
+        correlation_id: u64,
+        response: &Value,
+    ) -> Result<(), ServerError> {
+        self.authorization
+            .reconcile_response(correlation_id, response)
+            .map_err(ServerError::Authorization)
     }
 
     pub fn poll(
@@ -514,10 +522,12 @@ impl LeaseServer {
         runtime: Option<&mut CoreRuntime>,
         now: Instant,
     ) -> DaemonResponse {
-        if !self.ready
+        if !self.authorization.is_identity_verified()
             && matches!(
                 &request,
-                DaemonRequest::TdCall { .. } | DaemonRequest::WorkflowRun { .. }
+                DaemonRequest::TdCall { .. }
+                    | DaemonRequest::WorkflowRun { .. }
+                    | DaemonRequest::LeaseAcquire { .. }
             )
         {
             return runtime_unavailable();
@@ -534,48 +544,25 @@ impl LeaseServer {
                     next_action: state.next_action(),
                 }
             }
+            DaemonRequest::LoginPrompt { challenge_id } => {
+                match self.authorization.prompt(&challenge_id) {
+                    Ok(prompt) => DaemonResponse::LoginPrompt {
+                        challenge_id,
+                        prompt,
+                    },
+                    Err(_) => DaemonResponse::CommandError {
+                        code: CommandErrorCode::LoginChallengeInvalid,
+                    },
+                }
+            }
             DaemonRequest::LoginSubmit {
                 challenge_id,
                 input,
-            } => {
-                let (challenge, request) = match self.authorization.submit(challenge_id, input) {
-                    Ok(request) => request,
-                    Err(AuthorizationError::SubmissionPending) => {
-                        return DaemonResponse::CommandError {
-                            code: CommandErrorCode::LoginSubmissionPending,
-                        };
-                    }
-                    Err(_) => {
-                        return DaemonResponse::CommandError {
-                            code: CommandErrorCode::LoginChallengeInvalid,
-                        };
-                    }
-                };
-                let Some(runtime) = runtime else {
-                    let _ = self.authorization.machine.submission_failed(challenge);
-                    return runtime_unavailable();
-                };
-                let deadline = now.checked_add(CALL_TIMEOUT).unwrap_or(now);
-                let response = runtime
-                    .transport()
-                    .call_until(request.into_value(), deadline);
-                match response {
-                    Ok(response) if response.get("@type").and_then(Value::as_str) == Some("ok") => {
-                        DaemonResponse::LoginSubmitted { challenge_id }
-                    }
-                    Ok(_) => {
-                        let _ = self.authorization.machine.submission_failed(challenge);
-                        DaemonResponse::CommandError {
-                            code: CommandErrorCode::LoginSubmissionRejected,
-                        }
-                    }
-                    Err(_) => {
-                        let _ = self.authorization.machine.submission_failed(challenge);
-                        DaemonResponse::CommandError {
-                            code: CommandErrorCode::TdlibTransport,
-                        }
-                    }
-                }
+            } => self
+                .authorization
+                .submit(runtime, &challenge_id, input, now),
+            DaemonRequest::LoginCodeResend { challenge_id } => {
+                self.authorization.resend_code(runtime, &challenge_id, now)
             }
             DaemonRequest::SchemaVersion => runtime.map_or_else(runtime_unavailable, |runtime| {
                 DaemonResponse::SchemaVersion {
@@ -614,7 +601,7 @@ impl LeaseServer {
                 approval,
             } => {
                 let started = Instant::now();
-                let Some(account_kind) = self.account_kind else {
+                let Some(account_kind) = self.authorization.account_kind() else {
                     return runtime_unavailable();
                 };
                 let validated = match ValidatedRequest::from_value(request.clone()) {
@@ -758,7 +745,7 @@ impl LeaseServer {
                         code: CommandErrorCode::WorkflowNotFound,
                     };
                 };
-                let Some(account_kind) = self.account_kind else {
+                let Some(account_kind) = self.authorization.account_kind() else {
                     return runtime_unavailable();
                 };
                 let policy = match self
@@ -847,7 +834,7 @@ impl LeaseServer {
                 principal,
                 after,
             } => {
-                let Some(account_kind) = self.account_kind else {
+                let Some(account_kind) = self.authorization.account_kind() else {
                     return runtime_unavailable();
                 };
                 if let Err(code) = self
@@ -969,97 +956,6 @@ impl EventBuffer {
             .filter(|event| event.sequence > after)
             .collect();
         (events, self.latest, gap)
-    }
-}
-
-#[derive(Default)]
-struct AuthorizationBroker {
-    machine: AuthorizationMachine,
-    step: Option<AuthorizationStep>,
-}
-
-impl AuthorizationBroker {
-    fn observe(&mut self, state: &Value) -> Result<(), AuthorizationError> {
-        self.step = Some(self.machine.observe_state(state)?);
-        Ok(())
-    }
-
-    fn status(&self) -> (LoginState, Option<u64>) {
-        let Some(step) = &self.step else {
-            return (LoginState::Unknown, None);
-        };
-        let challenge_id = match step {
-            AuthorizationStep::ParametersRequired { generation } => Some(generation.get()),
-            AuthorizationStep::Challenge(challenge) => Some(challenge.id.get()),
-            AuthorizationStep::Ready
-            | AuthorizationStep::LoggingOut
-            | AuthorizationStep::Closing
-            | AuthorizationStep::Closed => None,
-        };
-        (login_state(step), challenge_id)
-    }
-
-    fn submit(
-        &mut self,
-        challenge_id: u64,
-        input: LoginInput,
-    ) -> Result<(ChallengeId, AuthorizationRequest), AuthorizationError> {
-        let challenge = match &self.step {
-            Some(AuthorizationStep::Challenge(challenge)) if challenge.id.get() == challenge_id => {
-                challenge.id
-            }
-            _ => return Err(AuthorizationError::StaleChallenge),
-        };
-        let request = self.machine.submit(challenge, authorization_input(input))?;
-        Ok((challenge, request))
-    }
-}
-
-fn login_state(step: &AuthorizationStep) -> LoginState {
-    match step {
-        AuthorizationStep::ParametersRequired { .. } => LoginState::Parameters,
-        AuthorizationStep::Ready => LoginState::Ready,
-        AuthorizationStep::LoggingOut => LoginState::LoggingOut,
-        AuthorizationStep::Closing => LoginState::Closing,
-        AuthorizationStep::Closed => LoginState::Closed,
-        AuthorizationStep::Challenge(challenge) => match &challenge.kind {
-            AuthorizationChallengeKind::PhoneNumber => LoginState::PhoneNumber,
-            AuthorizationChallengeKind::PremiumPurchase { .. } => LoginState::PremiumPurchase,
-            AuthorizationChallengeKind::EmailAddress { .. } => LoginState::EmailAddress,
-            AuthorizationChallengeKind::EmailCode { .. } => LoginState::EmailCode,
-            AuthorizationChallengeKind::AuthenticationCode(_) => LoginState::Code,
-            AuthorizationChallengeKind::OtherDeviceConfirmation { .. } => LoginState::QrCode,
-            AuthorizationChallengeKind::Registration(_) => LoginState::Registration,
-            AuthorizationChallengeKind::Password { .. } => LoginState::Password,
-        },
-    }
-}
-
-fn authorization_input(input: LoginInput) -> AuthorizationInput {
-    match input {
-        LoginInput::PhoneNumber { value } => {
-            AuthorizationInput::PhoneNumber(SensitiveString::new(value.into_inner()))
-        }
-        LoginInput::AuthenticationCode { value } => {
-            AuthorizationInput::AuthenticationCode(SensitiveString::new(value.into_inner()))
-        }
-        LoginInput::Password { value } => {
-            AuthorizationInput::Password(SensitiveString::new(value.into_inner()))
-        }
-        LoginInput::EmailAddress { value } => {
-            AuthorizationInput::EmailAddress(SensitiveString::new(value.into_inner()))
-        }
-        LoginInput::EmailCode { value } => {
-            AuthorizationInput::EmailCode(SensitiveString::new(value.into_inner()))
-        }
-        LoginInput::Registration {
-            first_name,
-            last_name,
-        } => AuthorizationInput::Registration {
-            first_name: SensitiveString::new(first_name.into_inner()),
-            last_name: SensitiveString::new(last_name.into_inner()),
-            disable_notification: false,
-        },
     }
 }
 
@@ -2511,13 +2407,35 @@ mod tests {
             telemetry.clone(),
         )
         .unwrap();
+        let mut authorization = AuthorizationCoordinator::default();
+        authorization
+            .observe(&json!({"@type": "authorizationStateReady"}), Instant::now())
+            .unwrap();
         let mut server = LeaseServer::new(
             LeaseManager::with_telemetry([RiskScope::Read], telemetry.clone()),
             scheduler,
             telemetry,
             IdempotencyJournal::open(root.join("idempotency.jsonl")).unwrap(),
             AuditLog::open(root.join("audit.jsonl")).unwrap(),
+            authorization,
         );
+        assert_eq!(
+            exchange(
+                &mut server,
+                &socket,
+                DaemonRequest::LeaseAcquire {
+                    principal: "agent".to_owned(),
+                    scopes: vec![RiskScope::Read],
+                    ttl_ms: 1_000,
+                },
+            ),
+            DaemonResponse::CommandError {
+                code: CommandErrorCode::RuntimeUnavailable,
+            }
+        );
+        server
+            .mark_identity_verified(AccountKind::RegularUser)
+            .unwrap();
 
         let granted = exchange(
             &mut server,
@@ -2625,12 +2543,14 @@ mod tests {
                 }),
             }
         );
-        assert!(parse::<TargetInput>(json!({
-            "kind": "id",
-            "chat_id": 7,
-            "unexpected": true,
-        }))
-        .is_err());
+        assert!(
+            parse::<TargetInput>(json!({
+                "kind": "id",
+                "chat_id": 7,
+                "unexpected": true,
+            }))
+            .is_err()
+        );
         assert_eq!(server.leases.active_count(), 0);
 
         drop(socket);
@@ -2667,29 +2587,6 @@ mod tests {
 
         events.reconcile(Some(15));
         assert_eq!(events.events.back().unwrap().kind, EventKind::Gap);
-    }
-
-    #[test]
-    fn authorization_broker_exposes_id_but_redacts_protected_input() {
-        let mut broker = AuthorizationBroker::default();
-        broker
-            .observe(&json!({"@type": "authorizationStateWaitPhoneNumber"}))
-            .unwrap();
-        let (state, challenge_id) = broker.status();
-        assert_eq!(state, LoginState::PhoneNumber);
-        let challenge_id = challenge_id.unwrap();
-        let canary = "AUTH_INPUT_CANARY";
-        let (challenge, request) = broker
-            .submit(
-                challenge_id,
-                LoginInput::PhoneNumber {
-                    value: telegram_protocol::ProtectedString::new(canary.to_owned()),
-                },
-            )
-            .unwrap();
-        assert_eq!(request.request_type(), "setAuthenticationPhoneNumber");
-        assert!(!format!("{request:?}").contains(canary));
-        broker.machine.submission_failed(challenge).unwrap();
     }
 
     #[test]
@@ -2743,9 +2640,11 @@ mod tests {
                 now,
             )
             .unwrap();
-        assert!(artifacts
-            .take(&expired, "runner", now + WEB_APP_ARTIFACT_TTL)
-            .is_none());
+        assert!(
+            artifacts
+                .take(&expired, "runner", now + WEB_APP_ARTIFACT_TTL)
+                .is_none()
+        );
     }
 
     #[test]

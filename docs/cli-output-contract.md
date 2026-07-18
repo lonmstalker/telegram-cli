@@ -11,11 +11,11 @@ default без дублирующих flags. `json` и `jsonl` для one-shot c
 compact newline-terminated запись. `events watch` продолжает JSONL несколькими records,
 не меняя envelope; explicit JSON делает один snapshot.
 
-Machine envelope version 3 сохраняет fixed `metrics` object v2 и добавляет typed brokered
-login `next_action`:
+Machine envelope version 4 сохраняет fixed `metrics` object v2, меняет numeric login challenge
+на opaque boot-scoped string token и маркирует `LoginSubmitted`/`LoginCodeResent` как `partial`:
 
 ```json
-{"version":3,"status":"ok","data":{"type":"session_status","metrics":{"requests":0,"succeeded":0,"failed":0,"uncertain":0,"denied":0,"request_latency_ms_total":0,"request_latency_ms_max":0,"queue_depth":0,"queue_depth_max":0,"queue_rejections":0,"retries":0,"flood_waits":0,"flood_delay_ms_total":0,"update_lag_events":0,"update_lag_ms_max":0,"fresh_results":0,"cached_results":0,"stale_results":0,"partial_results":0,"active_leases":0,"active_leases_max":0}}}
+{"version":4,"status":"ok","data":{"type":"session_status","metrics":{"requests":0,"succeeded":0,"failed":0,"uncertain":0,"denied":0,"request_latency_ms_total":0,"request_latency_ms_max":0,"queue_depth":0,"queue_depth_max":0,"queue_rejections":0,"retries":0,"flood_waits":0,"flood_delay_ms_total":0,"update_lag_events":0,"update_lag_ms_max":0,"fresh_results":0,"cached_results":0,"stale_results":0,"partial_results":0,"active_leases":0,"active_leases_max":0}}}
 ```
 
 Root `status` принимает только `ok`, `partial`, `error`. Daemon добавляет authoritative
@@ -27,7 +27,7 @@ human prose или формы конкретного payload.
 `error` содержит только закрытый domain/code:
 
 ```json
-{"version":3,"status":"error","error":{"domain":"client","code":"invalid_arguments"}}
+{"version":4,"status":"error","error":{"domain":"client","code":"invalid_arguments"}}
 ```
 
 Domains: `command` для core/workflow rejection, `lease` для session policy и `client` для

@@ -8,7 +8,7 @@ use std::fmt;
 use std::str::FromStr;
 use zeroize::Zeroize;
 
-pub const MACHINE_PROTOCOL_VERSION: u16 = 3;
+pub const MACHINE_PROTOCOL_VERSION: u16 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -56,6 +56,58 @@ impl FromStr for RiskScope {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct LoginChallengeId(String);
+
+impl LoginChallengeId {
+    pub fn new(value: String) -> Self {
+        Self(value)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for LoginChallengeId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl FromStr for LoginChallengeId {
+    type Err = ParseLoginChallengeIdError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let Some((epoch, generation)) = value
+            .strip_prefix("auth-")
+            .and_then(|value| value.split_once('-'))
+        else {
+            return Err(ParseLoginChallengeIdError);
+        };
+        if epoch.len() != 32
+            || generation.len() != 16
+            || !epoch.bytes().all(|byte| byte.is_ascii_hexdigit())
+            || !generation.bytes().all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err(ParseLoginChallengeIdError);
+        }
+        Ok(Self(value.to_owned()))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParseLoginChallengeIdError;
+
+impl fmt::Display for ParseLoginChallengeIdError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("invalid login challenge identifier")
+    }
+}
+
+impl std::error::Error for ParseLoginChallengeIdError {}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParseRiskScopeError;
 
@@ -86,9 +138,15 @@ impl LeaseId {
 pub enum DaemonRequest {
     SessionStatus,
     LoginStatus,
+    LoginPrompt {
+        challenge_id: LoginChallengeId,
+    },
     LoginSubmit {
-        challenge_id: u64,
+        challenge_id: LoginChallengeId,
         input: LoginInput,
+    },
+    LoginCodeResend {
+        challenge_id: LoginChallengeId,
     },
     SchemaVersion,
     SchemaCapabilities,
@@ -185,11 +243,18 @@ pub enum DaemonResponse {
     },
     LoginStatus {
         state: LoginState,
-        challenge_id: Option<u64>,
+        challenge_id: Option<LoginChallengeId>,
         next_action: LoginNextAction,
     },
+    LoginPrompt {
+        challenge_id: LoginChallengeId,
+        prompt: OwnerLoginPrompt,
+    },
     LoginSubmitted {
-        challenge_id: u64,
+        challenge_id: LoginChallengeId,
+    },
+    LoginCodeResent {
+        challenge_id: LoginChallengeId,
     },
     SchemaVersion {
         version: Value,
@@ -324,6 +389,7 @@ pub enum LoginInput {
     PhoneNumber {
         value: ProtectedString,
     },
+    QrCode,
     AuthenticationCode {
         value: ProtectedString,
     },
@@ -336,9 +402,17 @@ pub enum LoginInput {
     EmailCode {
         value: ProtectedString,
     },
+    AppleIdToken {
+        value: ProtectedString,
+    },
+    GoogleIdToken {
+        value: ProtectedString,
+    },
     Registration {
         first_name: ProtectedString,
         last_name: ProtectedString,
+        terms_accepted: bool,
+        disable_notification: bool,
     },
 }
 
@@ -346,10 +420,13 @@ impl fmt::Debug for LoginInput {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let kind = match self {
             Self::PhoneNumber { .. } => "phone_number",
+            Self::QrCode => "qr_code",
             Self::AuthenticationCode { .. } => "authentication_code",
             Self::Password { .. } => "password",
             Self::EmailAddress { .. } => "email_address",
             Self::EmailCode { .. } => "email_code",
+            Self::AppleIdToken { .. } => "apple_id_token",
+            Self::GoogleIdToken { .. } => "google_id_token",
             Self::Registration { .. } => "registration",
         };
         formatter
@@ -357,6 +434,35 @@ impl fmt::Debug for LoginInput {
             .field("kind", &kind)
             .finish_non_exhaustive()
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum OwnerLoginPrompt {
+    PhoneNumber,
+    PremiumPurchase,
+    AuthenticationCode,
+    Password {
+        hint: ProtectedString,
+        has_recovery_email_address: bool,
+        recovery_email_address_pattern: ProtectedString,
+    },
+    EmailAddress {
+        allow_apple_id: bool,
+        allow_google_id: bool,
+    },
+    EmailCode {
+        allow_apple_id: bool,
+        allow_google_id: bool,
+    },
+    QrCode {
+        link: ProtectedString,
+    },
+    Registration {
+        terms: ProtectedString,
+        minimum_user_age: i32,
+        show_popup: bool,
+    },
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -451,6 +557,8 @@ pub enum CommandErrorCode {
     LoginChallengeInvalid,
     LoginSubmissionPending,
     LoginSubmissionRejected,
+    LoginCodeResendUnavailable,
+    LoginCodeResendRejected,
     OperationAlreadySucceeded,
     ReconciliationRequired,
     ReliabilityUnavailable,
@@ -516,6 +624,9 @@ impl MachineEnvelope {
             response @ DaemonResponse::LoginStatus { state, .. } if state != LoginState::Ready => {
                 MachineOutcome::Partial { data: response }
             }
+            response @ (DaemonResponse::LoginPrompt { .. }
+            | DaemonResponse::LoginSubmitted { .. }
+            | DaemonResponse::LoginCodeResent { .. }) => MachineOutcome::Partial { data: response },
             response => MachineOutcome::Ok { data: response },
         };
         Self {
@@ -588,11 +699,15 @@ pub struct WebAppBrowserReport {
 mod tests {
     use super::*;
 
+    fn challenge() -> LoginChallengeId {
+        LoginChallengeId::new("auth-0000000000000000000000000000002a-0000000000000007".to_owned())
+    }
+
     #[test]
     fn protected_login_input_is_redacted_and_zeroizable() {
         let canary = "PROTECTED_LOGIN_CANARY";
         let request = DaemonRequest::LoginSubmit {
-            challenge_id: 7,
+            challenge_id: challenge(),
             input: LoginInput::Password {
                 value: ProtectedString::new(canary.to_owned()),
             },
@@ -606,25 +721,85 @@ mod tests {
     }
 
     #[test]
+    fn code_resend_request_contains_only_challenge_metadata() {
+        let request = DaemonRequest::LoginCodeResend {
+            challenge_id: challenge(),
+        };
+        assert_eq!(
+            serde_json::to_value(request).unwrap(),
+            serde_json::json!({
+                "type": "login_code_resend",
+                "challenge_id": "auth-0000000000000000000000000000002a-0000000000000007"
+            })
+        );
+    }
+
+    #[test]
     fn login_status_exposes_only_broker_metadata() {
         let envelope = MachineEnvelope::from_response(DaemonResponse::LoginStatus {
             state: LoginState::Code,
-            challenge_id: Some(7),
+            challenge_id: Some(challenge()),
             next_action: LoginState::Code.next_action(),
         });
         assert_eq!(
             serde_json::to_value(envelope).unwrap(),
             serde_json::json!({
-                "version": 3,
+                "version": 4,
                 "status": "partial",
                 "data": {
                     "type": "login_status",
                     "state": "code",
-                    "challenge_id": 7,
+                    "challenge_id": "auth-0000000000000000000000000000002a-0000000000000007",
                     "next_action": "submit_via_protected_channel",
                 },
             })
         );
+    }
+
+    #[test]
+    fn login_progress_responses_are_machine_partial() {
+        assert_eq!(
+            MachineEnvelope::from_response(DaemonResponse::LoginSubmitted {
+                challenge_id: challenge(),
+            })
+            .status(),
+            MachineStatus::Partial
+        );
+        assert_eq!(
+            MachineEnvelope::from_response(DaemonResponse::LoginCodeResent {
+                challenge_id: challenge(),
+            })
+            .status(),
+            MachineStatus::Partial
+        );
+    }
+
+    #[test]
+    fn owner_prompt_and_registration_choices_are_explicit_and_debug_redacted() {
+        let canary = "OWNER_ONLY_QR_CANARY";
+        let response = DaemonResponse::LoginPrompt {
+            challenge_id: challenge(),
+            prompt: OwnerLoginPrompt::QrCode {
+                link: ProtectedString::new(canary.to_owned()),
+            },
+        };
+        assert!(!format!("{response:?}").contains(canary));
+
+        let input = LoginInput::Registration {
+            first_name: ProtectedString::new("Ada".to_owned()),
+            last_name: ProtectedString::new(String::new()),
+            terms_accepted: true,
+            disable_notification: true,
+        };
+        let value = serde_json::to_value(input).unwrap();
+        assert_eq!(value["terms_accepted"], true);
+        assert_eq!(value["disable_notification"], true);
+    }
+
+    #[test]
+    fn challenge_identifier_parser_rejects_unscoped_numbers() {
+        assert!("7".parse::<LoginChallengeId>().is_err());
+        assert_eq!(challenge().to_string(), challenge().as_str());
     }
 
     #[test]

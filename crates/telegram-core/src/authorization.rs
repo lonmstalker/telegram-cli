@@ -159,8 +159,16 @@ pub enum AuthorizationInput {
     Registration {
         first_name: SensitiveString,
         last_name: SensitiveString,
+        terms_accepted: bool,
         disable_notification: bool,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SubmissionOutcome {
+    NotSent,
+    DefinitiveRejected,
+    Uncertain,
 }
 
 pub struct AuthorizationRequest(Value);
@@ -199,6 +207,7 @@ pub enum AuthorizationError {
     NoCurrentChallenge,
     StaleChallenge,
     SubmissionPending,
+    CodeResendUnavailable,
     InputDoesNotMatchState,
     DatabaseKeyRejected,
 }
@@ -222,6 +231,9 @@ impl fmt::Display for AuthorizationError {
             Self::StaleChallenge => formatter.write_str("authorization challenge is stale"),
             Self::SubmissionPending => {
                 formatter.write_str("authorization submission is already pending")
+            }
+            Self::CodeResendUnavailable => {
+                formatter.write_str("authentication code can't be resent yet")
             }
             Self::InputDoesNotMatchState => {
                 formatter.write_str("authorization input does not match current state")
@@ -341,7 +353,11 @@ impl AuthorizationMachine {
         Ok(())
     }
 
-    pub fn submission_failed(&mut self, challenge: ChallengeId) -> Result<(), AuthorizationError> {
+    pub fn submission_outcome(
+        &mut self,
+        challenge: ChallengeId,
+        outcome: SubmissionOutcome,
+    ) -> Result<(), AuthorizationError> {
         if self.current.is_none() {
             return Err(AuthorizationError::NoCurrentChallenge);
         }
@@ -351,8 +367,43 @@ impl AuthorizationMachine {
         if challenge != ChallengeId(self.generation) {
             return Err(AuthorizationError::StaleChallenge);
         }
-        self.submission_pending = false;
+        if outcome != SubmissionOutcome::Uncertain {
+            self.submission_pending = false;
+        }
         Ok(())
+    }
+
+    pub fn submission_failed(&mut self, challenge: ChallengeId) -> Result<(), AuthorizationError> {
+        self.submission_outcome(challenge, SubmissionOutcome::DefinitiveRejected)
+    }
+
+    pub fn resend_code(
+        &mut self,
+        challenge: ChallengeId,
+    ) -> Result<AuthorizationRequest, AuthorizationError> {
+        let state = self
+            .current
+            .as_ref()
+            .ok_or(AuthorizationError::NoCurrentChallenge)?;
+        if challenge != ChallengeId(self.generation) {
+            return Err(AuthorizationError::StaleChallenge);
+        }
+        if self.submission_pending {
+            return Err(AuthorizationError::SubmissionPending);
+        }
+        match state {
+            AuthorizationState::WaitCode(info) if info.next_delivery_type.is_some() => {}
+            AuthorizationState::WaitCode(_) => {
+                return Err(AuthorizationError::CodeResendUnavailable);
+            }
+            AuthorizationState::WaitEmailCode { .. } => {}
+            _ => return Err(AuthorizationError::InputDoesNotMatchState),
+        }
+        self.submission_pending = true;
+        Ok(AuthorizationRequest::new(json!({
+            "@type": "resendAuthenticationCode",
+            "reason": {"@type": "resendCodeReasonUserRequest"}
+        })))
     }
 }
 
@@ -557,8 +608,12 @@ fn request_for(
         AuthorizationInput::Registration {
             first_name,
             last_name,
+            terms_accepted,
             disable_notification,
         } if matches!(state, AuthorizationState::WaitRegistration(_)) => {
+            if !terms_accepted {
+                return Err(AuthorizationError::InvalidField("terms_accepted"));
+            }
             let first_length = first_name.expose_secret().chars().count();
             let last_length = last_name.expose_secret().chars().count();
             if !(1..=64).contains(&first_length) {
@@ -878,6 +933,7 @@ mod tests {
                     AuthorizationInput::Registration {
                         first_name: SensitiveString::new("Ada"),
                         last_name: SensitiveString::new("Lovelace"),
+                        terms_accepted: true,
                         disable_notification: true
                     }
                 )
@@ -890,6 +946,149 @@ mod tests {
                 "disable_notification": true
             })
         );
+    }
+
+    #[test]
+    fn code_resend_requires_next_delivery_type_and_builds_typed_request() {
+        let mut machine = AuthorizationMachine::default();
+        let unavailable_id = challenge_id(
+            machine
+                .observe_state(&json!({
+                    "@type": "authorizationStateWaitCode",
+                    "code_info": {
+                        "@type": "authenticationCodeInfo",
+                        "phone_number": "+1******00",
+                        "type": {"@type": "authenticationCodeTypeTelegramMessage", "length": 5},
+                        "next_type": null,
+                        "timeout": 60
+                    }
+                }))
+                .unwrap(),
+        );
+        assert!(matches!(
+            machine.resend_code(unavailable_id),
+            Err(AuthorizationError::CodeResendUnavailable)
+        ));
+
+        let resend_id = challenge_id(
+            machine
+                .observe_state(&json!({
+                    "@type": "authorizationStateWaitCode",
+                    "code_info": {
+                        "@type": "authenticationCodeInfo",
+                        "phone_number": "+1******00",
+                        "type": {"@type": "authenticationCodeTypeTelegramMessage", "length": 5},
+                        "next_type": {"@type": "authenticationCodeTypeSms", "length": 5},
+                        "timeout": 60
+                    }
+                }))
+                .unwrap(),
+        );
+        assert_eq!(
+            machine.resend_code(resend_id).unwrap().into_value(),
+            json!({
+                "@type": "resendAuthenticationCode",
+                "reason": {"@type": "resendCodeReasonUserRequest"}
+            })
+        );
+    }
+
+    #[test]
+    fn email_code_resend_is_available_without_phone_timeout_metadata() {
+        let mut machine = AuthorizationMachine::default();
+        let challenge = challenge_id(
+            machine
+                .observe_state(&json!({
+                    "@type": "authorizationStateWaitEmailCode",
+                    "allow_apple_id": false,
+                    "allow_google_id": false,
+                    "code_info": {
+                        "@type": "emailAddressAuthenticationCodeInfo",
+                        "email_address_pattern": "o***@example.test",
+                        "length": 6
+                    },
+                    "email_address_reset_state": null
+                }))
+                .unwrap(),
+        );
+        assert_eq!(
+            machine.resend_code(challenge).unwrap().into_value(),
+            json!({
+                "@type": "resendAuthenticationCode",
+                "reason": {"@type": "resendCodeReasonUserRequest"}
+            })
+        );
+    }
+
+    #[test]
+    fn uncertain_submission_blocks_blind_replay_until_fresh_state() {
+        let mut machine = AuthorizationMachine::default();
+        let challenge = challenge_id(
+            machine
+                .observe_state(&json!({"@type": "authorizationStateWaitPhoneNumber"}))
+                .unwrap(),
+        );
+        machine
+            .submit(
+                challenge,
+                AuthorizationInput::PhoneNumber(SensitiveString::new("+10000000000")),
+            )
+            .unwrap();
+        machine
+            .submission_outcome(challenge, SubmissionOutcome::Uncertain)
+            .unwrap();
+        assert!(matches!(
+            machine.submit(
+                challenge,
+                AuthorizationInput::PhoneNumber(SensitiveString::new("+10000000000"))
+            ),
+            Err(AuthorizationError::SubmissionPending)
+        ));
+
+        let next = challenge_id(
+            machine
+                .observe_state(&json!({"@type": "authorizationStateWaitPhoneNumber"}))
+                .unwrap(),
+        );
+        assert_ne!(challenge, next);
+        assert!(
+            machine
+                .submit(
+                    next,
+                    AuthorizationInput::PhoneNumber(SensitiveString::new("+10000000000"))
+                )
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn registration_decline_never_builds_register_user() {
+        let mut machine = AuthorizationMachine::default();
+        let challenge = challenge_id(
+            machine
+                .observe_state(&json!({
+                    "@type": "authorizationStateWaitRegistration",
+                    "terms_of_service": {
+                        "@type": "termsOfService",
+                        "text": {"@type": "formattedText", "text": "Terms", "entities": []},
+                        "min_user_age": 18,
+                        "show_popup": true
+                    }
+                }))
+                .unwrap(),
+        );
+        assert!(matches!(
+            machine.submit(
+                challenge,
+                AuthorizationInput::Registration {
+                    first_name: SensitiveString::new("Ada"),
+                    last_name: SensitiveString::new(""),
+                    terms_accepted: false,
+                    disable_notification: true,
+                }
+            ),
+            Err(AuthorizationError::InvalidField("terms_accepted"))
+        ));
     }
 
     #[test]

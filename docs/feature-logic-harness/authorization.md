@@ -27,13 +27,14 @@
 
 - SRC001: product.md; type: file; supports: trust boundary; limits: none.
 - SRC002: HARNESS.md; type: file; supports: secret and lifecycle invariants; limits: none.
-- SRC003: `plans.md` P1/P6, `telegram-core::authorization`, `telegram-core::database_key` и daemon authorization broker; type: file/code; supports: exhaustive state/challenge machine, protected database-key providers, exact parameters request, wrong-key latch и secure TTY submission; limits: live first-login branches не проверены.
+- SRC003: `plans.md` P1/P6/P10, `telegram-core::authorization`, `telegram-core::database_key`, daemon `AuthorizationCoordinator` и CLI `LoginDriver`; type: file/code; supports: exhaustive state/challenge machine, single daemon ownership от startup до re-auth, protected database-key providers, exact parameters request, wrong-key latch и тестируемый secure TTY flow; limits: platform-specific alternative auth actions перечислены отдельно.
 - SRC004: pinned official `td_api.tl` и exact source commit digest; type: supplied; supports: 13 auth states, auth methods, Base64 JSON bytes codec, empty-key behavior and wrong-key 401; limits: human UI not specified.
-- SRC005: live probe 2026-07-15; type: supplied; supports: encrypted returning Ready/getMe/Closed; limits: first-login branches not tested.
+- SRC005: live probes 2026-07-15 и 2026-07-18; type: supplied; supports: encrypted returning Ready/getMe/Closed и local first-login/returning chain; limits: expired-code resend branch not observed live.
 
 ## TDLib API Coverage
 
-- Primary owner: authorization-state methods: `setTdlibParameters`, database-key checks, phone/QR/code, authentication password/email challenges, registration and device confirmation.
+- Primary owner: authorization-state methods: `setTdlibParameters`, database-key checks,
+  phone/QR/code, password, email/code/Apple/Google, registration and device confirmation.
 - Exact functions/objects/updates are generated from schema and must cover all 13 authorization states.
 - Ready-state account password/recovery settings belong to F016; logout/destroy risk classification cross-references F001/F016.
 
@@ -55,7 +56,7 @@ Wrong key fails closed. OTP/2FA attempts are bounded and never replayed automati
 
 ## CLI/MCP Exposure
 
-CLI provides secure TTY/file-descriptor/keychain login. MCP exposes `auth.begin`, `auth.status` and `auth.wait`; the owner submits OTP, 2FA or database key through a separate protected CLI/TTY or server operator channel bound to the challenge ID.
+CLI provides secure TTY/file-descriptor/keychain login. MCP exposes `auth.begin`, `auth.status` and `auth.wait`; the owner submits OTP, 2FA or database key through a separate protected CLI/TTY or server operator channel bound to the boot-scoped challenge token.
 
 ## Permissions and Account Capabilities
 
@@ -63,7 +64,7 @@ Only account owner/operator may submit auth secrets. Agent may wait/poll status 
 
 ## Live Verification Boundary
 
-P1 protected live gate подтвердил returning regular-user session: `WaitTdlibParameters -> Ready -> getMe(user) -> close -> Closed` без phone/OTP/2FA input и без вывода identity/secret. Pure core machine обрабатывает все pinned states и exact auth requests. Отдельный pinned-native synthetic test-DC probe подтвердил wrong-key 401, отсутствие перехода к phone authorization, неизменность DB bytes и preflight reject missing key. P2 штатно подключил тот же path к singleton daemon, stable profile identity и idle/crash restart. P6 добавил daemon broker и защищённый `/dev/tty`; P8 добавил typed `next_action` и one-shot operator handoff `login tty <challenge_id>`, который fail closed до prompt при stale ID. Live phone/OTP/2FA login остаётся P10 boundary.
+P1 protected live gate подтвердил returning regular-user session: `WaitTdlibParameters -> Ready -> getMe(user) -> close -> Closed` без phone/OTP/2FA input и без вывода identity/secret. Pure core machine обрабатывает все pinned states и supported owner-flow auth requests. Отдельный pinned-native synthetic test-DC probe подтвердил wrong-key 401, отсутствие перехода к phone authorization, неизменность DB bytes и preflight reject missing key. P2 штатно подключил тот же path к singleton daemon, stable profile identity и idle/crash restart. P6 добавил daemon broker и защищённый `/dev/tty`; P8 добавил typed `next_action` и one-shot operator handoff с boot-scoped token. 2026-07-18 live phone/OTP/2FA first login, `Ready + getMe`, graceful `Closed` и returning `Ready` приняты; Telegram-side expired-code resend остаётся narrow follow-up.
 
 ## Scope
 
@@ -74,6 +75,9 @@ P1 protected live gate подтвердил returning regular-user session: `Wai
 ### Out of scope
 
 - Secret recovery by the model, bypassing Telegram retries, storing OTP in config.
+- Platform-specific passkey/web-token/Firebase/Premium-purchase journeys, bot-token login и owner
+  password-recovery UX до отдельного dedicated owner broker. Generic raw pre-Ready route не
+  открывается, потому что он обошёл бы verified identity/lease и secret-channel boundary.
 
 ### Ambiguous
 

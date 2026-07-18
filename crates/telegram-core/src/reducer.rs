@@ -94,7 +94,7 @@ pub struct VersionedMessageSendState {
     pub state: MessageSendState,
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct StateReducer {
     sequence: u64,
     gap: Option<UpdateGap>,
@@ -112,6 +112,26 @@ pub struct StateReducer {
     message_sends: BTreeMap<MessageSendKey, VersionedMessageSendState>,
     web_app_messages: BTreeMap<i64, UpdateSequence>,
     unknown_updates: Vec<VersionedValue>,
+}
+
+impl fmt::Debug for StateReducer {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("StateReducer")
+            .field("sequence", &self.sequence)
+            .field("gap", &self.gap)
+            .field("authorization_present", &self.authorization.is_some())
+            .field("users", &self.users.len())
+            .field("user_full_info", &self.user_full_info.len())
+            .field("chats", &self.chats.len())
+            .field("basic_groups", &self.basic_groups.len())
+            .field("supergroups", &self.supergroups.len())
+            .field("files", &self.files.len())
+            .field("connection_present", &self.connection.is_some())
+            .field("message_sends", &self.message_sends.len())
+            .field("unknown_updates", &self.unknown_updates.len())
+            .finish()
+    }
 }
 
 impl StateReducer {
@@ -1006,5 +1026,23 @@ mod tests {
         assert_eq!(drained[1].value, updates[1]);
         assert_eq!(drained[1].sequence.get(), 2);
         assert!(reducer.unknown_updates().is_empty());
+    }
+
+    #[test]
+    fn reducer_debug_never_contains_raw_authorization_values() {
+        let canary = "tg://login?token=STATE_REDUCER_DEBUG_CANARY";
+        let mut reducer = StateReducer::default();
+        reducer
+            .apply(&json!({
+                "@type": "updateAuthorizationState",
+                "authorization_state": {
+                    "@type": "authorizationStateWaitOtherDeviceConfirmation",
+                    "link": canary
+                }
+            }))
+            .unwrap();
+        let debug = format!("{reducer:?}");
+        assert!(!debug.contains(canary));
+        assert!(debug.contains("authorization_present: true"));
     }
 }

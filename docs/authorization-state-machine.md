@@ -9,7 +9,8 @@
 - `WaitPremiumPurchase` → явный financial challenge без автоматической покупки.
 - `WaitEmailAddress`/`WaitEmailCode` → email address, code, allowed Apple ID/Google ID token branches и typed reset timers.
 - `WaitCode` → authentication-code challenge с delivery/next type и resend timeout.
-- `WaitOtherDeviceConfirmation` → protected QR link; новое update создаёт новый challenge ID.
+- `WaitOtherDeviceConfirmation` → protected QR link; новое update создаёт новый boot-scoped
+  challenge token.
 - `WaitRegistration` → terms summary и bounded first/last name input.
 - `WaitPassword` → 2FA challenge с redacted hint/recovery pattern.
 - `Ready`, `LoggingOut`, `Closing`, `Closed` → explicit lifecycle steps.
@@ -20,14 +21,34 @@ Unknown state/type/required field fail closed. `Ready` означает толь
 
 - Каждое observed state получает monotonic `ChallengeId`; input со старым ID отклоняется.
 - После одного принятого input повторная submission блокируется до нового state update либо явного `submission_failed` от runtime driver.
+- `resend_code` строит только typed `resendAuthenticationCode` с `resendCodeReasonUserRequest`; core требует текущий `WaitCode` и ненулевой `next_type`, а daemon broker дополнительно ждёт server-specified `timeout` от момента наблюдения challenge.
 - Phone/QR restart допускается только в состояниях, перечисленных pinned schema.
 - Email identity tokens допускаются только при соответствующем `allow_apple_id`/`allow_google_id`.
 - Premium purchase, password recovery/reset и destructive account actions не изобретаются этим machine.
 
-`SensitiveString` скрывает значение в `Debug` и zeroizes owned storage on drop. `AuthorizationRequest::Debug` показывает только request type; caller обязан сразу передать `into_value()` transport и не логировать полученный JSON. Protocol challenge IDs/status не содержат secret values.
+`SensitiveString` скрывает значение в `Debug` и zeroizes owned storage on drop. `AuthorizationRequest::Debug` показывает только request type; caller обязан сразу передать `into_value()` transport и не логировать полученный JSON. Protocol challenge tokens/status не содержат secret values; owner-only prompt payload не входит в JSON/MCP status.
 
 Database key живёт в отдельном zeroizing wrapper. TDLib error `401` включает fail-closed latch и запрещает переход к phone/QR до явной повторной подачи parameters. Источники и TDJSON codec закреплены в [database-key contract](database-encryption-key.md).
 
+## Daemon coordination
+
+`telegramd` создаёт один `AuthorizationCoordinator` до startup authorization и переносит тот же
+instance в `LeaseServer`. Coordinator единолично владеет `AuthorizationMachine`, boot epoch,
+challenge token, resend timing, pending/uncertain submission и verified account. Startup
+`WaitTdlibParameters`, interactive login и последующий re-auth поэтому не могут разойтись между
+двумя state machines.
+
+Наружу coordinator возвращает только закрытый `AuthorizationObservation`; raw challenge payload
+остаётся внутри owner boundary. Lifecycle выполняет `getMe`/identity proof, но только coordinator
+может пометить текущий `ReadyObserved` как verified. `LeaseServer` не хранит параллельные
+`ready/account_kind`: lease и operation gates читают доказанный account непосредственно из
+coordinator, а каждое новое authorization update автоматически снимает verification.
+
 ## Verification
 
-Behavior tests проходят phone, QR, code, 2FA, email address/code/Apple token, device refresh, registration, parameters/premium и terminal states. Responses проверяются по exact TDLib request shape; неизвестный state, stale challenge, duplicate submission и mismatched input проверяются негативно. Тесты не хранят schema hash/count и не мутируют pinned schema.
+Behavior tests проходят phone, QR, code, 2FA, email address/code/Apple token, device refresh,
+registration, parameters/premium и terminal states. Coordinator tests дополнительно проверяют
+boot scope, verified-ready invalidation, runtime `NotSent`, uncertain reconciliation и owner
+prompt redaction. Responses проверяются по exact TDLib request shape; неизвестный state, stale
+challenge, duplicate submission и mismatched input проверяются негативно. Тесты не хранят schema
+hash/count и не мутируют pinned schema.

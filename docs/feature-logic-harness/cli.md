@@ -64,14 +64,19 @@ Commands display capability/policy requirements. Auth secrets use protected TTY/
 Session, schema и raw call используют private daemon JSONL protocol. Один discoverable
 `workflow list/run` route покрывает все реализованные core workflows и передаёт им
 lease-derived policy; CLI не зависит от core и не открывает DB. Hold пока выдаёт bounded
-lease без heartbeat loop. Login status использует typed authorization step без challenge
-values; one-shot events route переносит только sequence/kind/cursor/gap metadata. Human default
+lease без heartbeat loop. Machine login status использует typed authorization step без challenge
+values; human `login` сам ведёт owner TTY loop до terminal state; one-shot events route переносит
+только sequence/kind/cursor/gap metadata. Human default
 и versioned compact JSON/JSONL с closed error/exit codes реализованы. Human/JSONL watch
 поддерживает cursor streaming, heartbeat и release после signal/pipe cancellation.
-`login tty` связывает protected `/dev/tty` input с typed challenge ID; one-shot
-`login tty <challenge_id>` обслуживает MCP/operator handoff и сверяет ID до prompt. Secrets
-отсутствуют в flags/stdin/output, echo восстанавливается после signal, stale/pending input fail closed.
-Live first-login остаётся P10 boundary.
+`login` связывает protected `/dev/tty` input с последовательными opaque boot-scoped challenge
+tokens; one-shot `login tty <challenge_id>` обслуживает MCP/operator handoff и сверяет token до
+prompt. Phone
+и остальные auth inputs видны только в owner terminal и отсутствуют в flags/stdin/output;
+для cloud password владелец выбирает echo, hidden mode восстанавливается после signal,
+stale/pending input fail closed.
+Live first/returning login принят 2026-07-18; Telegram-side expired-code resend остаётся
+отдельной P10 follow-up границей.
 Compact repo-local skill использует только machine envelope и on-demand
 workflow/schema descriptors; offline cold-context traces закрывают representative history,
 statistics, sticker, bot и Mini App handoff paths без prose parsing.

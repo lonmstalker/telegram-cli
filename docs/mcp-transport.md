@@ -46,7 +46,7 @@ shell, PTY, forwarding или возможность выбирать друго
 
 ## Protected operator login
 
-`auth.begin/status/wait` возвращают только `challenge_id`, `LoginState` и typed
+`auth.begin/status/wait` возвращают только opaque string `challenge_id`, `LoginState` и typed
 `next_action`. Когда action равен `submit_via_protected_channel`, владелец открывает
 отдельную, независимо аутентифицированную SSH-сессию с PTY и запускает на сервере:
 
@@ -54,10 +54,12 @@ shell, PTY, forwarding или возможность выбирать друго
 telegram-cli login tty <challenge_id>
 ```
 
-Это не MCP forced-command key и не model terminal. Secret вводится в server `/dev/tty` с
-выключенным echo и идёт только внутри зашифрованного SSH channel; в arguments находится
-лишь non-secret challenge ID. CLI сверяет ID до prompt и отправляет ровно один typed input.
-После этого MCP использует `auth.wait` для следующего ID/action или доказанного `Ready`.
+Это не MCP forced-command key и не model terminal. Phone/OTP/email/registration видны owner
+в server `/dev/tty`; echo cloud password выбирает сам owner. Input идёт только внутри зашифрованного SSH
+channel; в arguments находится
+лишь non-secret boot-scoped token. CLI сверяет token до prompt и отправляет ровно один typed
+input. После restart/profile switch старый token fail closed. После этого MCP использует
+`auth.wait` для следующего token/action или доказанного `Ready`.
 
 ## Reconnect and results
 

@@ -325,7 +325,14 @@ fn receive_loop<B: TdJsonBackend>(
                 match response {
                     Some((correlation_id, response)) => {
                         let _ = events.send(TdJsonEvent::ResponseBoundary { correlation_id });
-                        let _ = response.send(Ok(value));
+                        if let Err(undelivered) = response.send(Ok(value))
+                            && let Ok(response) = undelivered.0
+                        {
+                            let _ = events.send(TdJsonEvent::UnmatchedResponse {
+                                extra: Value::from(correlation_id),
+                                response,
+                            });
+                        }
                     }
                     None => {
                         let _ = events.send(TdJsonEvent::UnmatchedResponse {
@@ -529,6 +536,47 @@ mod tests {
                 response: json!({"@type":"ok"}),
             }
         );
+        transport.shutdown().unwrap();
+    }
+
+    #[test]
+    fn timed_out_dispatch_emits_late_response_without_second_send() {
+        let state = ScriptedState::default();
+        let (transport, events) =
+            TdJsonTransport::start(ScriptedBackend::new(state.clone())).unwrap();
+        let pending = transport.request(json!({"@type": "authAction"})).unwrap();
+        let extra = pending.correlation_id();
+        assert_eq!(
+            pending.wait_until(Instant::now()),
+            Err(TransportError::ResponseTimeout)
+        );
+
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while state.inner.lock().unwrap().sent.is_empty() && Instant::now() < deadline {
+            thread::yield_now();
+        }
+        assert_eq!(state.inner.lock().unwrap().sent.len(), 1);
+        state
+            .inner
+            .lock()
+            .unwrap()
+            .incoming
+            .push_back(json!({"@type": "error", "code": 500, "@extra": extra}).to_string());
+
+        let late = loop {
+            let event = events.recv_timeout(Duration::from_secs(1)).unwrap();
+            if matches!(event, TdJsonEvent::UnmatchedResponse { .. }) {
+                break event;
+            }
+        };
+        assert_eq!(
+            late,
+            TdJsonEvent::UnmatchedResponse {
+                extra: Value::from(extra),
+                response: json!({"@type": "error", "code": 500}),
+            }
+        );
+        assert_eq!(state.inner.lock().unwrap().sent.len(), 1);
         transport.shutdown().unwrap();
     }
 }

@@ -9,6 +9,7 @@ use std::process::ExitCode;
 use telegram_core::approval::ApprovalVerifier;
 use telegram_core::idempotency::IdempotencyJournal;
 
+pub mod authorization;
 pub mod config;
 pub mod identity;
 pub mod lease;
@@ -19,11 +20,12 @@ pub mod server;
 pub mod socket;
 pub mod telemetry;
 
+use authorization::AuthorizationCoordinator;
 use config::DaemonConfig;
 use lease::LeaseManager;
 use lifecycle::Lifecycle;
 use ownership::ProfileDatabaseLock;
-use scheduler::{serial_daemon_budgets, AccountScheduler};
+use scheduler::{AccountScheduler, serial_daemon_budgets};
 use server::LeaseServer;
 use socket::DaemonSocket;
 use telemetry::{AuditLog, Telemetry};
@@ -64,7 +66,14 @@ fn run() -> Result<(), Box<dyn Error>> {
     let database_key = config.load_database_key()?;
     let backend = config.load_native()?;
     let mut runtime = lifecycle::start_runtime(backend)?;
-    let readiness = lifecycle::reach_ready(&mut runtime, &config, &database_key, &ownership)?;
+    let mut authorization = AuthorizationCoordinator::default();
+    let readiness = lifecycle::reach_ready(
+        &mut runtime,
+        &config,
+        &database_key,
+        &ownership,
+        &mut authorization,
+    )?;
     let risk_scopes = config.risk_scopes().collect::<Vec<_>>();
     let expected_user_id = config.expected_user_id();
     let files_directory = config.files_directory().to_owned();
@@ -78,19 +87,16 @@ fn run() -> Result<(), Box<dyn Error>> {
         telemetry,
         idempotency_journal,
         audit_log,
+        authorization,
     )
     .with_artifact_root(files_directory)
     .with_approval_verifier(approval_verifier);
-    if let lifecycle::AuthorizationReadiness::Ready(account) = readiness {
-        server.set_account_kind(account);
-    }
     server.start_events_at(
         runtime
             .state()
             .last_sequence()
             .map(|sequence| sequence.get()),
     );
-    server.observe_authorization(&runtime)?;
     if readiness == lifecycle::AuthorizationReadiness::InteractiveRequired {
         lifecycle::serve_until_authorized(
             &mut runtime,
@@ -103,7 +109,14 @@ fn run() -> Result<(), Box<dyn Error>> {
     lifecycle.ready(std::time::Instant::now())?;
     eprintln!("telegramd: Ready");
 
-    lifecycle::serve_until_idle(runtime, socket, server, &mut lifecycle)?;
+    lifecycle::serve_until_idle(
+        runtime,
+        socket,
+        server,
+        &mut lifecycle,
+        &ownership,
+        expected_user_id,
+    )?;
     eprintln!("telegramd: Closed");
     Ok(())
 }

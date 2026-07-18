@@ -17,7 +17,9 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
-use telegram_protocol::{DaemonRequest, DaemonResponse, MachineEnvelope, MachineStatus, RiskScope};
+use telegram_protocol::{
+    DaemonRequest, DaemonResponse, LoginChallengeId, MachineEnvelope, MachineStatus, RiskScope,
+};
 
 const AUTH_WAIT_MAX_MS: u64 = 60_000;
 const IO_TIMEOUT: Duration = Duration::from_secs(35);
@@ -27,7 +29,10 @@ const USAGE: &str = "telegram-mcp: usage: telegram-mcp stdio | ssh-stdio <identi
 #[derive(Debug, PartialEq)]
 enum ToolCall {
     Daemon(DaemonRequest),
-    AuthWait { challenge_id: u64, timeout_ms: u64 },
+    AuthWait {
+        challenge_id: LoginChallengeId,
+        timeout_ms: u64,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -86,7 +91,7 @@ fn tools() -> Vec<Tool> {
             "Wait for a challenge transition; credentials are submitted outside MCP.",
             object(
                 json!({
-                    "challenge_id": integer(),
+                    "challenge_id": string(),
                     "timeout_ms": { "type": "integer", "minimum": 0, "maximum": AUTH_WAIT_MAX_MS }
                 }),
                 &["challenge_id", "timeout_ms"],
@@ -203,7 +208,9 @@ fn translate(name: &str, arguments: Value, principal: &str) -> Result<ToolCall, 
         }
         "auth.begin" | "auth.status" => daemon(arguments, "login_status", None),
         "auth.wait" => {
-            let challenge_id = arguments.remove("challenge_id").and_then(|v| v.as_u64());
+            let challenge_id = arguments
+                .remove("challenge_id")
+                .and_then(|value| value.as_str().and_then(|value| value.parse().ok()));
             let timeout_ms = arguments.remove("timeout_ms").and_then(|v| v.as_u64());
             match (challenge_id, timeout_ms, arguments.is_empty()) {
                 (Some(challenge_id), Some(timeout_ms), true) if timeout_ms <= AUTH_WAIT_MAX_MS => {
@@ -298,9 +305,9 @@ impl TelegramMcp {
                     let unchanged = matches!(
                         response,
                         DaemonResponse::LoginStatus {
-                            challenge_id: Some(current),
+                            challenge_id: Some(ref current),
                             ..
-                        } if current == challenge_id
+                        } if current == &challenge_id
                     );
                     if !unchanged || Instant::now() >= deadline {
                         return Ok(response);
@@ -634,11 +641,16 @@ mod tests {
         assert_eq!(
             translate(
                 "auth.wait",
-                json!({"challenge_id": 42, "timeout_ms": 1_000}),
+                json!({
+                    "challenge_id": "auth-0000000000000000000000000000002a-0000000000000001",
+                    "timeout_ms": 1_000
+                }),
                 "agent"
             ),
             Ok(ToolCall::AuthWait {
-                challenge_id: 42,
+                challenge_id: LoginChallengeId::new(
+                    "auth-0000000000000000000000000000002a-0000000000000001".to_owned()
+                ),
                 timeout_ms: 1_000
             })
         );

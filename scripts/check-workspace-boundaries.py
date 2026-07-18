@@ -14,11 +14,12 @@ ROOT = Path(__file__).resolve().parent.parent
 
 PRODUCT_PACKAGES = {
     "telegram-protocol": ("lib", set()),
+    "telegram-client": ("lib", {"telegram-protocol"}),
     "telegram-core": ("lib", set()),
     "telegramd": ("bin", {"telegram-core", "telegram-protocol"}),
-    "telegram-cli": ("bin", {"telegram-protocol"}),
-    "telegram-mcp": ("bin", {"telegram-protocol"}),
-    "telegram-webapp-runner": ("bin", {"telegram-protocol"}),
+    "telegram-cli": ("bin", {"telegram-client", "telegram-protocol"}),
+    "telegram-mcp": ("bin", {"telegram-client", "telegram-protocol"}),
+    "telegram-webapp-runner": ("bin", {"telegram-client", "telegram-protocol"}),
 }
 TOOL_PACKAGES = {
     "tdlib-registry-gen": ("bin", {"telegram-core"}),
@@ -27,6 +28,7 @@ EXPECTED = PRODUCT_PACKAGES | TOOL_PACKAGES
 DEFAULT_MEMBERS = set(PRODUCT_PACKAGES) - {"telegram-mcp"}
 EXPECTED_MANIFESTS = {
     "telegram-protocol": ROOT / "crates/telegram-protocol/Cargo.toml",
+    "telegram-client": ROOT / "crates/telegram-client/Cargo.toml",
     "telegram-core": ROOT / "crates/telegram-core/Cargo.toml",
     "telegramd": ROOT / "apps/telegramd/Cargo.toml",
     "telegram-cli": ROOT / "apps/telegram-cli/Cargo.toml",

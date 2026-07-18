@@ -1,18 +1,16 @@
 //! Local one-shot browser adapter boundary for Mini App launch artifacts.
 
 use std::env;
-use std::fs;
-use std::io::{self, BufRead, BufReader, Read, Write};
-use std::os::unix::fs::{FileTypeExt, MetadataExt};
-use std::os::unix::net::UnixStream;
-use std::path::PathBuf;
+use std::io::{self, Read, Write};
 use std::process::{Command, ExitCode, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
+use telegram_client::{ExchangeOptions, ResponseFraming};
 use telegram_protocol::{
-    BrowserEvidence, DaemonRequest, DaemonResponse, ProtectedString, WebAppBrowserReport,
+    BrowserEvidence, ClientErrorCode, DaemonRequest, DaemonResponse, ProtectedString,
+    WebAppBrowserReport,
 };
 use zeroize::Zeroizing;
 
@@ -63,38 +61,22 @@ fn take_artifact(
     principal: &str,
     handle: &str,
 ) -> Result<BrowserLaunch, RunnerError> {
-    let path = socket_path(profile)?;
-    validate_socket(&path)?;
-    let mut stream = UnixStream::connect(path).map_err(|_| RunnerError::SocketUnavailable)?;
-    stream
-        .set_read_timeout(Some(IO_TIMEOUT))
-        .and_then(|_| stream.set_write_timeout(Some(IO_TIMEOUT)))
-        .map_err(|_| RunnerError::Transport)?;
     let request = DaemonRequest::WebAppArtifactTake {
         handle: handle.to_owned(),
         principal: principal.to_owned(),
     };
-    let mut wire = Zeroizing::new(Vec::new());
-    serde_json::to_writer(&mut *wire, &request).map_err(|_| RunnerError::Transport)?;
-    wire.push(b'\n');
-    stream
-        .write_all(&wire)
-        .and_then(|_| stream.flush())
-        .map_err(|_| RunnerError::Transport)?;
-
-    let mut response = Zeroizing::new(Vec::new());
-    BufReader::new(stream)
-        .take(MAX_RESPONSE_BYTES + 1)
-        .read_until(b'\n', &mut response)
-        .map_err(|_| RunnerError::Transport)?;
-    if response.is_empty()
-        || response.len() as u64 > MAX_RESPONSE_BYTES
-        || !response.ends_with(b"\n")
-    {
-        return Err(RunnerError::InvalidResponse);
-    }
-    let response: DaemonResponse =
-        serde_json::from_slice(&response).map_err(|_| RunnerError::InvalidResponse)?;
+    let response = telegram_client::exchange_with_options(
+        profile,
+        &request,
+        ExchangeOptions::new(
+            IO_TIMEOUT,
+            ResponseFraming::BoundedLine {
+                max_bytes: MAX_RESPONSE_BYTES,
+            },
+        )
+        .with_connect_error(ClientErrorCode::SocketUnavailable),
+    )
+    .map_err(RunnerError::from_client)?;
     match response {
         DaemonResponse::WebAppArtifact {
             launch_id,
@@ -189,41 +171,6 @@ fn valid_handle(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
 }
 
-fn socket_path(profile: &str) -> Result<PathBuf, RunnerError> {
-    if profile.is_empty()
-        || profile.len() > 48
-        || !profile
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
-    {
-        return Err(RunnerError::InvalidProfile);
-    }
-    // SAFETY: geteuid has no preconditions and does not access memory.
-    let uid = unsafe { libc::geteuid() };
-    Ok(PathBuf::from(format!(
-        "/tmp/telegramd-{uid}/{profile}.sock"
-    )))
-}
-
-fn validate_socket(path: &PathBuf) -> Result<(), RunnerError> {
-    let parent = path.parent().ok_or(RunnerError::UnsafeSocket)?;
-    let directory = fs::symlink_metadata(parent).map_err(|_| RunnerError::SocketUnavailable)?;
-    let socket = fs::symlink_metadata(path).map_err(|_| RunnerError::SocketUnavailable)?;
-    // SAFETY: geteuid has no preconditions and does not access memory.
-    let uid = unsafe { libc::geteuid() };
-    if !directory.is_dir()
-        || directory.uid() != uid
-        || directory.mode() & 0o777 != 0o700
-        || !socket.file_type().is_socket()
-        || socket.uid() != uid
-        || socket.nlink() != 1
-        || socket.mode() & 0o777 != 0o600
-    {
-        return Err(RunnerError::UnsafeSocket);
-    }
-    Ok(())
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RunnerError {
     Usage,
@@ -239,6 +186,23 @@ enum RunnerError {
 }
 
 impl RunnerError {
+    const fn from_client(code: ClientErrorCode) -> Self {
+        match code {
+            ClientErrorCode::InvalidProfile => Self::InvalidProfile,
+            ClientErrorCode::SocketUnavailable => Self::SocketUnavailable,
+            ClientErrorCode::UnsafeSocket => Self::UnsafeSocket,
+            ClientErrorCode::InvalidResponse => Self::InvalidResponse,
+            ClientErrorCode::TransportFailed
+            | ClientErrorCode::InvalidArguments
+            | ClientErrorCode::InvalidJson
+            | ClientErrorCode::InvalidOutputFormat
+            | ClientErrorCode::OutputFailed
+            | ClientErrorCode::Cancelled
+            | ClientErrorCode::SecureTtyUnavailable
+            | ClientErrorCode::SecureTtyFailed => Self::Transport,
+        }
+    }
+
     const fn exit_code(self) -> u8 {
         match self {
             Self::Usage | Self::InvalidProfile => 2,

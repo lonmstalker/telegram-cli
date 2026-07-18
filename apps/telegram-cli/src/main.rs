@@ -1,12 +1,10 @@
 //! Тонкий local client единственного daemon protocol.
 
 use std::env;
-use std::fs::{self, OpenOptions};
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::fs::OpenOptions;
+use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
-use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt};
-use std::os::unix::net::UnixStream;
-use std::path::PathBuf;
+use std::os::unix::fs::{FileTypeExt, OpenOptionsExt};
 use std::process::ExitCode;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicI32, Ordering};
@@ -22,7 +20,6 @@ use zeroize::{Zeroize, Zeroizing};
 mod login;
 
 const DEFAULT_TTL_MS: u64 = 60_000;
-const IO_TIMEOUT: Duration = Duration::from_secs(35);
 const EXIT_INPUT: u8 = 2;
 const EXIT_UNAVAILABLE: u8 = 3;
 const EXIT_REJECTED: u8 = 4;
@@ -232,28 +229,7 @@ fn acquire(principal: String, scopes: &str, ttl_ms: u64) -> Result<DaemonRequest
 }
 
 fn exchange(profile: &str, request: &DaemonRequest) -> Result<DaemonResponse, CliError> {
-    let path = socket_path(profile)?;
-    validate_socket(&path)?;
-    let mut stream =
-        UnixStream::connect(path).map_err(|_| CliError::new(ClientErrorCode::TransportFailed))?;
-    stream
-        .set_read_timeout(Some(IO_TIMEOUT))
-        .and_then(|_| stream.set_write_timeout(Some(IO_TIMEOUT)))
-        .map_err(|_| CliError::new(ClientErrorCode::TransportFailed))?;
-    serde_json::to_writer(&mut stream, request)
-        .map_err(|_| CliError::new(ClientErrorCode::TransportFailed))?;
-    stream
-        .write_all(b"\n")
-        .and_then(|_| stream.flush())
-        .map_err(|_| CliError::new(ClientErrorCode::TransportFailed))?;
-
-    let mut response = String::new();
-    BufReader::new(stream)
-        .read_line(&mut response)
-        .map_err(|_| CliError::new(ClientErrorCode::TransportFailed))?;
-    let parsed = serde_json::from_str(&response);
-    response.zeroize();
-    parsed.map_err(|_| CliError::new(ClientErrorCode::InvalidResponse))
+    telegram_client::exchange(profile, request).map_err(CliError::new)
 }
 
 fn login_tty(
@@ -607,45 +583,6 @@ fn release_watch(profile: &str, lease_id: &LeaseId, principal: &str) -> Result<(
     }
 }
 
-fn socket_path(profile: &str) -> Result<PathBuf, CliError> {
-    if profile.is_empty()
-        || profile.len() > 48
-        || !profile
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
-    {
-        return Err(CliError::new(ClientErrorCode::InvalidProfile));
-    }
-    // SAFETY: geteuid has no preconditions and does not access memory.
-    let uid = unsafe { libc::geteuid() };
-    Ok(PathBuf::from(format!(
-        "/tmp/telegramd-{uid}/{profile}.sock"
-    )))
-}
-
-fn validate_socket(path: &std::path::Path) -> Result<(), CliError> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| CliError::new(ClientErrorCode::InvalidProfile))?;
-    let directory = fs::symlink_metadata(parent)
-        .map_err(|_| CliError::new(ClientErrorCode::SocketUnavailable))?;
-    let socket = fs::symlink_metadata(path)
-        .map_err(|_| CliError::new(ClientErrorCode::SocketUnavailable))?;
-    // SAFETY: geteuid has no preconditions and does not access memory.
-    let uid = unsafe { libc::geteuid() };
-    if !directory.is_dir()
-        || directory.uid() != uid
-        || directory.mode() & 0o777 != 0o700
-        || !socket.file_type().is_socket()
-        || socket.uid() != uid
-        || socket.nlink() != 1
-        || socket.mode() & 0o777 != 0o600
-    {
-        return Err(CliError::new(ClientErrorCode::UnsafeSocket));
-    }
-    Ok(())
-}
-
 fn parse_json(value: &str) -> Result<serde_json::Value, CliError> {
     serde_json::from_str(value).map_err(|_| CliError::new(ClientErrorCode::InvalidJson))
 }
@@ -927,13 +864,15 @@ fn pretty(writer: &mut impl Write, value: &serde_json::Value) -> io::Result<()> 
 
 #[cfg(test)]
 mod tests {
-    use std::fs::{DirBuilder, File, Permissions};
+    use std::fs::{self, DirBuilder, File, Permissions};
+    use std::io::{BufRead, BufReader};
     use std::os::fd::FromRawFd;
     use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
     use std::os::unix::net::{UnixListener, UnixStream};
     use std::thread;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use telegram_client::socket_path;
     use telegram_protocol::{LeaseView, MachineStatus, OperationalMetrics};
 
     use super::*;
@@ -1254,56 +1193,6 @@ mod tests {
             String::from_utf8(output).unwrap(),
             "Авторизация: Ready; next_action=Ready\n"
         );
-    }
-
-    #[test]
-    fn client_uses_private_jsonl_profile_socket() {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let profile = format!("cli-{}-{nonce:x}", std::process::id());
-        let path = socket_path(&profile).unwrap();
-        let directory = path.parent().unwrap();
-        match DirBuilder::new().mode(0o700).create(directory) {
-            Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) => panic!("can't create test socket directory: {error}"),
-        }
-        let listener = UnixListener::bind(&path).unwrap();
-        fs::set_permissions(&path, Permissions::from_mode(0o600)).unwrap();
-        let server = thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
-            let mut request = String::new();
-            BufReader::new(&mut stream).read_line(&mut request).unwrap();
-            assert_eq!(
-                serde_json::from_str::<DaemonRequest>(&request).unwrap(),
-                DaemonRequest::SessionStatus
-            );
-            serde_json::to_writer(
-                &mut stream,
-                &DaemonResponse::SessionStatus {
-                    metrics: Box::new(OperationalMetrics {
-                        active_leases: 2,
-                        ..Default::default()
-                    }),
-                },
-            )
-            .unwrap();
-            stream.write_all(b"\n").unwrap();
-        });
-
-        assert_eq!(
-            exchange(&profile, &DaemonRequest::SessionStatus).unwrap(),
-            DaemonResponse::SessionStatus {
-                metrics: Box::new(OperationalMetrics {
-                    active_leases: 2,
-                    ..Default::default()
-                }),
-            }
-        );
-        server.join().unwrap();
-        fs::remove_file(path).unwrap();
     }
 
     #[test]

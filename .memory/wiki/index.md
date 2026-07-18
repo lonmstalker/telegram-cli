@@ -75,6 +75,7 @@
 
 ## Current records
 
+- Общий daemon client: `telegram-client` единолично владеет client-side socket path, metadata validation и JSON exchange; timeout/framing различия consumers передаются explicit options, локальные error mappings остаются в приложениях; см. [D-20260718-009](../decisions/decisions.md), [W-20260718-013](../logs/work.md).
 - Implementation: P0–P8 accepted; первый Tasks-пункт P9 про reproducible pinned TDLib builds закрыт, P9 продолжается с launchd/systemd packaging; см. [project-state.md](project-state.md) и [W-20260718-011](../logs/work.md).
 - P10 authorization slice принят: 2026-07-18 отдельный profile прошёл owner TTY first login, daemon `Ready + getMe`, graceful `Closed` и returning `Ready` без повторного phone/OTP; общая P10 остаётся pending по другим scenarios; см. [W-20260718-008](../logs/work.md).
 - Authorization review hardening: timeout после dispatch остаётся uncertain без blind replay;

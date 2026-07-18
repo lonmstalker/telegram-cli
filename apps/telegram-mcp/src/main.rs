@@ -10,13 +10,12 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use std::env;
 use std::fs::{self, File};
-use std::io::{BufReader, Write};
-use std::os::unix::fs::{FileTypeExt, MetadataExt};
-use std::os::unix::net::UnixStream;
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::MetadataExt;
+use std::path::Path;
 use std::process::ExitCode;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
+use telegram_client::{ExchangeOptions, ResponseFraming, effective_uid, valid_name};
 use telegram_protocol::{
     DaemonRequest, DaemonResponse, LoginChallengeId, MachineEnvelope, MachineStatus, RiskScope,
 };
@@ -395,60 +394,12 @@ fn tool_error(code: &str) -> CallToolResult {
 }
 
 fn daemon_exchange(profile: &str, request: &DaemonRequest) -> Result<DaemonResponse, ()> {
-    let path = socket_path(profile)?;
-    validate_socket(&path)?;
-    let mut stream = UnixStream::connect(path).map_err(|_| ())?;
-    stream
-        .set_read_timeout(Some(IO_TIMEOUT))
-        .and_then(|_| stream.set_write_timeout(Some(IO_TIMEOUT)))
-        .map_err(|_| ())?;
-    serde_json::to_writer(&mut stream, request).map_err(|_| ())?;
-    stream
-        .write_all(b"\n")
-        .and_then(|_| stream.flush())
-        .map_err(|_| ())?;
-    serde_json::from_reader(BufReader::new(stream)).map_err(|_| ())
-}
-
-fn socket_path(profile: &str) -> Result<PathBuf, ()> {
-    if !valid_name(profile) {
-        return Err(());
-    }
-    Ok(PathBuf::from(format!(
-        "/tmp/telegramd-{}/{profile}.sock",
-        effective_uid()
-    )))
-}
-
-fn validate_socket(path: &Path) -> Result<(), ()> {
-    let parent = path.parent().ok_or(())?;
-    let directory = fs::symlink_metadata(parent).map_err(|_| ())?;
-    let socket = fs::symlink_metadata(path).map_err(|_| ())?;
-    let uid = effective_uid();
-    if !directory.is_dir()
-        || directory.uid() != uid
-        || directory.mode() & 0o777 != 0o700
-        || !socket.file_type().is_socket()
-        || socket.uid() != uid
-        || socket.nlink() != 1
-        || socket.mode() & 0o777 != 0o600
-    {
-        return Err(());
-    }
-    Ok(())
-}
-
-fn valid_name(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 48
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
-}
-
-fn effective_uid() -> u32 {
-    // SAFETY: geteuid has no preconditions and does not access memory.
-    unsafe { libc::geteuid() }
+    telegram_client::exchange_with_options(
+        profile,
+        request,
+        ExchangeOptions::new(IO_TIMEOUT, ResponseFraming::UntilEof),
+    )
+    .map_err(|_| ())
 }
 
 fn parse_scopes(value: &str) -> Result<Vec<RiskScope>, ()> {

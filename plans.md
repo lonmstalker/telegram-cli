@@ -19,7 +19,7 @@ source_of_truth: true
 Сделано и проверено:
 
 - Документационный bootstrap: `product.md`, `HARNESS.md` c inventory F001–F022, harness-файлы, `docs/tdlib-api-coverage.md`.
-- Cargo workspace из шести пакетов; границы защищены `scripts/check-workspace-boundaries.py`.
+- Cargo workspace из семи product-пакетов и generator tool; границы защищены `scripts/check-workspace-boundaries.py`.
 - Pinned schema: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`, 1010 functions; gate `scripts/check-tdlib-pin.py`.
 - Strict schema parser и deterministic inventory в `crates/telegram-core/src/schema.rs`.
 - macOS arm64 и Linux x86_64 `tdjson` artifacts с provenance; gate `scripts/check-tdlib-native-pin.py`.
@@ -65,12 +65,14 @@ source_of_truth: true
 flowchart LR
   A["AI-агенты"] --> C["telegram-cli"]
   A --> M["telegram-mcp — optional"]
-  C --> D["telegramd — lock, leases, policy, workflows"]
-  M --> D
+  C --> L["telegram-client — private Unix socket client"]
+  M --> L
+  B["Browser runner для Mini Apps"] --> L
+  L --> D["telegramd — lock, leases, policy, workflows"]
   D --> P["telegram-protocol"]
   D --> K["telegram-core — TDJSON, auth, cache, scheduler"]
   K <--> T["Pinned TDLib / Telegram"]
-  D --> B["Browser runner для Mini Apps"]
+  D --> B
 ```
 
 ## Зоны ответственности
@@ -78,6 +80,7 @@ flowchart LR
 | Компонент | Владеет | Не делает |
 |---|---|---|
 | `crates/telegram-protocol` | Stable request/response/error/event/freshness envelopes | Бизнес-логика, TDLib-типы, IO |
+| `crates/telegram-client` | Общий security-checked Unix socket transport для CLI, MCP и browser runner | TDLib, daemon lifecycle, workflow-логика, локальный error UX |
 | `crates/telegram-core` | TDJSON FFI, authorization, ordered receive loop, update reducer, schema parser, generated registry, workflows, retries, idempotency | Владение DB/process lifecycle, транспорт до клиентов |
 | `apps/telegramd` | Единственный владелец TDLib DB: OS lock, Unix socket, leases, scheduling, policy enforcement, lifecycle | Прямые TDLib-вызовы в обход core, парсинг схемы |
 | `apps/telegram-cli` | Human/JSON/JSONL client поверх protocol | Собственная TDLib-сессия, собственная workflow-логика |
@@ -229,6 +232,7 @@ flowchart LR
 
 ### Tasks
 
+- [x] Общий `telegram-client`: единая socket path/validation/exchange реализация для CLI, MCP и browser runner с сохранением их timeout/framing contracts.
 - [x] CLI session commands: status, hold и release поверх daemon protocol.
 - [x] CLI schema search/describe и universal `td call` поверх того же daemon protocol.
 - [x] CLI routes для всех реализованных core workflows.

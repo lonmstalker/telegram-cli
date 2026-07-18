@@ -4,6 +4,7 @@
 
 ## Verified
 
+- Три client-side реализации daemon socket сведены в `telegram-client`: security predicates для uid/type/`0700`/`0600`/`nlink == 1` едины, а CLI/MCP/runner сохраняют прежние timeout, response framing и локальный error mapping через explicit options ([D-20260718-009](../decisions/decisions.md), [W-20260718-013](../logs/work.md)).
 - Первый Tasks-пункт P9 закрыт: для macOS arm64 и Linux x86_64 две independent exact-recipe builds совпали bit-for-bit; rebuild сверяет новый artifact с committed reference digest до публикации ([D-20260718-007](../decisions/decisions.md), [W-20260718-011](../logs/work.md)).
 - P10 authorization slice accepted: отдельный profile прошёл owner TTY first login, daemon terminal `Ready + getMe`, graceful `Draining -> Closed` и returning restart до `Ready` без повторного phone/OTP ([W-20260718-008](../logs/work.md)).
 - Supplied authorization review закрыт requirement-by-requirement: uncertain timeout не replay-ится,
@@ -26,7 +27,7 @@
 - Пользовательский source-checkout flow и brokered authorization описаны зеркально на русском и английском; P9 packaging и общая P10 остаются незавершёнными ([W-20260718-001](../logs/work.md)).
 
 - Документационный bootstrap: `product.md`, `plans.md`, `HARNESS.md` (F001–F022), harness-файлы, `docs/tdlib-api-coverage.md`.
-- Cargo workspace из шести product-пакетов и generator tool; границы под gate `scripts/check-workspace-boundaries.py`; `telegramd`, `telegram-cli` и local Web App runner имеют working scoped surfaces, MCP adapter реализован, а endpoint остаётся fail-closed до transport-пункта P8.
+- Cargo workspace из семи product-пакетов и generator tool; границы под gate `scripts/check-workspace-boundaries.py`; `telegramd`, `telegram-cli` и local Web App runner имеют working scoped surfaces, MCP adapter реализован.
 - Pinned schema: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`; 1010 functions, 2168 definitions, 184 updates, 13 auth states; gate `scripts/check-tdlib-pin.py`.
 - Strict schema parser в `telegram-core::schema` (12 тестов, без внешних dependencies).
 - macOS arm64 и Linux x86_64 `tdjson` с provenance в content-addressed cache; общий gate `scripts/check-tdlib-native-pin.py`, локальная проверка обоих artifacts — с `--require-local-artifact`.

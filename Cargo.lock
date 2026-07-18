@@ -594,6 +594,17 @@ version = "0.1.0"
 dependencies = [
  "libc",
  "serde_json",
+ "telegram-client",
+ "telegram-protocol",
+ "zeroize",
+]
+
+[[package]]
+name = "telegram-client"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "serde_json",
  "telegram-protocol",
  "zeroize",
 ]
@@ -615,10 +626,10 @@ dependencies = [
 name = "telegram-mcp"
 version = "0.1.0"
 dependencies = [
- "libc",
  "rmcp",
  "serde",
  "serde_json",
+ "telegram-client",
  "telegram-protocol",
  "tokio",
 ]
@@ -636,9 +647,9 @@ dependencies = [
 name = "telegram-webapp-runner"
 version = "0.1.0"
 dependencies = [
- "libc",
  "serde",
  "serde_json",
+ "telegram-client",
  "telegram-protocol",
  "zeroize",
 ]

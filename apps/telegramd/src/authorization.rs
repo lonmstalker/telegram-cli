@@ -241,9 +241,7 @@ impl AuthorizationCoordinator {
                 .observed_at
                 .ok_or(AuthorizationError::CodeResendUnavailable)?;
             let timeout = Duration::from_secs(info.timeout_seconds.max(0) as u64);
-            if info.next_delivery_type.is_none()
-                || now.checked_duration_since(observed_at).unwrap_or_default() < timeout
-            {
+            if now.checked_duration_since(observed_at).unwrap_or_default() < timeout {
                 return Err(AuthorizationError::CodeResendUnavailable);
             }
         } else if !matches!(challenge.kind, AuthorizationChallengeKind::EmailCode { .. }) {

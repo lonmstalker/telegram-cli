@@ -314,6 +314,33 @@ fn resend_uses_tdlib_deadline_and_supports_email_code() {
 }
 
 #[test]
+fn resend_delegates_delivery_availability_to_core_after_the_timeout_gate() {
+    let observed_at = Instant::now();
+    let mut coordinator = AuthorizationCoordinator::with_epoch(14);
+    coordinator
+        .observe(
+            &json!({
+                "@type": "authorizationStateWaitCode",
+                "code_info": {
+                    "@type": "authenticationCodeInfo",
+                    "phone_number": "+1******00",
+                    "type": {"@type": "authenticationCodeTypeTelegramMessage", "length": 5},
+                    "next_type": null,
+                    "timeout": 60
+                }
+            }),
+            observed_at,
+        )
+        .unwrap();
+    let token = coordinator.status().1.unwrap();
+
+    assert!(matches!(
+        coordinator.begin_resend(&token, observed_at + Duration::from_secs(60)),
+        Err(AuthorizationError::CodeResendUnavailable)
+    ));
+}
+
+#[test]
 fn transient_tdlib_errors_are_not_classified_as_bad_otp() {
     assert_eq!(
         super::login_submission_error(&json!({"@type": "error", "code": 400})),

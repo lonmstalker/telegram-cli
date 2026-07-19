@@ -46,140 +46,13 @@ use crate::scheduler::{
     AccountScheduler, FloodScope, OperationClass, OperationContext, OperationPermit,
 };
 use crate::telemetry::{AuditEvent, AuditLog, OperationOutcome, Telemetry};
-use crate::workflow_catalog::is_journaled_workflow;
+use crate::workflow_catalog::{WORKFLOWS, is_journaled_workflow, workflow as workflow_by_name};
 
 const MAX_REQUEST_BYTES: u64 = 16 * 1024;
 const CLIENT_IO_TIMEOUT: Duration = Duration::from_secs(5);
 const CALL_TIMEOUT: Duration = Duration::from_secs(30);
 const EVENT_BUFFER_CAPACITY: usize = 1024;
 const WEB_APP_ARTIFACT_TTL: Duration = Duration::from_secs(60);
-const WORKFLOWS: &[(&str, &str)] = &[
-    (
-        "user_profile",
-        r#"{"target":{"kind":"self"},"include_full_info":true}"#,
-    ),
-    (
-        "update_profile_name",
-        r#"{"first_name":"Name","last_name":""}"#,
-    ),
-    ("plan_chat_title", r#"{"chat_id":0,"title":"Title"}"#),
-    ("apply_chat_title", r#"{"chat_id":0,"title":"Title"}"#),
-    ("resolve_chat", r#"{"kind":"id","chat_id":0}"#),
-    (
-        "preview_invite_link",
-        r#"{"url":"https://t.me/+INVITE_TOKEN"}"#,
-    ),
-    ("ensure_membership", r#"{"kind":"chat_id","chat_id":0}"#),
-    ("membership_status", r#"{"kind":"chat_id","chat_id":0}"#),
-    ("leave_chat", r#"{"chat_id":0}"#),
-    ("load_chat_list", r#"{"list":{"kind":"main"},"limit":100}"#),
-    (
-        "inspect_chat",
-        r#"{"target":{"kind":"id","chat_id":0},"open":false}"#,
-    ),
-    (
-        "forum_topics",
-        r#"{"chat_id":0,"query":"","count":100,"page_limit":100}"#,
-    ),
-    (
-        "set_forum_topic_closed",
-        r#"{"chat_id":0,"topic_id":0,"is_closed":true}"#,
-    ),
-    (
-        "chat_history",
-        r#"{"chat_id":0,"only_local":false,"mark_read":false,"page":{"count":100,"min_date":null,"page_limit":100}}"#,
-    ),
-    (
-        "search_chat_messages",
-        r#"{"chat_id":0,"query":"","mark_read":false,"page":{"count":100,"min_date":null,"page_limit":100}}"#,
-    ),
-    ("send_text_message", r#"{"chat_id":0,"text":"hello"}"#),
-    (
-        "supergroup_members",
-        r#"{"supergroup_id":0,"count":100,"page_limit":100}"#,
-    ),
-    ("chat_statistics", r#"{"chat_id":0,"is_dark":false}"#),
-    ("resource_statistics", r#"{"only_current_network":true}"#),
-    ("proxy_status", "{}"),
-    ("set_proxy_enabled", r#"{"action":"enable","proxy_id":1}"#),
-    ("resync_after_gap", "{}"),
-    (
-        "download_file",
-        r#"{"file_id":0,"priority":1,"offset":0,"limit":0}"#,
-    ),
-    (
-        "cancel_download",
-        r#"{"file_id":0,"only_if_pending":false}"#,
-    ),
-    (
-        "upload_sticker_file",
-        r#"{"user_id":0,"format":"webp","source":{"kind":"id","id":0}}"#,
-    ),
-    (
-        "plan_custom_emoji_set",
-        r#"{"action":"create","user_id":1,"title":"Disposable","name":"codex_disposable","format":"webp","sticker_file_id":1,"emojis":"🧪","needs_repainting":false}"#,
-    ),
-    (
-        "apply_custom_emoji_set",
-        r#"{"action":"create","user_id":1,"title":"Disposable","name":"codex_disposable","format":"webp","sticker_file_id":1,"emojis":"🧪","needs_repainting":false}"#,
-    ),
-    (
-        "plan_story_mutation",
-        r#"{"action":"post_photo","chat_id":1,"photo_file_id":1,"caption":"","privacy":{"kind":"selected_users","user_ids":[1]},"active_period":86400,"is_posted_to_chat_page":false,"protect_content":true}"#,
-    ),
-    (
-        "apply_story_mutation",
-        r#"{"action":"post_photo","chat_id":1,"photo_file_id":1,"caption":"","privacy":{"kind":"selected_users","user_ids":[1]},"active_period":86400,"is_posted_to_chat_page":false,"protect_content":true}"#,
-    ),
-    ("inspect_group_call", r#"{"group_call_id":1}"#),
-    ("leave_group_call", r#"{"group_call_id":1}"#),
-    ("notification_settings", r#"{"scope":"private_chats"}"#),
-    (
-        "set_notification_settings",
-        r#"{"scope":"private_chats","patch":{"mute_for":60}}"#,
-    ),
-    ("active_sessions", "{}"),
-    ("plan_terminate_session", r#"{"session_id":1}"#),
-    ("apply_terminate_session", r#"{"session_id":1}"#),
-    (
-        "business_connection",
-        r#"{"connection_id":"connection-id"}"#,
-    ),
-    (
-        "send_business_text",
-        r#"{"connection_id":"connection-id","chat_id":1,"text":"hello"}"#,
-    ),
-    ("star_balance", "{}"),
-    (
-        "plan_star_invoice_payment",
-        r#"{"invoice_name":"invoice-name"}"#,
-    ),
-    (
-        "apply_star_invoice_payment",
-        r#"{"invoice_name":"invoice-name"}"#,
-    ),
-    (
-        "start_bot",
-        r#"{"bot_user_id":0,"chat_id":0,"parameter":""}"#,
-    ),
-    (
-        "start_bot_and_wait_reply",
-        r#"{"bot_user_id":0,"chat_id":0,"parameter":""}"#,
-    ),
-    (
-        "click_bot_callback",
-        r#"{"chat_id":0,"message_id":0,"row":0,"column":0}"#,
-    ),
-    (
-        "open_web_app",
-        r#"{"chat_id":0,"bot_user_id":0,"button_url":"https://example.invalid","application_name":"main","mode":"compact"}"#,
-    ),
-    (
-        "prepare_web_app_handoff",
-        r#"{"chat_id":0,"bot_user_id":0,"button_url":"https://example.invalid","application_name":"main","mode":"compact"}"#,
-    ),
-    ("close_web_app_handoff", r#"{"launch_id":0}"#),
-];
 struct WebAppArtifact {
     principal: String,
     launch_id: i64,
@@ -711,7 +584,7 @@ impl LeaseServer {
             DaemonRequest::WorkflowList => DaemonResponse::WorkflowList {
                 workflows: WORKFLOWS
                     .iter()
-                    .map(|(name, _)| (*name).to_owned())
+                    .map(|entry| entry.name.to_owned())
                     .collect(),
             },
             DaemonRequest::WorkflowDescribe { workflow } => match workflow_input_example(&workflow)
@@ -732,14 +605,12 @@ impl LeaseServer {
                 approval,
             } => {
                 let started = Instant::now();
-                let Some((workflow_name, _)) = WORKFLOWS
-                    .iter()
-                    .find(|(candidate, _)| *candidate == workflow)
-                else {
+                let Some(catalog_entry) = workflow_by_name(&workflow) else {
                     return DaemonResponse::CommandError {
                         code: CommandErrorCode::WorkflowNotFound,
                     };
                 };
+                let workflow_name = catalog_entry.name;
                 let Some(account_kind) = self.authorization.account_kind() else {
                     return runtime_unavailable();
                 };
@@ -871,7 +742,7 @@ impl LeaseServer {
 }
 
 fn workflow_input_example(name: &str) -> Option<Value> {
-    let (_, input_example) = WORKFLOWS.iter().find(|(candidate, _)| *candidate == name)?;
+    let input_example = workflow_by_name(name)?.input_example;
     Some(serde_json::from_str(input_example).expect("workflow input example is valid JSON"))
 }
 
@@ -2593,9 +2464,9 @@ mod tests {
 
     #[test]
     fn every_discoverable_workflow_example_matches_its_input_contract() {
-        for (name, _) in WORKFLOWS {
-            let input = workflow_input_example(name).unwrap();
-            let valid = match *name {
+        for entry in WORKFLOWS {
+            let input = workflow_input_example(entry.name).unwrap();
+            let valid = match entry.name {
                 "user_profile" => parse::<UserProfileInput>(input).is_ok(),
                 "update_profile_name" => parse::<ProfileNameInput>(input).is_ok(),
                 "plan_chat_title" | "apply_chat_title" => parse::<ChatTitleInput>(input).is_ok(),
@@ -2646,7 +2517,7 @@ mod tests {
                 "close_web_app_handoff" => parse::<CloseWebAppInput>(input).is_ok(),
                 _ => false,
             };
-            assert!(valid, "invalid input example for {name}");
+            assert!(valid, "invalid input example for {}", entry.name);
         }
         assert!(parse::<ProxyInput>(json!({})).is_err());
     }

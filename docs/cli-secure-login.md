@@ -49,9 +49,11 @@ redacted. Closed client errors различают недоступный и сл
 
 После dispatch outcome различается как `NotSent`, `DefinitiveRejected` или `Uncertain`.
 Response timeout не очищает pending submission: blind replay запрещён до fresh authorization
-update либо late-response reconciliation. Только definitive input rejection (`400`) попадает в
-ветку «код отклонён»; `429/500` не запускают resend. `timeout` не трактуется как TTL OTP: он
-только открывает resend, а сам resend требует `next_type`.
+update либо late-response reconciliation. Definitive input rejection (`400`) у code может
+запросить новый код только по описанному TDLib resend rule; у 2FA password CLI выводит
+«Пароль отклонён, попробуйте ещё раз» и заново получает owner prompt, не replay-ит прежний secret.
+`429/500` не запускают resend. `timeout` не трактуется как TTL OTP: он только открывает resend,
+а сам resend требует `next_type`.
 
 В phone/premium state владелец выбирает phone или QR. QR link передаётся отдельным owner-only
 prompt через private socket и печатается только в `/dev/tty`; JSON/MCP status по-прежнему

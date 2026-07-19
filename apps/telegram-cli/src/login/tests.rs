@@ -204,6 +204,77 @@ fn one_shot_handoff_stops_after_exact_submission() {
 }
 
 #[test]
+fn password_rejection_reprompts_the_owner_without_replaying_the_secret() {
+    let challenge = token(5);
+    let mut driver = LoginDriver::new(
+        FakeBroker {
+            script: VecDeque::from([
+                (
+                    DaemonRequest::LoginStatus,
+                    status(LoginState::Password, Some(&challenge)),
+                ),
+                (
+                    DaemonRequest::LoginPrompt {
+                        challenge_id: challenge.clone(),
+                    },
+                    prompt(&challenge, password_prompt()),
+                ),
+                (
+                    DaemonRequest::LoginSubmit {
+                        challenge_id: challenge.clone(),
+                        input: password_input(),
+                    },
+                    DaemonResponse::CommandError {
+                        code: telegram_protocol::CommandErrorCode::LoginSubmissionRejected,
+                    },
+                ),
+                (
+                    DaemonRequest::LoginStatus,
+                    status(LoginState::Password, Some(&challenge)),
+                ),
+                (
+                    DaemonRequest::LoginPrompt {
+                        challenge_id: challenge.clone(),
+                    },
+                    prompt(&challenge, password_prompt()),
+                ),
+                (
+                    DaemonRequest::LoginSubmit {
+                        challenge_id: challenge.clone(),
+                        input: password_input(),
+                    },
+                    DaemonResponse::LoginSubmitted {
+                        challenge_id: challenge.clone(),
+                    },
+                ),
+                (DaemonRequest::LoginStatus, status(LoginState::Ready, None)),
+            ]),
+        },
+        FakePrompt {
+            actions: VecDeque::from([
+                LoginAction::Submit(password_input()),
+                LoginAction::Submit(password_input()),
+            ]),
+            notices: Vec::new(),
+        },
+        FakeRuntime::default(),
+    );
+
+    assert!(matches!(
+        driver.run(None).unwrap(),
+        DaemonResponse::LoginStatus {
+            state: LoginState::Ready,
+            ..
+        }
+    ));
+    assert_eq!(
+        driver.prompt.notices,
+        vec!["Пароль отклонён, попробуйте ещё раз.\n"]
+    );
+    assert!(driver.broker.script.is_empty());
+}
+
+#[test]
 fn cancellation_is_checked_before_any_broker_call() {
     let mut driver = LoginDriver::new(
         FakeBroker {
@@ -292,5 +363,13 @@ fn code_input() -> LoginInput {
 fn password_input() -> LoginInput {
     LoginInput::Password {
         value: ProtectedString::new("secret".to_owned()),
+    }
+}
+
+fn password_prompt() -> OwnerLoginPrompt {
+    OwnerLoginPrompt::Password {
+        hint: ProtectedString::new(String::new()),
+        has_recovery_email_address: false,
+        recovery_email_address_pattern: ProtectedString::new(String::new()),
     }
 }

@@ -263,9 +263,13 @@ where
             }
             DaemonResponse::CommandError {
                 code: CommandErrorCode::LoginSubmissionRejected,
-            } if expected_challenge.is_none() && state == LoginState::Code => {
-                self.handle_code_rejection(&challenge_id)
-            }
+            } if expected_challenge.is_none() => match state {
+                LoginState::Code => self.handle_code_rejection(&challenge_id),
+                LoginState::Password => self.handle_password_rejection(),
+                _ => Ok(DriverStep::Return(command_error(
+                    CommandErrorCode::LoginSubmissionRejected,
+                ))),
+            },
             response @ (DaemonResponse::CommandError { .. } | DaemonResponse::Error { .. }) => {
                 Ok(DriverStep::Return(response))
             }
@@ -299,6 +303,12 @@ where
             }
             _ => Err(invalid_response()),
         }
+    }
+
+    fn handle_password_rejection(&mut self) -> Result<DriverStep, CliError> {
+        self.prompt
+            .notice("Пароль отклонён, попробуйте ещё раз.\n")?;
+        Ok(DriverStep::Continue)
     }
 
     fn fetch_prompt(

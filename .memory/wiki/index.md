@@ -78,13 +78,14 @@
 - [P10 chat read projection refactor](../raw/2026-07-19-p10-chat-read-projection.md) — returning auth, compact direct-response inspect и exact public resolve без raw/private payload
 - [P10 CHAT-005 invite preview](../raw/2026-07-19-p10-chat-invite-preview.md) — owner-supplied fixture terminal-классифицирован без membership/open/send и без сохранения token/raw preview
 - [P10 CHAT-010 membership round-trip](../raw/2026-07-19-p10-chat-membership-roundtrip.md) — terminal leave доказан, повторный join остановился на admin `request_pending` без retry/bypass
+- [P10 CHAT-010 async membership status](../raw/2026-07-19-p10-chat-async-membership-status.md) — поздний approval подтверждён `member` через read-only status без повторного join
 
 ## Current records
 
-- CHAT-010 partial: terminal `leave_chat=verified_left` реализован и доказан live; повторное
-  вступление отправило заявку и остановилось на `request_pending`. Membership не заявляется,
-  join не повторяется; см. [D-20260719-002](../decisions/decisions.md),
-  [P-20260719-002](../problems/problems.md), [W-20260719-007](../logs/work.md).
+- CHAT-010 принят: terminal leave и pending receipt отделены от membership; поздний read-only
+  status принял TDLib update и доказал `member` без повторного join. См.
+  [D-20260719-002](../decisions/decisions.md), [P-20260719-002](../problems/problems.md),
+  [W-20260719-008](../logs/work.md).
 - CHAT-005 принят live: owner-supplied invite fixture получил terminal preview как accessible
   non-public channel; membership/open/send не вызывались, token/title/ID не сохранены; см.
   [W-20260719-006](../logs/work.md).

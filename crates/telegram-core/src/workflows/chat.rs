@@ -9,6 +9,7 @@ pub enum ChatTarget<'value> {
     PublicLink(&'value str),
 }
 
+#[derive(Clone, Copy)]
 pub enum MembershipTarget<'value> {
     ChatId(i64),
     InviteLink(&'value str),
@@ -69,15 +70,39 @@ pub enum MembershipState {
 }
 
 impl MembershipState {
-    pub fn complete(self) -> bool {
+    pub fn submission_complete(self) -> bool {
+        !matches!(self, Self::Unknown)
+    }
+
+    pub fn membership_complete(self) -> bool {
         matches!(self, Self::Member { .. } | Self::Declined)
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct MembershipResult {
+    pub chat_id: Option<i64>,
     pub state: MembershipState,
-    pub raw: TdObject,
+    pub submission_complete: bool,
+    pub membership_complete: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MembershipStatusState {
+    Member,
+    NotMember,
+    Banned,
+    Unresolved,
+    Unknown,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct MembershipStatus {
+    pub chat_id: Option<i64>,
+    pub state: MembershipStatusState,
+    pub freshness: Freshness,
+    pub complete: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -215,6 +240,29 @@ pub fn ensure_membership(
     require_resynced(runtime)?;
     ensure_membership_with(target, |request| {
         td_call(runtime, policy, request, deadline)
+    })
+}
+
+pub fn membership_status(
+    runtime: &mut CoreRuntime,
+    policy: &RawPolicy,
+    target: MembershipTarget<'_>,
+    deadline: Instant,
+) -> Result<MembershipStatus, ChatWorkflowError> {
+    require_resynced(runtime)?;
+    membership_status_with(target, |request| {
+        let method = match request["@type"].as_str() {
+            Some("checkChatInviteLink") => "checkChatInviteLink",
+            Some("getChat") => "getChat",
+            Some("getBasicGroup") => "getBasicGroup",
+            Some("getSupergroup") => "getSupergroup",
+            _ => {
+                return Err(ChatWorkflowError::UnexpectedResult {
+                    method: "membership_status",
+                });
+            }
+        };
+        call_and_apply(runtime, policy, method, request, deadline)
     })
 }
 
@@ -936,6 +984,10 @@ pub(super) fn ensure_membership_with(
     target: MembershipTarget<'_>,
     mut call: impl FnMut(Value) -> Result<TdObject, RawApiError>,
 ) -> Result<MembershipResult, ChatWorkflowError> {
+    let target_chat_id = match target {
+        MembershipTarget::ChatId(chat_id) => Some(chat_id),
+        MembershipTarget::InviteLink(_) => None,
+    };
     let (method, request) = match target {
         MembershipTarget::ChatId(chat_id) => {
             ("joinChat", json!({"@type":"joinChat","chat_id":chat_id}))
@@ -958,7 +1010,123 @@ pub(super) fn ensure_membership_with(
         Some("chatJoinResultDeclined") => MembershipState::Declined,
         _ => MembershipState::Unknown,
     };
-    Ok(MembershipResult { state, raw })
+    let chat_id = match state {
+        MembershipState::Member { chat_id } => Some(chat_id),
+        _ => target_chat_id,
+    };
+    Ok(MembershipResult {
+        chat_id,
+        state,
+        submission_complete: state.submission_complete(),
+        membership_complete: state.membership_complete(),
+    })
+}
+
+pub(super) fn membership_status_with(
+    target: MembershipTarget<'_>,
+    mut call: impl FnMut(Value) -> Result<TdObject, ChatWorkflowError>,
+) -> Result<MembershipStatus, ChatWorkflowError> {
+    let chat_id = match target {
+        MembershipTarget::ChatId(chat_id) if chat_id != 0 => chat_id,
+        MembershipTarget::ChatId(_) => return Err(ChatWorkflowError::InvalidTarget),
+        MembershipTarget::InviteLink(invite_link) => {
+            let invite_link = invite_link_value(invite_link)?;
+            let preview = membership_status_call(
+                "checkChatInviteLink",
+                json!({"@type":"checkChatInviteLink","invite_link":invite_link}),
+                &mut call,
+            )?;
+            if preview.as_value()["@type"] != "chatInviteLinkInfo" {
+                return Err(ChatWorkflowError::UnexpectedResult {
+                    method: "checkChatInviteLink",
+                });
+            }
+            let chat_id = required_i64(preview.as_value(), "chat_id", "checkChatInviteLink")?;
+            if chat_id == 0 {
+                return Ok(MembershipStatus {
+                    chat_id: None,
+                    state: MembershipStatusState::Unresolved,
+                    freshness: Freshness::ServerSnapshot,
+                    complete: false,
+                });
+            }
+            chat_id
+        }
+    };
+    let chat = membership_status_call(
+        "getChat",
+        json!({"@type":"getChat","chat_id":chat_id}),
+        &mut call,
+    )?;
+    if chat.as_value()["@type"] != "chat" {
+        return Err(ChatWorkflowError::UnexpectedResult { method: "getChat" });
+    }
+    let (method, request, expected) = match chat.as_value()["type"]["@type"].as_str() {
+        Some("chatTypeBasicGroup") => (
+            "getBasicGroup",
+            json!({
+                "@type":"getBasicGroup",
+                "basic_group_id":required_i64(
+                    &chat.as_value()["type"],
+                    "basic_group_id",
+                    "getChat",
+                )?
+            }),
+            "basicGroup",
+        ),
+        Some("chatTypeSupergroup") => (
+            "getSupergroup",
+            json!({
+                "@type":"getSupergroup",
+                "supergroup_id":required_i64(
+                    &chat.as_value()["type"],
+                    "supergroup_id",
+                    "getChat",
+                )?
+            }),
+            "supergroup",
+        ),
+        _ => return Err(ChatWorkflowError::InvalidTarget),
+    };
+    let group = membership_status_call(method, request, &mut call)?;
+    if group.as_value()["@type"] != expected {
+        return Err(ChatWorkflowError::UnexpectedResult { method });
+    }
+    let state = membership_status_state(&group.as_value()["status"])?;
+    Ok(MembershipStatus {
+        chat_id: Some(chat_id),
+        state,
+        freshness: Freshness::ServerSnapshot,
+        complete: !matches!(
+            state,
+            MembershipStatusState::Unresolved | MembershipStatusState::Unknown
+        ),
+    })
+}
+
+fn membership_status_call(
+    method: &'static str,
+    request: Value,
+    call: &mut impl FnMut(Value) -> Result<TdObject, ChatWorkflowError>,
+) -> Result<TdObject, ChatWorkflowError> {
+    checked_response(method, call(request)?)
+}
+
+fn membership_status_state(status: &Value) -> Result<MembershipStatusState, ChatWorkflowError> {
+    Ok(match required_string(status, "@type", "chat membership")? {
+        "chatMemberStatusMember" | "chatMemberStatusAdministrator" => MembershipStatusState::Member,
+        "chatMemberStatusCreator" | "chatMemberStatusRestricted"
+            if required_bool(status, "is_member", "chat membership")? =>
+        {
+            MembershipStatusState::Member
+        }
+        "chatMemberStatusCreator" | "chatMemberStatusRestricted" => {
+            MembershipStatusState::NotMember
+        }
+        "chatMemberStatusLeft" => MembershipStatusState::NotMember,
+        "chatMemberStatusBanned" => MembershipStatusState::Banned,
+        _ => MembershipStatusState::Unknown,
+    })
 }
 
 #[cfg(test)]
@@ -968,6 +1136,145 @@ mod tests {
 
     fn object(value: Value) -> Result<TdObject, RawApiError> {
         Ok(TdObject::from_value(value).unwrap())
+    }
+
+    fn workflow_object(value: Value) -> Result<TdObject, ChatWorkflowError> {
+        Ok(TdObject::from_value(value).unwrap())
+    }
+
+    #[test]
+    fn membership_is_explicit_and_preserves_pending_outcomes() {
+        let member = ensure_membership_with(MembershipTarget::ChatId(7), |request| {
+            assert_eq!(request["@type"], "joinChat");
+            object(json!({"@type":"chatJoinResultSuccess","chat_id":7}))
+        })
+        .unwrap();
+        assert_eq!(member.state, MembershipState::Member { chat_id: 7 });
+        assert_eq!(member.chat_id, Some(7));
+        assert!(member.submission_complete);
+        assert!(member.membership_complete);
+
+        let pending =
+            ensure_membership_with(MembershipTarget::InviteLink("private-link"), |request| {
+                assert_eq!(request["@type"], "joinChatByInviteLink");
+                object(json!({"@type":"chatJoinResultRequestSent"}))
+            })
+            .unwrap();
+        assert_eq!(pending.state, MembershipState::RequestPending);
+        assert_eq!(pending.chat_id, None);
+        assert!(pending.submission_complete);
+        assert!(!pending.membership_complete);
+        let serialized = serde_json::to_string(&pending).unwrap();
+        assert!(!serialized.contains("@type"));
+        assert!(!serialized.contains("raw"));
+
+        let approval = ensure_membership_with(MembershipTarget::ChatId(7), |_| {
+            object(json!({
+                "@type":"chatJoinResultGuardBotApprovalRequired",
+                "bot_user_id":8,
+                "query_id":"9007199254740993"
+            }))
+        })
+        .unwrap();
+        assert_eq!(
+            approval.state,
+            MembershipState::ApprovalRequired {
+                bot_user_id: 8,
+                query_id: 9_007_199_254_740_993
+            }
+        );
+        assert!(approval.submission_complete);
+        assert!(!approval.membership_complete);
+    }
+
+    #[test]
+    fn pending_join_can_be_observed_as_member_later_without_rejoining() {
+        let mut methods = Vec::new();
+        let pending = ensure_membership_with(
+            MembershipTarget::InviteLink("https://t.me/+private-link"),
+            |request| {
+                methods.push(request["@type"].as_str().unwrap().to_owned());
+                object(json!({"@type":"chatJoinResultRequestSent"}))
+            },
+        )
+        .unwrap();
+        assert_eq!(pending.state, MembershipState::RequestPending);
+
+        let status = membership_status_with(
+            MembershipTarget::InviteLink("https://t.me/+private-link"),
+            |request| {
+                let method = request["@type"].as_str().unwrap().to_owned();
+                methods.push(method.clone());
+                match method.as_str() {
+                    "checkChatInviteLink" => workflow_object(json!({
+                        "@type":"chatInviteLinkInfo",
+                        "chat_id":7,
+                        "accessible_for":0,
+                        "type":{"@type":"inviteLinkChatTypeChannel"},
+                        "title":"Channel",
+                        "creates_join_request":true,
+                        "is_public":false
+                    })),
+                    "getChat" => workflow_object(json!({
+                        "@type":"chat",
+                        "id":7,
+                        "title":"Channel",
+                        "type":{
+                            "@type":"chatTypeSupergroup",
+                            "supergroup_id":8,
+                            "is_channel":true
+                        }
+                    })),
+                    "getSupergroup" => workflow_object(json!({
+                        "@type":"supergroup",
+                        "id":8,
+                        "status":{"@type":"chatMemberStatusMember","member_until_date":0}
+                    })),
+                    _ => unreachable!(),
+                }
+            },
+        )
+        .unwrap();
+
+        assert_eq!(status.chat_id, Some(7));
+        assert_eq!(status.state, MembershipStatusState::Member);
+        assert_eq!(status.freshness, Freshness::ServerSnapshot);
+        assert!(status.complete);
+        assert_eq!(
+            methods,
+            [
+                "joinChatByInviteLink",
+                "checkChatInviteLink",
+                "getChat",
+                "getSupergroup"
+            ]
+        );
+    }
+
+    #[test]
+    fn membership_status_preserves_unresolved_invite_without_guessing() {
+        let mut methods = Vec::new();
+        let status = membership_status_with(
+            MembershipTarget::InviteLink("https://t.me/+private-link"),
+            |request| {
+                methods.push(request["@type"].as_str().unwrap().to_owned());
+                workflow_object(json!({
+                    "@type":"chatInviteLinkInfo",
+                    "chat_id":0,
+                    "accessible_for":0,
+                    "type":{"@type":"inviteLinkChatTypeChannel"},
+                    "title":"Channel",
+                    "creates_join_request":true,
+                    "is_public":false
+                }))
+            },
+        )
+        .unwrap();
+
+        assert_eq!(status.chat_id, None);
+        assert_eq!(status.state, MembershipStatusState::Unresolved);
+        assert!(!status.complete);
+        assert_eq!(methods, ["checkChatInviteLink"]);
     }
 
     #[test]
@@ -1036,13 +1343,16 @@ mod tests {
 
     #[test]
     fn policy_data_separates_read_resolution_from_membership_mutation() {
-        assert!(matches!(
-            capability("searchPublicChat").unwrap().disposition,
-            CapabilityDisposition::Reviewed {
-                risk: RiskClass::Read,
-                ..
-            }
-        ));
+        for method in ["searchPublicChat", "getBasicGroup", "getSupergroup"] {
+            assert!(matches!(
+                capability(method).unwrap().disposition,
+                CapabilityDisposition::Reviewed {
+                    risk: RiskClass::Read,
+                    retry: RetryClass::SafeRead,
+                    ..
+                }
+            ));
+        }
         for method in ["joinChat", "joinChatByInviteLink", "leaveChat"] {
             assert!(matches!(
                 capability(method).unwrap().disposition,
@@ -1053,5 +1363,50 @@ mod tests {
                 }
             ));
         }
+    }
+
+    #[test]
+    fn membership_status_maps_all_current_tdlib_member_states() {
+        let cases = [
+            (
+                json!({"@type":"chatMemberStatusMember"}),
+                MembershipStatusState::Member,
+            ),
+            (
+                json!({"@type":"chatMemberStatusAdministrator"}),
+                MembershipStatusState::Member,
+            ),
+            (
+                json!({"@type":"chatMemberStatusCreator","is_member":true}),
+                MembershipStatusState::Member,
+            ),
+            (
+                json!({"@type":"chatMemberStatusCreator","is_member":false}),
+                MembershipStatusState::NotMember,
+            ),
+            (
+                json!({"@type":"chatMemberStatusRestricted","is_member":true}),
+                MembershipStatusState::Member,
+            ),
+            (
+                json!({"@type":"chatMemberStatusRestricted","is_member":false}),
+                MembershipStatusState::NotMember,
+            ),
+            (
+                json!({"@type":"chatMemberStatusLeft"}),
+                MembershipStatusState::NotMember,
+            ),
+            (
+                json!({"@type":"chatMemberStatusBanned"}),
+                MembershipStatusState::Banned,
+            ),
+        ];
+        for (status, expected) in cases {
+            assert_eq!(membership_status_state(&status).unwrap(), expected);
+        }
+        assert_eq!(
+            membership_status_state(&json!({"@type":"futureMemberStatus"})).unwrap(),
+            MembershipStatusState::Unknown
+        );
     }
 }

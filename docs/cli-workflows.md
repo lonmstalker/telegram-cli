@@ -10,7 +10,7 @@ telegram-cli workflow run <lease_id> <workflow> '<input-json>' ['<approval-json>
 ```
 
 Daemon публикует и исполняет все реализованные core workflows:
-`user_profile`, `update_profile_name`, `plan_chat_title`, `apply_chat_title`, `resolve_chat`, `preview_invite_link`, `ensure_membership`, `leave_chat`, `load_chat_list`, `inspect_chat`,
+`user_profile`, `update_profile_name`, `plan_chat_title`, `apply_chat_title`, `resolve_chat`, `preview_invite_link`, `ensure_membership`, `membership_status`, `leave_chat`, `load_chat_list`, `inspect_chat`,
 `forum_topics`, `set_forum_topic_closed`, `chat_history`,
 `search_chat_messages`, `send_text_message`, `supergroup_members`, `chat_statistics`, `resync_after_gap`,
 `resource_statistics`,

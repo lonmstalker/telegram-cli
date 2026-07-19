@@ -35,7 +35,7 @@ Canonical machine-readable source после P3 —
 - Generator создаёт descriptor для каждого pinned method. Reviewed rows получают эти
   поля, остальные — только `DefaultDeny` без угаданной классификации.
 
-## Reviewed contracts (107)
+## Reviewed contracts (109)
 
 | Method | Accounts | Runtime requirements |
 |---|---|---|
@@ -66,6 +66,7 @@ Canonical machine-readable source после P3 —
 | `editMessageText` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeEdited }` |
 | `endGroupCall` | regular_user, bot | `(GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }) OR (GroupCallKind { group_call: group_call_id, kind: LiveStory } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }) OR (GroupCallKind { group_call: group_call_id, kind: Unbound } AND GroupCallProperty { group_call: group_call_id, property: IsOwned })` |
 | `endGroupCallRecording` | regular_user, bot | `GroupCallKind { group_call: group_call_id, kind: VideoChat } AND GroupCallProperty { group_call: group_call_id, property: CanBeManaged }` |
+| `getBasicGroup` | regular_user | `AuthorizationState { state: Ready }` |
 | `getBasicGroupFullInfo` | regular_user | `BasicGroupKnown { target: basic_group_id }` |
 | `getChat` | regular_user | `AuthorizationState { state: Ready }` |
 | `getChatHistory` | regular_user | `ChatKnown { target: chat_id }` |
@@ -89,6 +90,7 @@ Canonical machine-readable source после P3 —
 | `getMessageViewers` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetViewers }` |
 | `getPollVoteStatistics` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanGetPollVoteStatistics }` |
 | `getStatisticalGraph` | regular_user | `ChatKnown { target: chat_id }` |
+| `getSupergroup` | regular_user | `AuthorizationState { state: Ready }` |
 | `getSupergroupFullInfo` | regular_user | `SupergroupKnown { target: supergroup_id }` |
 | `getSupergroupMembers` | regular_user | `SupergroupFullInfoProperty { target: supergroup_id, property: CanGetMembers }` |
 | `getUser` | regular_user, bot | `AuthorizationState { state: Ready }` |

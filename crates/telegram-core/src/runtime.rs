@@ -352,6 +352,7 @@ mod tests {
         version: String,
         load_calls: usize,
         emit_leave_update: bool,
+        accept_pending_membership: bool,
     }
 
     struct StartupBackend(StartupState);
@@ -365,6 +366,7 @@ mod tests {
                     version,
                     load_calls: 0,
                     emit_leave_update: true,
+                    accept_pending_membership: false,
                 })),
             };
             (Self(state.clone()), state)
@@ -562,6 +564,52 @@ mod tests {
                     inner
                         .incoming
                         .push_back(json!({"@type":"ok","@extra":extra}).to_string());
+                }
+                "joinChatByInviteLink" => inner.incoming.push_back(
+                    json!({"@type":"chatJoinResultRequestSent","@extra":extra}).to_string(),
+                ),
+                "getChat" => inner.incoming.push_back(
+                    json!({
+                        "@type":"chat",
+                        "id":2,
+                        "title":"Channel",
+                        "type":{
+                            "@type":"chatTypeSupergroup",
+                            "supergroup_id":2,
+                            "is_channel":true
+                        },
+                        "@extra":extra
+                    })
+                    .to_string(),
+                ),
+                "getSupergroup" => {
+                    let status = if inner.accept_pending_membership {
+                        "chatMemberStatusMember"
+                    } else {
+                        "chatMemberStatusLeft"
+                    };
+                    if inner.accept_pending_membership {
+                        inner.incoming.push_back(
+                            json!({
+                                "@type":"updateSupergroup",
+                                "supergroup":{
+                                    "@type":"supergroup",
+                                    "id":2,
+                                    "status":{"@type":status,"member_until_date":0}
+                                }
+                            })
+                            .to_string(),
+                        );
+                    }
+                    inner.incoming.push_back(
+                        json!({
+                            "@type":"supergroup",
+                            "id":2,
+                            "status":{"@type":status,"member_until_date":0},
+                            "@extra":extra
+                        })
+                        .to_string(),
+                    );
                 }
                 "openChat" | "closeChat" => inner
                     .incoming
@@ -822,6 +870,80 @@ mod tests {
                 .sent_types
                 .iter()
                 .filter(|method| method.as_str() == "leaveChat")
+                .count(),
+            1
+        );
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn pending_membership_accepts_late_member_update_without_rejoining() {
+        let identity = pinned_identity().unwrap();
+        let (backend, state) = StartupBackend::new(identity.version);
+        let mut runtime =
+            CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let policy = crate::raw_api::RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![
+                crate::registry::RiskClass::Read,
+                crate::registry::RiskClass::ReversibleMutation,
+            ],
+        );
+        crate::workflows::load_chat_list(
+            &mut runtime,
+            &policy,
+            crate::reducer::ChatList::Main,
+            100,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+        crate::workflows::leave_chat(
+            &mut runtime,
+            &policy,
+            2,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+
+        let pending = crate::workflows::ensure_membership(
+            &runtime,
+            &policy,
+            crate::workflows::MembershipTarget::InviteLink("https://t.me/+pending"),
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+        assert_eq!(
+            pending.state,
+            crate::workflows::MembershipState::RequestPending
+        );
+        assert!(pending.submission_complete);
+        assert!(!pending.membership_complete);
+
+        state.inner.lock().unwrap().accept_pending_membership = true;
+        let status = crate::workflows::membership_status(
+            &mut runtime,
+            &policy,
+            crate::workflows::MembershipTarget::ChatId(2),
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+        assert_eq!(
+            status.state,
+            crate::workflows::MembershipStatusState::Member
+        );
+        assert!(status.complete);
+        assert_eq!(
+            runtime.state().supergroup(2).unwrap().value["status"]["@type"],
+            "chatMemberStatusMember"
+        );
+        assert_eq!(
+            state
+                .inner
+                .lock()
+                .unwrap()
+                .sent_types
+                .iter()
+                .filter(|method| method.as_str() == "joinChatByInviteLink")
                 .count(),
             1
         );

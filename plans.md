@@ -314,10 +314,11 @@ Decision gate: начинать только после acceptance P0–P7.
   chat identity и доказать cache-independent hydration без join/open/send.
 - [x] Закрыть CHAT-005: owner-supplied disposable invite preview terminal и классифицирован по
   TDLib `is_public/access` без membership/open/send и без сохранения token/raw response.
-- [ ] Добавить typed terminal `leave_chat` с reviewed `reversible_mutation`, затем live-проверить
-  owner-requested leave → join по disposable invite без blind retry. Typed path и terminal leave
-  проверены; join остаётся `request_pending` до одобрения администратора
-  ([P-20260719-002](.memory/problems/problems.md)).
+- [x] Добавить typed terminal `leave_chat` с reviewed `reversible_mutation`, затем live-проверить
+  owner-requested leave → pending → member по disposable invite без blind retry.
+- [x] Сделать join approval асинхронным: `ensure_membership` сразу возвращает typed pending
+  receipt, отдельный read-only status принимает поздний TDLib membership update без повторного
+  join, а live gate честно различает заявку и доказанное членство.
 
 ### Scenarios
 

@@ -1,8 +1,10 @@
 # F011 groups/channels/moderation
 
 Read resolve и membership остаются разными existing workflows: `resolve_chat` никогда не
-join-ит, `ensure_membership` сохраняет `request_pending` как незавершённое состояние, а
-`supergroup_members` требует fresh `can_get_members` и не считает short page terminal.
+join-ит, `ensure_membership` возвращает `request_pending` как завершённый submission receipt с
+`membership_complete=false`, а read-only `membership_status` принимает поздний ordered TDLib
+update и проверяет фактическое членство без повторного join. `supergroup_members` требует fresh
+`can_get_members` и не считает short page terminal.
 Explicit `leave_chat` использует reviewed `reversible_mutation/reconcile`, ждёт ordered
 `chatMemberStatusLeft/Banned` и не повторяет uncertain dispatch.
 

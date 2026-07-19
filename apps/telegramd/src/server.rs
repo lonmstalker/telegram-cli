@@ -46,6 +46,7 @@ use crate::scheduler::{
     AccountScheduler, FloodScope, OperationClass, OperationContext, OperationPermit,
 };
 use crate::telemetry::{AuditEvent, AuditLog, OperationOutcome, Telemetry};
+use crate::workflow_catalog::is_journaled_workflow;
 
 const MAX_REQUEST_BYTES: u64 = 16 * 1024;
 const CLIENT_IO_TIMEOUT: Duration = Duration::from_secs(5);
@@ -69,6 +70,7 @@ const WORKFLOWS: &[(&str, &str)] = &[
         r#"{"url":"https://t.me/+INVITE_TOKEN"}"#,
     ),
     ("ensure_membership", r#"{"kind":"chat_id","chat_id":0}"#),
+    ("membership_status", r#"{"kind":"chat_id","chat_id":0}"#),
     ("leave_chat", r#"{"chat_id":0}"#),
     ("load_chat_list", r#"{"list":{"kind":"main"},"limit":100}"#),
     (
@@ -178,23 +180,6 @@ const WORKFLOWS: &[(&str, &str)] = &[
     ),
     ("close_web_app_handoff", r#"{"launch_id":0}"#),
 ];
-const JOURNALED_WORKFLOWS: &[&str] = &[
-    "ensure_membership",
-    "leave_chat",
-    "send_text_message",
-    "upload_sticker_file",
-    "apply_custom_emoji_set",
-    "apply_story_mutation",
-    "apply_terminate_session",
-    "send_business_text",
-    "apply_star_invoice_payment",
-    "start_bot",
-    "start_bot_and_wait_reply",
-    "click_bot_callback",
-    "open_web_app",
-    "prepare_web_app_handoff",
-];
-
 struct WebAppArtifact {
     principal: String,
     launch_id: i64,
@@ -768,8 +753,7 @@ impl LeaseServer {
                 let Some(runtime) = runtime else {
                     return runtime_unavailable();
                 };
-                let fingerprint = JOURNALED_WORKFLOWS
-                    .contains(workflow_name)
+                let fingerprint = is_journaled_workflow(workflow_name)
                     .then(|| OperationFingerprint::for_workflow(workflow_name, &input));
                 let fingerprint = match self.begin_idempotent(fingerprint) {
                     Ok(fingerprint) => fingerprint,
@@ -1091,7 +1075,13 @@ fn run_workflow(
         "ensure_membership" => {
             let input: MembershipInput = parse(input)?;
             let result = workflows::ensure_membership(runtime, &policy, input.target(), deadline)?;
-            let complete = result.state.complete();
+            let complete = result.submission_complete;
+            output(result, complete)
+        }
+        "membership_status" => {
+            let input: MembershipInput = parse(input)?;
+            let result = workflows::membership_status(runtime, &policy, input.target(), deadline)?;
+            let complete = result.complete;
             output(result, complete)
         }
         "leave_chat" => {
@@ -2611,7 +2601,9 @@ mod tests {
                 "plan_chat_title" | "apply_chat_title" => parse::<ChatTitleInput>(input).is_ok(),
                 "resolve_chat" => parse::<TargetInput>(input).is_ok(),
                 "preview_invite_link" => parse::<InvitePreviewInput>(input).is_ok(),
-                "ensure_membership" => parse::<MembershipInput>(input).is_ok(),
+                "ensure_membership" | "membership_status" => {
+                    parse::<MembershipInput>(input).is_ok()
+                }
                 "leave_chat" => parse::<LeaveChatInput>(input).is_ok(),
                 "load_chat_list" => parse::<ChatListInput>(input).is_ok(),
                 "inspect_chat" => parse::<InspectInput>(input).is_ok(),

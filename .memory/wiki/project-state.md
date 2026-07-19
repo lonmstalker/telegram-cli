@@ -4,10 +4,9 @@
 
 ## Verified
 
-- Typed `leave_chat` реализован с ordered membership proof, idempotent already-left и uncertain
-  без blind retry; live CHAT-010 доказал `verified_left`, но rejoin остаётся partial
-  `request_pending` ([D-20260719-002](../decisions/decisions.md),
-  [W-20260719-007](../logs/work.md)).
+- CHAT-010 принят: typed leave доказал ordered `left`, join вернул terminal pending receipt, а
+  поздний read-only `membership_status` применил TDLib update и доказал `member` без повторного
+  join ([D-20260719-002](../decisions/decisions.md), [W-20260719-008](../logs/work.md)).
 - P10 CHAT-005 принят: owner-supplied invite fixture terminal-классифицирован как accessible
   non-public channel через отдельный preview; membership/open/send не выполнялись, fixture и raw
   result не сохранены ([W-20260719-006](../logs/work.md)).
@@ -126,9 +125,6 @@
 
 ## Active boundary
 
-- CHAT-010 не accepted: после доказанного leave повторное вступление ожидает admin approval;
-  membership не доказано, no-retry/no-bypass boundary отслеживается как
-  [P-20260719-002](../problems/problems.md).
 - Wiki journal link-integrity check имеет pre-existing red boundary: tracked immutable decision shard указывает на удалённый до этой задачи `workflows.rs`; архив не переписан, resolution отслеживается в [P-20260719-001](../problems/problems.md).
 - Full API означает L0–L2 для всей pinned schema; curated workflows и live proofs учитываются отдельно.
 - Секреты — вне model-visible interfaces.

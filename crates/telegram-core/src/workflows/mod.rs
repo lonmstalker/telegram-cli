@@ -483,7 +483,7 @@ mod tests {
 
     use super::business::{business_connection_with, send_business_text_with};
     use super::call::leave_group_call_with;
-    use super::chat::{ensure_membership_with, full_info_request};
+    use super::chat::full_info_request;
     use super::files::{FileDirection, cancel_download_with, file_size_verified};
     use super::forum::{forum_topics_with, set_forum_topic_closed_with};
     use super::members::{chat_statistics_with, resource_statistics_with, supergroup_members_with};
@@ -508,43 +508,6 @@ mod tests {
 
     fn workflow_object(value: Value) -> Result<TdObject, ChatWorkflowError> {
         Ok(TdObject::from_value(value).unwrap())
-    }
-
-    #[test]
-    fn membership_is_explicit_and_preserves_pending_outcomes() {
-        let member = ensure_membership_with(MembershipTarget::ChatId(7), |request| {
-            assert_eq!(request["@type"], "joinChat");
-            object(json!({"@type":"chatJoinResultSuccess","chat_id":7}))
-        })
-        .unwrap();
-        assert_eq!(member.state, MembershipState::Member { chat_id: 7 });
-        assert!(member.state.complete());
-
-        let pending =
-            ensure_membership_with(MembershipTarget::InviteLink("private-link"), |request| {
-                assert_eq!(request["@type"], "joinChatByInviteLink");
-                object(json!({"@type":"chatJoinResultRequestSent"}))
-            })
-            .unwrap();
-        assert_eq!(pending.state, MembershipState::RequestPending);
-        assert!(!pending.state.complete());
-
-        let approval = ensure_membership_with(MembershipTarget::ChatId(7), |_| {
-            object(json!({
-                "@type":"chatJoinResultGuardBotApprovalRequired",
-                "bot_user_id":8,
-                "query_id":"9007199254740993"
-            }))
-        })
-        .unwrap();
-        assert_eq!(
-            approval.state,
-            MembershipState::ApprovalRequired {
-                bot_user_id: 8,
-                query_id: 9_007_199_254_740_993
-            }
-        );
-        assert!(!approval.state.complete());
     }
 
     #[test]

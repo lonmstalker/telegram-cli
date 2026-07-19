@@ -20,6 +20,7 @@ pub mod scheduler;
 pub mod server;
 pub mod socket;
 pub mod telemetry;
+mod workflow_catalog;
 
 use authorization::AuthorizationCoordinator;
 use config::DaemonConfig;

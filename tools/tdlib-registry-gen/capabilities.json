@@ -423,6 +423,15 @@
       "retry": "convergent"
     },
     {
+      "method": "getBasicGroup",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "safe_read"
+    },
+    {
       "method": "getBasicGroupFullInfo",
       "risk": "read",
       "accounts": [
@@ -684,6 +693,15 @@
         "regular_user"
       ],
       "runtime_requirements": "ChatKnown { target: chat_id }",
+      "retry": "safe_read"
+    },
+    {
+      "method": "getSupergroup",
+      "risk": "read",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
       "retry": "safe_read"
     },
     {

@@ -102,3 +102,16 @@ Active append-only problem lifecycle. Status changes добавляются но
   не выполнялись. Lease released, daemon `Closed`.
 - Next: после решения администратора выполнить read-safe reconciliation и закрыть CHAT-010 только
   при terminal member state с тем же chat ID; при отказе сохранить declined boundary.
+
+## [2026-07-19] resolved | P-20260719-002 | Позднее одобрение принято read-only status workflow
+
+- Resolution evidence: fresh `membership_status` по исходной invite под `read` lease вернул
+  root/result `complete=true`, `state=member`, server snapshot и chat ID present; sanitized trace:
+  [`2026-07-19-p10-chat-async-membership-status.md`](../raw/2026-07-19-p10-chat-async-membership-status.md).
+- Safety: исходный join не повторялся, raw TDLib bypass не использовался. Lease released, daemon
+  завершился `Draining -> Closed`; invite/title/chat ID не сохранены.
+- Implementation: pending теперь terminal только для submission, а отдельный status принимает
+  late ordered update и подтверждает membership. Durable correction:
+  [D-20260719-002](../decisions/decisions.md).
+- Status: resolved; CHAT-010 accepted. Ordinary decline без terminal TDLib update остаётся общей
+  documented observation boundary, но больше не блокирует этот owner fixture.

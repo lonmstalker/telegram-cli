@@ -62,9 +62,11 @@ Owner/admin/member/bot capability matrix is explicit; cannot-get-members/statist
 
 ## Live Verification Boundary
 
-Core отделяет read-only resolve/inspection от explicit `ensure_membership`, сохраняет pending
-join outcome и не join-ит private invite при cache miss. Отдельный `leave_chat` доказывает
-выход только новым `chatMemberStatusLeft/Banned`; timeout остаётся uncertain без retry.
+Core отделяет read-only resolve/inspection/status от explicit `ensure_membership`: pending join
+является terminal submission receipt, но не membership proof. `membership_status` принимает
+поздний TDLib group update и подтверждает `member` без повторного join; unresolved invite не
+угадывается. Отдельный `leave_chat` доказывает выход только новым
+`chatMemberStatusLeft/Banned`; timeout остаётся uncertain без retry.
 Members workflow проверяет
 `can_get_members`, продолжает короткие страницы и отмечает no-progress как partial.
 Live join/member/configuration не выполнялись; P10 использует disposable chats/channels,

@@ -322,7 +322,7 @@ Decision gate: начинать только после acceptance P0–P7.
 - [x] A1. `resolve` применяет ordered updates до response boundary перед чтением reducer-derived
   chat identity; mixed freshness под server snapshot запрещена.
 - [x] A2. Каталог workflow — единая таблица discoverability и journal classification.
-- [ ] A3. Basic group migration в supergroup возвращает typed migration state без guessed membership.
+- [x] A3. Basic group migration в supergroup возвращает typed migration state без guessed membership.
 - [ ] A4. Удалить дубли chat-type dispatch, reducer wait и membership request dispatch без изменения behavior.
 - [ ] A5. `setChatTitle` plan и receipt используют один core approval request constructor.
 - [ ] A6. Chat-list broken `is_channel` деградирует запись до `unknown`, но не рвёт snapshot.

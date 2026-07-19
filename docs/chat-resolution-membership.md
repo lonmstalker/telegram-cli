@@ -31,6 +31,9 @@ Join receipt различает `Member`, `RequestPending`, `ApprovalRequired`, 
 разрешается в chat ID, status остаётся `unresolved/complete=false`. TDLib `error` не превращается
 в доказанный `not_found`.
 
+Если basic group содержит ненулевой `upgraded_to_supergroup_id`, status возвращает typed
+`migrated { supergroup_id }` с `complete=false`; membership нового supergroup не угадывается.
+
 Все операции проходят общую generated policy: resolver/preview/status methods имеют `read`,
 join/leave methods — `reversible_mutation` и `reconcile`. Invite link не входит в `Debug`
 публичных target types и не добавляется в error.

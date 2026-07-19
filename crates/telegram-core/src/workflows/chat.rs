@@ -93,6 +93,7 @@ pub enum MembershipStatusState {
     Member,
     NotMember,
     Banned,
+    Migrated { supergroup_id: i64 },
     Unresolved,
     Unknown,
 }
@@ -110,6 +111,7 @@ pub struct MembershipStatus {
 pub enum LeaveChatOutcome {
     AlreadyNotMember,
     VerifiedLeft,
+    MigrationRequired { supergroup_id: i64 },
     Uncertain,
 }
 
@@ -277,12 +279,24 @@ pub fn leave_chat(
 ) -> Result<LeaveChatReceipt, ChatWorkflowError> {
     require_resynced(runtime)?;
     let cache = membership_cache(runtime, chat_id)?;
-    let before = membership_observation(runtime, cache)?;
-    if before.not_member {
+    let (before_sequence, before_not_member) = match membership_observation(runtime, cache)? {
+        MembershipObservation::State {
+            sequence,
+            not_member,
+        } => (sequence, not_member),
+        MembershipObservation::Migrated { supergroup_id } => {
+            return Ok(leave_chat_receipt(
+                chat_id,
+                LeaveChatOutcome::MigrationRequired { supergroup_id },
+                None,
+            ));
+        }
+    };
+    if before_not_member {
         return Ok(leave_chat_receipt(
             chat_id,
             LeaveChatOutcome::AlreadyNotMember,
-            Some(before.sequence),
+            Some(before_sequence),
         ));
     }
     expect_ok(
@@ -296,12 +310,25 @@ pub fn leave_chat(
         "leaveChat",
     )?;
     loop {
-        let observed = membership_observation(runtime, cache)?;
-        if observed.sequence > before.sequence && observed.not_member {
+        let (observed_sequence, observed_not_member) = match membership_observation(runtime, cache)?
+        {
+            MembershipObservation::State {
+                sequence,
+                not_member,
+            } => (sequence, not_member),
+            MembershipObservation::Migrated { supergroup_id } => {
+                return Ok(leave_chat_receipt(
+                    chat_id,
+                    LeaveChatOutcome::MigrationRequired { supergroup_id },
+                    None,
+                ));
+            }
+        };
+        if observed_sequence > before_sequence && observed_not_member {
             return Ok(leave_chat_receipt(
                 chat_id,
                 LeaveChatOutcome::VerifiedLeft,
-                Some(observed.sequence),
+                Some(observed_sequence),
             ));
         }
         match runtime.next_event_until(deadline) {
@@ -514,11 +541,12 @@ pub fn apply_chat_title(
 enum MembershipCache {
     BasicGroup(i64),
     Supergroup(i64),
+    Migrated { supergroup_id: i64 },
 }
 
-struct MembershipObservation {
-    sequence: u64,
-    not_member: bool,
+enum MembershipObservation {
+    State { sequence: u64, not_member: bool },
+    Migrated { supergroup_id: i64 },
 }
 
 fn membership_cache(
@@ -532,11 +560,24 @@ fn membership_cache(
             prerequisite: "chat",
         })?;
     match chat.value["type"]["@type"].as_str() {
-        Some("chatTypeBasicGroup") => Ok(MembershipCache::BasicGroup(required_i64(
-            &chat.value["type"],
-            "basic_group_id",
-            "chat",
-        )?)),
+        Some("chatTypeBasicGroup") => {
+            let basic_group_id = required_i64(&chat.value["type"], "basic_group_id", "chat")?;
+            let basic_group = runtime.state().basic_group(basic_group_id).ok_or(
+                ChatWorkflowError::PrerequisiteMissing {
+                    prerequisite: "basic group membership",
+                },
+            )?;
+            let supergroup_id = required_i64(
+                &basic_group.value,
+                "upgraded_to_supergroup_id",
+                "basic group",
+            )?;
+            if supergroup_id != 0 {
+                Ok(MembershipCache::Migrated { supergroup_id })
+            } else {
+                Ok(MembershipCache::BasicGroup(basic_group_id))
+            }
+        }
         Some("chatTypeSupergroup") => Ok(MembershipCache::Supergroup(required_i64(
             &chat.value["type"],
             "supergroup_id",
@@ -553,12 +594,15 @@ fn membership_observation(
     let entity = match cache {
         MembershipCache::BasicGroup(group_id) => runtime.state().basic_group(group_id),
         MembershipCache::Supergroup(group_id) => runtime.state().supergroup(group_id),
+        MembershipCache::Migrated { supergroup_id } => {
+            return Ok(MembershipObservation::Migrated { supergroup_id });
+        }
     }
     .ok_or(ChatWorkflowError::PrerequisiteMissing {
         prerequisite: "chat membership",
     })?;
     let status = required_string(&entity.value["status"], "@type", "chat membership")?;
-    Ok(MembershipObservation {
+    Ok(MembershipObservation::State {
         sequence: entity.sequence.get(),
         not_member: matches!(status, "chatMemberStatusLeft" | "chatMemberStatusBanned"),
     })
@@ -572,7 +616,10 @@ fn leave_chat_receipt(
     LeaveChatReceipt {
         chat_id,
         sequence,
-        complete: outcome != LeaveChatOutcome::Uncertain,
+        complete: matches!(
+            outcome,
+            LeaveChatOutcome::AlreadyNotMember | LeaveChatOutcome::VerifiedLeft
+        ),
         outcome,
     }
 }
@@ -1094,6 +1141,18 @@ pub(super) fn membership_status_with(
     let group = membership_status_call(method, request, &mut call)?;
     if group.as_value()["@type"] != expected {
         return Err(ChatWorkflowError::UnexpectedResult { method });
+    }
+    if expected == "basicGroup" {
+        let supergroup_id =
+            required_i64(group.as_value(), "upgraded_to_supergroup_id", "basicGroup")?;
+        if supergroup_id != 0 {
+            return Ok(MembershipStatus {
+                chat_id: Some(chat_id),
+                state: MembershipStatusState::Migrated { supergroup_id },
+                freshness: Freshness::ServerSnapshot,
+                complete: false,
+            });
+        }
     }
     let state = membership_status_state(&group.as_value()["status"])?;
     Ok(MembershipStatus {

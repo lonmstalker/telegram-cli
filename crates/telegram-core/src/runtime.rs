@@ -354,6 +354,7 @@ mod tests {
         emit_leave_update: bool,
         accept_pending_membership: bool,
         emit_resolution_update: bool,
+        migrated_basic_group: bool,
     }
 
     struct StartupBackend(StartupState);
@@ -369,6 +370,7 @@ mod tests {
                     emit_leave_update: true,
                     accept_pending_membership: false,
                     emit_resolution_update: false,
+                    migrated_basic_group: false,
                 })),
             };
             (Self(state.clone()), state)
@@ -438,7 +440,12 @@ mod tests {
                         let chat_id = i64::try_from(inner.load_calls + 1).unwrap();
                         let order = i64::try_from(inner.load_calls * 10).unwrap();
                         let list = request["chat_list"].clone();
-                        let chat_type = if inner.load_calls == 1 {
+                        let chat_type = if inner.load_calls == 1 && inner.migrated_basic_group {
+                            json!({
+                                "@type":"chatTypeBasicGroup",
+                                "basic_group_id":chat_id
+                            })
+                        } else if inner.load_calls == 1 {
                             json!({
                                 "@type":"chatTypeSupergroup",
                                 "supergroup_id":chat_id,
@@ -465,7 +472,20 @@ mod tests {
                             })
                             .to_string(),
                         );
-                        if inner.load_calls == 1 {
+                        if inner.load_calls == 1 && inner.migrated_basic_group {
+                            inner.incoming.push_back(
+                                json!({
+                                    "@type":"updateBasicGroup",
+                                    "basic_group":{
+                                        "@type":"basicGroup",
+                                        "id":chat_id,
+                                        "status":{"@type":"chatMemberStatusLeft"},
+                                        "upgraded_to_supergroup_id":9
+                                    }
+                                })
+                                .to_string(),
+                            );
+                        } else if inner.load_calls == 1 {
                             inner.incoming.push_back(
                                 json!({
                                     "@type":"updateSupergroup",
@@ -584,16 +604,32 @@ mod tests {
                 "joinChatByInviteLink" => inner.incoming.push_back(
                     json!({"@type":"chatJoinResultRequestSent","@extra":extra}).to_string(),
                 ),
-                "getChat" => inner.incoming.push_back(
-                    json!({
-                        "@type":"chat",
-                        "id":2,
-                        "title":"Channel",
-                        "type":{
+                "getChat" => {
+                    let chat_type = if inner.migrated_basic_group {
+                        json!({"@type":"chatTypeBasicGroup","basic_group_id":2})
+                    } else {
+                        json!({
                             "@type":"chatTypeSupergroup",
                             "supergroup_id":2,
                             "is_channel":true
-                        },
+                        })
+                    };
+                    inner.incoming.push_back(
+                        json!({
+                            "@type":"chat",
+                            "id":2,
+                            "title":"Channel",
+                            "type":chat_type,
+                            "@extra":extra
+                        })
+                        .to_string(),
+                    );
+                }
+                "getBasicGroup" => inner.incoming.push_back(
+                    json!({
+                        "@type":"basicGroup",
+                        "id":2,
+                        "upgraded_to_supergroup_id":9,
                         "@extra":extra
                     })
                     .to_string(),
@@ -993,6 +1029,90 @@ mod tests {
         assert_eq!(
             runtime.state().supergroup(60).unwrap().value["usernames"]["active_usernames"],
             json!(["boundary_name"])
+        );
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn leave_chat_reports_basic_group_migration_without_dispatch() {
+        let identity = pinned_identity().unwrap();
+        let (backend, state) = StartupBackend::new(identity.version);
+        let mut runtime =
+            CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let policy = crate::raw_api::RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![
+                crate::registry::RiskClass::Read,
+                crate::registry::RiskClass::ReversibleMutation,
+            ],
+        );
+        state.inner.lock().unwrap().migrated_basic_group = true;
+        crate::workflows::load_chat_list(
+            &mut runtime,
+            &policy,
+            crate::reducer::ChatList::Main,
+            100,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+
+        assert!(matches!(
+            crate::workflows::leave_chat(
+                &mut runtime,
+                &policy,
+                2,
+                Instant::now() + Duration::from_secs(1),
+            ),
+            Ok(crate::workflows::LeaveChatReceipt {
+                outcome: crate::workflows::LeaveChatOutcome::MigrationRequired { supergroup_id: 9 },
+                complete: false,
+                ..
+            })
+        ));
+        assert!(
+            !state
+                .inner
+                .lock()
+                .unwrap()
+                .sent_types
+                .iter()
+                .any(|method| method == "leaveChat")
+        );
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn membership_status_reports_basic_group_migration_without_guessing_membership() {
+        let identity = pinned_identity().unwrap();
+        let (backend, state) = StartupBackend::new(identity.version);
+        let mut runtime =
+            CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let policy = crate::raw_api::RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![crate::registry::RiskClass::Read],
+        );
+        state.inner.lock().unwrap().migrated_basic_group = true;
+
+        let status = crate::workflows::membership_status(
+            &mut runtime,
+            &policy,
+            crate::workflows::MembershipTarget::ChatId(2),
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+
+        assert_eq!(
+            status.state,
+            crate::workflows::MembershipStatusState::Migrated { supergroup_id: 9 }
+        );
+        assert!(!status.complete);
+        assert!(
+            state
+                .inner
+                .lock()
+                .unwrap()
+                .sent_types
+                .ends_with(&["getChat".to_owned(), "getBasicGroup".to_owned()])
         );
         runtime.shutdown().unwrap();
     }

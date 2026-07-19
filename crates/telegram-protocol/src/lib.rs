@@ -555,6 +555,7 @@ pub enum CommandErrorCode {
     WorkflowFailed,
     WebAppArtifactUnavailable,
     LoginChallengeInvalid,
+    LoginInputInvalid,
     LoginSubmissionPending,
     LoginSubmissionRejected,
     LoginCodeResendUnavailable,
@@ -771,6 +772,24 @@ mod tests {
             })
             .status(),
             MachineStatus::Partial
+        );
+    }
+
+    #[test]
+    fn invalid_login_input_has_a_distinct_machine_error_code() {
+        let envelope = MachineEnvelope::from_response(DaemonResponse::CommandError {
+            code: CommandErrorCode::LoginInputInvalid,
+        });
+        assert_eq!(
+            serde_json::to_value(envelope).unwrap(),
+            serde_json::json!({
+                "version": 4,
+                "status": "error",
+                "error": {
+                    "domain": "command",
+                    "code": "login_input_invalid",
+                },
+            })
         );
     }
 

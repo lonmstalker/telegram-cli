@@ -153,6 +153,11 @@ impl AuthorizationCoordinator {
             Err(AuthorizationError::SubmissionPending) => {
                 return command_error(CommandErrorCode::LoginSubmissionPending);
             }
+            Err(
+                AuthorizationError::InvalidField(_) | AuthorizationError::InputDoesNotMatchState,
+            ) => {
+                return command_error(CommandErrorCode::LoginInputInvalid);
+            }
             Err(_) => return command_error(CommandErrorCode::LoginChallengeInvalid),
         };
         self.dispatch(

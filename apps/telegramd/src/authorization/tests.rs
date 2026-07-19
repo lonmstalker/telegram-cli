@@ -108,6 +108,56 @@ fn coordinator_exposes_token_but_redacts_protected_input() {
 }
 
 #[test]
+fn invalid_owner_input_is_distinct_from_a_stale_challenge() {
+    let now = Instant::now();
+    let mut coordinator = AuthorizationCoordinator::with_epoch(1);
+    coordinator
+        .observe(&json!({"@type": "authorizationStateWaitPhoneNumber"}), now)
+        .unwrap();
+    let token = coordinator.status().1.unwrap();
+
+    assert_eq!(
+        coordinator.submit(
+            None,
+            &token,
+            LoginInput::PhoneNumber {
+                value: ProtectedString::new(String::new()),
+            },
+            now,
+        ),
+        DaemonResponse::CommandError {
+            code: CommandErrorCode::LoginInputInvalid,
+        }
+    );
+    assert_eq!(
+        coordinator.submit(
+            None,
+            &token,
+            LoginInput::Password {
+                value: ProtectedString::new("not-for-phone".to_owned()),
+            },
+            now,
+        ),
+        DaemonResponse::CommandError {
+            code: CommandErrorCode::LoginInputInvalid,
+        }
+    );
+    assert_eq!(
+        coordinator.submit(
+            None,
+            &telegram_protocol::LoginChallengeId::new("stale-challenge".to_owned()),
+            LoginInput::PhoneNumber {
+                value: ProtectedString::new("+10000000000".to_owned()),
+            },
+            now,
+        ),
+        DaemonResponse::CommandError {
+            code: CommandErrorCode::LoginChallengeInvalid,
+        }
+    );
+}
+
+#[test]
 fn parameters_status_waits_without_a_wire_challenge_token() {
     let mut coordinator = AuthorizationCoordinator::with_epoch(1);
     coordinator

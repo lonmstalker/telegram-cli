@@ -852,6 +852,12 @@ fn human_response(writer: &mut impl Write, response: &DaemonResponse) -> io::Res
         DaemonResponse::LeaseReleased { lease_id } => {
             writeln!(writer, "Lease {} освобождён", lease_id.as_str())
         }
+        DaemonResponse::CommandError {
+            code: telegram_protocol::CommandErrorCode::LoginInputInvalid,
+        } => writeln!(
+            writer,
+            "Ошибка ввода авторизации: проверьте значение и текущий prompt."
+        ),
         DaemonResponse::CommandError { code } => writeln!(writer, "Daemon error: {code:?}"),
         DaemonResponse::Error { code } => writeln!(writer, "Lease error: {code:?}"),
     }
@@ -1192,6 +1198,19 @@ mod tests {
         assert_eq!(
             String::from_utf8(output).unwrap(),
             "Авторизация: Ready; next_action=Ready\n"
+        );
+
+        let mut output = Vec::new();
+        human_response(
+            &mut output,
+            &DaemonResponse::CommandError {
+                code: telegram_protocol::CommandErrorCode::LoginInputInvalid,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            String::from_utf8(output).unwrap(),
+            "Ошибка ввода авторизации: проверьте значение и текущий prompt.\n"
         );
     }
 

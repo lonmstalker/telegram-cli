@@ -4,7 +4,9 @@
 
 - `workflows::resolve` — read-only разрешение `ChatTarget::Id`,
   `PublicUsername` или `PublicLink`; оно вызывает только `getChat` или
-  `searchPublicChat`;
+`searchPublicChat`. Перед проекцией `ChatIdentity` `resolve` требует resync и применяет все
+ordered updates, доставленные до response boundary, поэтому поля supergroup reducer не получают
+ложную server-snapshot freshness;
 - `workflows::preview_invite_link` — отдельный terminal read через
   `checkChatInviteLink`; preview классифицирует `is_public` и текущий access, но не
   вступает в чат;

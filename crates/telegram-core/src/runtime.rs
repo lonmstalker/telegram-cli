@@ -353,6 +353,7 @@ mod tests {
         load_calls: usize,
         emit_leave_update: bool,
         accept_pending_membership: bool,
+        emit_resolution_update: bool,
     }
 
     struct StartupBackend(StartupState);
@@ -367,6 +368,7 @@ mod tests {
                     load_calls: 0,
                     emit_leave_update: true,
                     accept_pending_membership: false,
+                    emit_resolution_update: false,
                 })),
             };
             (Self(state.clone()), state)
@@ -524,6 +526,20 @@ mod tests {
                         .as_object_mut()
                         .unwrap()
                         .insert("@extra".to_owned(), extra);
+                    if inner.emit_resolution_update {
+                        inner.incoming.push_back(
+                            json!({
+                                "@type":"updateSupergroup",
+                                "supergroup":{
+                                    "@type":"supergroup",
+                                    "id":supergroup_id,
+                                    "has_location":false,
+                                    "usernames":{"active_usernames":["boundary_name"]}
+                                }
+                            })
+                            .to_string(),
+                        );
+                    }
                     inner.incoming.push_back(response.to_string());
                 }
                 "checkChatInviteLink" => {
@@ -946,6 +962,37 @@ mod tests {
                 .filter(|method| method.as_str() == "joinChatByInviteLink")
                 .count(),
             1
+        );
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn resolve_applies_pre_response_supergroup_update() {
+        let identity = pinned_identity().unwrap();
+        let (backend, state) = StartupBackend::new(identity.version);
+        let mut runtime =
+            CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let policy = crate::raw_api::RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![crate::registry::RiskClass::Read],
+        );
+        state.inner.lock().unwrap().emit_resolution_update = true;
+
+        let resolution = crate::workflows::resolve(
+            &mut runtime,
+            &policy,
+            crate::workflows::ChatTarget::PublicUsername("public_name"),
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+
+        assert_eq!(
+            resolution.chat.active_usernames,
+            ["public_name", "boundary_name"]
+        );
+        assert_eq!(
+            runtime.state().supergroup(60).unwrap().value["usernames"]["active_usernames"],
+            json!(["boundary_name"])
         );
         runtime.shutdown().unwrap();
     }

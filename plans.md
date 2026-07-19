@@ -319,6 +319,19 @@ Decision gate: начинать только после acceptance P0–P7.
 - [x] Сделать join approval асинхронным: `ensure_membership` сразу возвращает typed pending
   receipt, отдельный read-only status принимает поздний TDLib membership update без повторного
   join, а live gate честно различает заявку и доказанное членство.
+- [x] A1. `resolve` применяет ordered updates до response boundary перед чтением reducer-derived
+  chat identity; mixed freshness под server snapshot запрещена.
+- [ ] A2. Каталог workflow — единая таблица discoverability и journal classification.
+- [ ] A3. Basic group migration в supergroup возвращает typed migration state без guessed membership.
+- [ ] A4. Удалить дубли chat-type dispatch, reducer wait и membership request dispatch без изменения behavior.
+- [ ] A5. `setChatTitle` plan и receipt используют один core approval request constructor.
+- [ ] A6. Chat-list broken `is_channel` деградирует запись до `unknown`, но не рвёт snapshot.
+- [ ] B1. External authorization logout завершает daemon cleanly после `Closed` или deadline.
+- [ ] B2. `ParametersRequired` не получает wire challenge token.
+- [ ] B3. CLI повторяет owner password prompt после definite password rejection.
+- [ ] B4. Protocol отличает invalid login input от stale/mismatched challenge.
+- [ ] B5. Daemon resend хранит только timeout gate; availability проверяет core.
+- [ ] B6. Lifecycle и secure-login docs отражают actual interactive startup и single-owner timeout.
 
 ### Scenarios
 

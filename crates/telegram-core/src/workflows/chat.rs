@@ -207,16 +207,19 @@ impl ChatInspection {
 }
 
 pub fn resolve(
-    runtime: &CoreRuntime,
+    runtime: &mut CoreRuntime,
     policy: &RawPolicy,
     target: ChatTarget<'_>,
     deadline: Instant,
 ) -> Result<ChatResolution, ChatWorkflowError> {
+    require_resynced(runtime)?;
     let (method, request) = resolution_request(target)?;
-    let raw = checked_response(
-        method,
-        td_call(runtime, policy, request, deadline).map_err(ChatWorkflowError::Call)?,
-    )?;
+    let (raw, boundary) = td_call_with_boundary(runtime, policy, request, deadline)
+        .map_err(ChatWorkflowError::Call)?;
+    runtime
+        .apply_through_boundary(boundary, deadline)
+        .map_err(ChatWorkflowError::Runtime)?;
+    let raw = checked_response(method, raw)?;
     resolution_from_raw(Some(runtime), target, method, &raw)
 }
 

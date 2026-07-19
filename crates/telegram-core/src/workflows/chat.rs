@@ -397,12 +397,7 @@ fn chat_list_entry_kind(chat: &Value) -> Result<ChatListEntryKind, ChatWorkflowE
         Ok(ChatKindRef::Supergroup {
             is_channel: Some(false),
         }) => ChatListEntryKind::Supergroup,
-        Ok(ChatKindRef::Supergroup { is_channel: None }) => {
-            return Err(ChatWorkflowError::InvalidResult {
-                method: "chat",
-                field: "is_channel",
-            });
-        }
+        Ok(ChatKindRef::Supergroup { is_channel: None }) => ChatListEntryKind::Unknown,
         Err(ChatWorkflowError::InvalidResult {
             field: "type.@type",
             ..

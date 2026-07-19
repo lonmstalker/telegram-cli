@@ -355,6 +355,7 @@ mod tests {
         accept_pending_membership: bool,
         emit_resolution_update: bool,
         migrated_basic_group: bool,
+        malformed_chat_list_entry: bool,
     }
 
     struct StartupBackend(StartupState);
@@ -371,6 +372,7 @@ mod tests {
                     accept_pending_membership: false,
                     emit_resolution_update: false,
                     migrated_basic_group: false,
+                    malformed_chat_list_entry: false,
                 })),
             };
             (Self(state.clone()), state)
@@ -444,6 +446,11 @@ mod tests {
                             json!({
                                 "@type":"chatTypeBasicGroup",
                                 "basic_group_id":chat_id
+                            })
+                        } else if inner.load_calls == 1 && inner.malformed_chat_list_entry {
+                            json!({
+                                "@type":"chatTypeSupergroup",
+                                "supergroup_id":chat_id
                             })
                         } else if inner.load_calls == 1 {
                             json!({
@@ -1114,6 +1121,37 @@ mod tests {
                 .sent_types
                 .ends_with(&["getChat".to_owned(), "getBasicGroup".to_owned()])
         );
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn chat_list_keeps_snapshot_when_one_supergroup_lacks_is_channel() {
+        let identity = pinned_identity().unwrap();
+        let (backend, state) = StartupBackend::new(identity.version);
+        let mut runtime =
+            CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let policy = crate::raw_api::RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![crate::registry::RiskClass::Read],
+        );
+        state.inner.lock().unwrap().malformed_chat_list_entry = true;
+
+        let snapshot = crate::workflows::load_chat_list(
+            &mut runtime,
+            &policy,
+            crate::reducer::ChatList::Main,
+            100,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+
+        assert!(
+            snapshot
+                .entries
+                .iter()
+                .any(|entry| entry.kind == crate::workflows::ChatListEntryKind::Unknown)
+        );
+        assert_eq!(snapshot.entries.len(), 2);
         runtime.shutdown().unwrap();
     }
 

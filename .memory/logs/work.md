@@ -175,3 +175,11 @@ Active append-only checkpoints. Решения и проблемы хранят�
   `unknown`; workspace — 167 passed, 0 failed, 3 ignored; bundled Python 3.12.13
   `scripts/check-*.py`, fmt/source-size/diff gates green.
 - Next: B1 — external logout graceful close.
+
+## [2026-07-20] completed | W-20260720-001 | B1 external logout завершает daemon штатно
+
+- Goal: `authorizationStateLoggingOut`/`Closing`/`Closed`, пришедшие извне, не должны превращать живой daemon в crash path или отправлять повторный `close`.
+- Actions: lifecycle отличает external terminal shutdown от обычной auth loss после `LeaseServer::observe_authorization` (leases уже revoked); startup и interactive broker возвращают отдельный readiness, а running daemon ждёт `authorizationStateClosed` до bounded deadline, затем останавливает transport и завершает `Draining -> Closed` без daemon-initiated `close`.
+- Verification: deterministic scripted TDJSON regression воспроизводит `Ready -> LoggingOut -> Closed`, доказывает `DaemonState::Closed` и отсутствие outbound `close`; `cargo test --workspace --jobs 2 -q` — 168 passed, 0 failed, 3 ignored; bundled Python 3.12.13 `scripts/check-*.py`, `cargo fmt --check` и `git diff --check` green.
+- Boundary: первичный startup-terminal и interactive-terminal также завершаются cleanly; `UnexpectedAuthorizationState` остаётся для гонок/аномалий, которые не классифицированы terminal state.
+- Next: B2 — ParametersRequired без wire challenge token.

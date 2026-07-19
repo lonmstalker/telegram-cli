@@ -99,14 +99,23 @@ fn run() -> Result<(), Box<dyn Error>> {
             .last_sequence()
             .map(|sequence| sequence.get()),
     );
-    if readiness == lifecycle::AuthorizationReadiness::InteractiveRequired {
+    let readiness = if readiness == lifecycle::AuthorizationReadiness::InteractiveRequired {
         lifecycle::serve_until_authorized(
             &mut runtime,
             &socket,
             &mut server,
             &ownership,
             expected_user_id,
-        )?;
+        )?
+    } else {
+        readiness
+    };
+    if readiness == lifecycle::AuthorizationReadiness::ExternalShutdown {
+        eprintln!("telegramd: external authorization shutdown; waiting for close");
+        drop(socket);
+        lifecycle::finish_external_shutdown(runtime)?;
+        eprintln!("telegramd: Closed");
+        return Ok(());
     }
     lifecycle.ready(std::time::Instant::now())?;
     eprintln!("telegramd: Ready");

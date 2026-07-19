@@ -37,6 +37,7 @@ pub enum DaemonState {
 pub enum AuthorizationReadiness {
     Ready,
     InteractiveRequired,
+    ExternalShutdown,
 }
 
 pub struct Lifecycle {
@@ -163,7 +164,7 @@ pub fn reach_ready(
             AuthorizationObservation::LoggingOut
             | AuthorizationObservation::Closing
             | AuthorizationObservation::Closed => {
-                return Err(LifecycleError::UnexpectedAuthorizationState);
+                return Ok(AuthorizationReadiness::ExternalShutdown);
             }
         }
     }
@@ -217,7 +218,7 @@ pub fn serve_until_authorized(
     server: &mut LeaseServer,
     ownership: &ProfileDatabaseLock,
     expected_user_id: Option<i64>,
-) -> Result<(), LifecycleError> {
+) -> Result<AuthorizationReadiness, LifecycleError> {
     configure_socket(socket)?;
     loop {
         let now = Instant::now();
@@ -228,9 +229,12 @@ pub fn serve_until_authorized(
         match poll_authorization_event(runtime, server, event_deadline)? {
             AuthorizationEvent::Ready => {
                 verify_server_identity(runtime, server, ownership, expected_user_id)?;
-                return Ok(());
+                return Ok(AuthorizationReadiness::Ready);
             }
             AuthorizationEvent::Lost => ensure_authorization_active(runtime)?,
+            AuthorizationEvent::ExternalShutdown => {
+                return Ok(AuthorizationReadiness::ExternalShutdown);
+            }
             AuthorizationEvent::None => {}
         }
     }
@@ -248,6 +252,7 @@ enum AuthorizationEvent {
     None,
     Ready,
     Lost,
+    ExternalShutdown,
 }
 
 fn poll_authorization_event(
@@ -266,6 +271,8 @@ fn poll_authorization_event(
                 .map_err(LifecycleError::Server)?;
             Ok(if ready {
                 AuthorizationEvent::Ready
+            } else if external_shutdown_state(authorization_type(runtime)) {
+                AuthorizationEvent::ExternalShutdown
             } else {
                 AuthorizationEvent::Lost
             })
@@ -297,18 +304,22 @@ fn verify_server_identity(
 }
 
 fn ensure_authorization_active(runtime: &CoreRuntime) -> Result<(), LifecycleError> {
-    if matches!(
-        authorization_type(runtime),
+    if external_shutdown_state(authorization_type(runtime)) {
+        Err(LifecycleError::UnexpectedAuthorizationState)
+    } else {
+        Ok(())
+    }
+}
+
+fn external_shutdown_state(state: Option<&str>) -> bool {
+    matches!(
+        state,
         Some(
             "authorizationStateLoggingOut"
                 | "authorizationStateClosing"
                 | "authorizationStateClosed"
         )
-    ) {
-        Err(LifecycleError::UnexpectedAuthorizationState)
-    } else {
-        Ok(())
-    }
+    )
 }
 
 fn verify_ready_identity(
@@ -373,6 +384,13 @@ pub fn serve_until_idle(
             .map_err(LifecycleError::Server)?;
         let event_deadline = now.checked_add(READY_POLL).unwrap_or(now);
         let event = poll_authorization_event(&mut runtime, &mut server, event_deadline)?;
+        if matches!(event, AuthorizationEvent::ExternalShutdown) {
+            eprintln!("telegramd: external authorization shutdown; waiting for close");
+            drop(socket);
+            finish_external_shutdown(runtime)?;
+            lifecycle.begin_draining()?;
+            return lifecycle.closed();
+        }
         update_authorization_lifecycle(
             event,
             &mut runtime,
@@ -412,7 +430,7 @@ fn update_authorization_lifecycle(
             lifecycle.authorization_lost()?;
             ensure_authorization_active(runtime)
         }
-        AuthorizationEvent::None => Ok(()),
+        AuthorizationEvent::None | AuthorizationEvent::ExternalShutdown => Ok(()),
     }
 }
 
@@ -430,6 +448,18 @@ fn graceful_close(mut runtime: CoreRuntime) -> Result<(), LifecycleError> {
         runtime
             .next_event_until(deadline)
             .map_err(LifecycleError::Runtime)?;
+    }
+    runtime.shutdown().map_err(LifecycleError::Runtime)
+}
+
+pub fn finish_external_shutdown(mut runtime: CoreRuntime) -> Result<(), LifecycleError> {
+    let deadline = deadline_after(CLOSE_TIMEOUT)?;
+    while authorization_type(&runtime) != Some("authorizationStateClosed") {
+        match runtime.next_event_until(deadline) {
+            Ok(_) => {}
+            Err(RuntimeError::DeadlineExceeded) => break,
+            Err(error) => return Err(LifecycleError::Runtime(error)),
+        }
     }
     runtime.shutdown().map_err(LifecycleError::Runtime)
 }
@@ -496,7 +526,116 @@ impl std::error::Error for LifecycleError {}
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
+    use std::fs;
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use telegram_core::idempotency::IdempotencyJournal;
+    use telegram_core::transport::{BackendError, TdJsonBackend};
+    use telegram_protocol::RiskScope;
+
+    use crate::lease::LeaseManager;
+    use crate::ownership::ProfileDatabaseLock;
+    use crate::scheduler::{AccountScheduler, serial_daemon_budgets};
+    use crate::socket::DaemonSocket;
+    use crate::telemetry::{AuditLog, Telemetry};
+
     use super::*;
+
+    #[derive(Clone)]
+    struct ExternalLogoutBackendState(Arc<Mutex<ExternalLogoutBackendInner>>);
+
+    struct ExternalLogoutBackendInner {
+        incoming: VecDeque<String>,
+        sent_types: Vec<String>,
+    }
+
+    struct ExternalLogoutBackend(ExternalLogoutBackendState);
+
+    impl ExternalLogoutBackend {
+        fn new() -> (Self, ExternalLogoutBackendState) {
+            let state =
+                ExternalLogoutBackendState(Arc::new(Mutex::new(ExternalLogoutBackendInner {
+                    incoming: VecDeque::new(),
+                    sent_types: Vec::new(),
+                })));
+            (Self(state.clone()), state)
+        }
+    }
+
+    impl TdJsonBackend for ExternalLogoutBackend {
+        fn send(&mut self, request: &str) -> Result<(), BackendError> {
+            let request: Value = serde_json::from_str(request)
+                .map_err(|error| BackendError::new(error.to_string()))?;
+            let request_type = request
+                .get("@type")
+                .and_then(Value::as_str)
+                .ok_or_else(|| BackendError::new("missing request type"))?;
+            let extra = request
+                .get("@extra")
+                .cloned()
+                .ok_or_else(|| BackendError::new("missing request correlation"))?;
+            let mut inner = self.0.0.lock().unwrap();
+            inner.sent_types.push(request_type.to_owned());
+            match request_type {
+                "setLogStream" => inner
+                    .incoming
+                    .push_back(json!({"@type":"ok","@extra":extra}).to_string()),
+                "getOption" => {
+                    let manifest: Value =
+                        serde_json::from_str(include_str!("../../../vendor/tdlib/manifest.json"))
+                            .map_err(|error| BackendError::new(error.to_string()))?;
+                    let option = request.get("name").and_then(Value::as_str);
+                    let value = match option {
+                        Some("version") => manifest["upstream"]["version"].clone(),
+                        Some("commit_hash") => manifest["upstream"]["commit"].clone(),
+                        _ => return Err(BackendError::new("unexpected runtime option")),
+                    };
+                    inner.incoming.push_back(
+                        json!({"@type":"optionValueString","value":value,"@extra":extra})
+                            .to_string(),
+                    );
+                }
+                "getCurrentState" => {
+                    inner.incoming.push_back(
+                        json!({
+                            "@type":"updates",
+                            "updates":[{
+                                "@type":"updateAuthorizationState",
+                                "authorization_state":{"@type":"authorizationStateReady"}
+                            }],
+                            "@extra":extra
+                        })
+                        .to_string(),
+                    );
+                    inner.incoming.extend([
+                        json!({
+                            "@type":"updateAuthorizationState",
+                            "authorization_state":{"@type":"authorizationStateLoggingOut"}
+                        })
+                        .to_string(),
+                        json!({
+                            "@type":"updateAuthorizationState",
+                            "authorization_state":{"@type":"authorizationStateClosed"}
+                        })
+                        .to_string(),
+                    ]);
+                }
+                _ => return Err(BackendError::new("unexpected TDLib request")),
+            }
+            Ok(())
+        }
+
+        fn receive(&mut self, timeout: Duration) -> Result<Option<String>, BackendError> {
+            let value = self.0.0.lock().unwrap().incoming.pop_front();
+            if value.is_none() {
+                thread::sleep(timeout.min(Duration::from_millis(1)));
+            }
+            Ok(value)
+        }
+    }
 
     #[test]
     fn idle_requires_zero_leases_and_workflows_before_draining() {
@@ -528,5 +667,49 @@ mod tests {
         assert_eq!(lifecycle.state, DaemonState::Ready);
         assert!(!lifecycle.idle_elapsed(verified_at, false));
         assert!(lifecycle.idle_elapsed(verified_at + Duration::from_millis(10), false));
+    }
+
+    #[test]
+    fn external_logout_reaches_closed_without_sending_close() {
+        let (backend, backend_state) = ExternalLogoutBackend::new();
+        let runtime = CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let root = std::env::temp_dir().join(format!(
+            "telegramd-lifecycle-external-logout-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let ownership = ProfileDatabaseLock::acquire("external-logout".to_owned(), &root).unwrap();
+        let socket = DaemonSocket::bind(&ownership).unwrap();
+        let telemetry = Telemetry::default();
+        let scheduler =
+            AccountScheduler::with_telemetry(serial_daemon_budgets(), telemetry.clone()).unwrap();
+        let server = LeaseServer::new(
+            LeaseManager::with_telemetry([RiskScope::Read], telemetry.clone()),
+            scheduler,
+            telemetry,
+            IdempotencyJournal::open(root.join("idempotency.jsonl")).unwrap(),
+            AuditLog::open(root.join("audit.jsonl")).unwrap(),
+            AuthorizationCoordinator::with_epoch(1),
+        );
+        let mut lifecycle = Lifecycle::new(Duration::from_secs(60));
+        lifecycle.start().unwrap();
+        lifecycle.ready(Instant::now()).unwrap();
+
+        serve_until_idle(runtime, socket, server, &mut lifecycle, &ownership, None).unwrap();
+
+        assert_eq!(lifecycle.state, DaemonState::Closed);
+        assert!(
+            !backend_state
+                .0
+                .lock()
+                .unwrap()
+                .sent_types
+                .contains(&"close".to_owned())
+        );
+        drop(ownership);
+        fs::remove_dir_all(root).unwrap();
     }
 }

@@ -15,8 +15,8 @@ impl WorkflowCatalogEntry {
     }
 }
 
-// Mutations without plan/apply hash protection are journaled for idempotent reconciliation.
-// Plan/apply workflows already require an exact one-shot approval hash and are not journaled.
+// Неидемпотентные side effects journaled для reconciliation после interrupted dispatch.
+// Plan/apply остаются вне журнала: exact one-shot approval hash уже ограничивает их dispatch.
 pub(super) const WORKFLOWS: &[WorkflowCatalogEntry] = &[
     WorkflowCatalogEntry::new(
         "user_profile",

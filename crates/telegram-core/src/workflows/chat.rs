@@ -192,6 +192,12 @@ pub struct ChatTitlePlan {
     pub plan_hash: String,
 }
 
+impl ChatTitlePlan {
+    pub fn approval_request(&self) -> Value {
+        chat_title_request(self.chat_id, &self.desired_title)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ChatTitleOutcome {
@@ -500,11 +506,7 @@ pub fn apply_chat_title(
             runtime,
             policy,
             "setChatTitle",
-            json!({
-                "@type":"setChatTitle",
-                "chat_id":plan.chat_id,
-                "title":plan.desired_title
-            }),
+            plan.approval_request(),
             deadline,
         )?,
         "setChatTitle",
@@ -1016,11 +1018,13 @@ fn close_chat(
 }
 
 fn title_preview(chat_id: i64, title: &str) -> Result<PlanPreview, ChatWorkflowError> {
-    let request = ValidatedRequest::from_value(
-        json!({"@type":"setChatTitle","chat_id":chat_id,"title":title}),
-    )
-    .map_err(|_| ChatWorkflowError::InvalidChatConfiguration)?;
+    let request = ValidatedRequest::from_value(chat_title_request(chat_id, title))
+        .map_err(|_| ChatWorkflowError::InvalidChatConfiguration)?;
     PlanPreview::for_request(&request).map_err(|_| ChatWorkflowError::InvalidChatConfiguration)
+}
+
+fn chat_title_request(chat_id: i64, title: &str) -> Value {
+    json!({"@type":"setChatTitle","chat_id":chat_id,"title":title})
 }
 
 fn chat_title_receipt(

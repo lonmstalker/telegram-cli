@@ -913,17 +913,9 @@ fn run_workflow(
             let input: ChatTitleInput = parse(input)?;
             let plan = workflows::plan_chat_title(runtime, input.chat_id, &input.title)?;
             let policy = if plan.changed {
-                approved_policy(
-                    policy,
-                    approval,
-                    &json!({
-                        "@type": "setChatTitle",
-                        "chat_id": input.chat_id,
-                        "title": input.title,
-                    }),
-                    approval_verifier,
-                )
-                .map_err(WorkflowDispatchError::Approval)?
+                let request = plan.approval_request();
+                approved_policy(policy, approval, &request, approval_verifier)
+                    .map_err(WorkflowDispatchError::Approval)?
             } else {
                 policy
             };

@@ -140,6 +140,13 @@ pub enum ChatListEntryKind {
     Unknown,
 }
 
+#[derive(Clone, Copy)]
+enum ChatKindRef {
+    User { secret: bool },
+    BasicGroup,
+    Supergroup { is_channel: Option<bool> },
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ChatListEntry {
     pub chat_id: i64,
@@ -255,18 +262,7 @@ pub fn membership_status(
     deadline: Instant,
 ) -> Result<MembershipStatus, ChatWorkflowError> {
     require_resynced(runtime)?;
-    membership_status_with(target, |request| {
-        let method = match request["@type"].as_str() {
-            Some("checkChatInviteLink") => "checkChatInviteLink",
-            Some("getChat") => "getChat",
-            Some("getBasicGroup") => "getBasicGroup",
-            Some("getSupergroup") => "getSupergroup",
-            _ => {
-                return Err(ChatWorkflowError::UnexpectedResult {
-                    method: "membership_status",
-                });
-            }
-        };
+    membership_status_with(target, |method, request| {
         call_and_apply(runtime, policy, method, request, deadline)
     })
 }
@@ -309,40 +305,24 @@ pub fn leave_chat(
         )?,
         "leaveChat",
     )?;
-    loop {
-        let (observed_sequence, observed_not_member) = match membership_observation(runtime, cache)?
-        {
+    let outcome = wait_reducer_until(runtime, deadline, |runtime| {
+        Ok(match membership_observation(runtime, cache)? {
             MembershipObservation::State {
                 sequence,
-                not_member,
-            } => (sequence, not_member),
+                not_member: true,
+            } if sequence > before_sequence => {
+                Some((LeaveChatOutcome::VerifiedLeft, Some(sequence)))
+            }
             MembershipObservation::Migrated { supergroup_id } => {
-                return Ok(leave_chat_receipt(
-                    chat_id,
-                    LeaveChatOutcome::MigrationRequired { supergroup_id },
-                    None,
-                ));
+                Some((LeaveChatOutcome::MigrationRequired { supergroup_id }, None))
             }
-        };
-        if observed_sequence > before_sequence && observed_not_member {
-            return Ok(leave_chat_receipt(
-                chat_id,
-                LeaveChatOutcome::VerifiedLeft,
-                Some(observed_sequence),
-            ));
-        }
-        match runtime.next_event_until(deadline) {
-            Ok(_) => {}
-            Err(RuntimeError::DeadlineExceeded) => {
-                return Ok(leave_chat_receipt(
-                    chat_id,
-                    LeaveChatOutcome::Uncertain,
-                    None,
-                ));
-            }
-            Err(error) => return Err(ChatWorkflowError::Runtime(error)),
-        }
-    }
+            MembershipObservation::State { .. } => None,
+        })
+    })?;
+    Ok(match outcome {
+        Some((outcome, sequence)) => leave_chat_receipt(chat_id, outcome, sequence),
+        None => leave_chat_receipt(chat_id, LeaveChatOutcome::Uncertain, None),
+    })
 }
 
 pub fn load_chat_list(
@@ -401,15 +381,27 @@ fn chat_list_entries(
 }
 
 fn chat_list_entry_kind(chat: &Value) -> Result<ChatListEntryKind, ChatWorkflowError> {
-    Ok(match chat["type"]["@type"].as_str() {
-        Some("chatTypePrivate") => ChatListEntryKind::Private,
-        Some("chatTypeBasicGroup") => ChatListEntryKind::BasicGroup,
-        Some("chatTypeSupergroup") if required_bool(&chat["type"], "is_channel", "chat")? => {
-            ChatListEntryKind::Channel
+    Ok(match chat_kind_ref(&chat["type"], "chat") {
+        Ok(ChatKindRef::User { secret: true }) => ChatListEntryKind::Secret,
+        Ok(ChatKindRef::User { secret: false }) => ChatListEntryKind::Private,
+        Ok(ChatKindRef::BasicGroup) => ChatListEntryKind::BasicGroup,
+        Ok(ChatKindRef::Supergroup {
+            is_channel: Some(true),
+        }) => ChatListEntryKind::Channel,
+        Ok(ChatKindRef::Supergroup {
+            is_channel: Some(false),
+        }) => ChatListEntryKind::Supergroup,
+        Ok(ChatKindRef::Supergroup { is_channel: None }) => {
+            return Err(ChatWorkflowError::InvalidResult {
+                method: "chat",
+                field: "is_channel",
+            });
         }
-        Some("chatTypeSupergroup") => ChatListEntryKind::Supergroup,
-        Some("chatTypeSecret") => ChatListEntryKind::Secret,
-        _ => ChatListEntryKind::Unknown,
+        Err(ChatWorkflowError::InvalidResult {
+            field: "type.@type",
+            ..
+        }) => ChatListEntryKind::Unknown,
+        Err(error) => return Err(error),
     })
 }
 
@@ -517,24 +509,19 @@ pub fn apply_chat_title(
         )?,
         "setChatTitle",
     )?;
-    loop {
-        if let Some(chat) = runtime.state().chat(plan.chat_id).filter(|chat| {
-            chat.sequence.get() > baseline && chat.value["title"] == plan.desired_title
-        }) {
-            return Ok(chat_title_receipt(
-                plan,
-                ChatTitleOutcome::Verified,
-                Some(chat.sequence.get()),
-            ));
-        }
-        match runtime.next_event_until(deadline) {
-            Ok(_) => {}
-            Err(RuntimeError::DeadlineExceeded) => {
-                return Ok(chat_title_receipt(plan, ChatTitleOutcome::Uncertain, None));
-            }
-            Err(error) => return Err(ChatWorkflowError::Runtime(error)),
-        }
-    }
+    let sequence = wait_reducer_until(runtime, deadline, |runtime| {
+        Ok(runtime
+            .state()
+            .chat(plan.chat_id)
+            .filter(|chat| {
+                chat.sequence.get() > baseline && chat.value["title"] == plan.desired_title
+            })
+            .map(|chat| chat.sequence.get()))
+    })?;
+    Ok(match sequence {
+        Some(sequence) => chat_title_receipt(plan, ChatTitleOutcome::Verified, Some(sequence)),
+        None => chat_title_receipt(plan, ChatTitleOutcome::Uncertain, None),
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -559,8 +546,8 @@ fn membership_cache(
         .ok_or(ChatWorkflowError::PrerequisiteMissing {
             prerequisite: "chat",
         })?;
-    match chat.value["type"]["@type"].as_str() {
-        Some("chatTypeBasicGroup") => {
+    match chat_kind_ref(&chat.value["type"], "chat")? {
+        ChatKindRef::BasicGroup => {
             let basic_group_id = required_i64(&chat.value["type"], "basic_group_id", "chat")?;
             let basic_group = runtime.state().basic_group(basic_group_id).ok_or(
                 ChatWorkflowError::PrerequisiteMissing {
@@ -578,12 +565,12 @@ fn membership_cache(
                 Ok(MembershipCache::BasicGroup(basic_group_id))
             }
         }
-        Some("chatTypeSupergroup") => Ok(MembershipCache::Supergroup(required_i64(
+        ChatKindRef::Supergroup { .. } => Ok(MembershipCache::Supergroup(required_i64(
             &chat.value["type"],
             "supergroup_id",
             "chat",
         )?)),
-        _ => Err(ChatWorkflowError::InvalidTarget),
+        ChatKindRef::User { .. } => Err(ChatWorkflowError::InvalidTarget),
     }
 }
 
@@ -794,17 +781,29 @@ fn target_public_username(target: ChatTarget<'_>) -> Result<Option<&str>, ChatWo
 }
 
 fn invite_chat_kind(value: &Value) -> Result<ChatListEntryKind, ChatWorkflowError> {
-    Ok(match value["type"]["@type"].as_str() {
-        Some("inviteLinkChatTypeBasicGroup") => ChatListEntryKind::BasicGroup,
-        Some("inviteLinkChatTypeSupergroup") => ChatListEntryKind::Supergroup,
-        Some("inviteLinkChatTypeChannel") => ChatListEntryKind::Channel,
-        _ => {
-            return Err(ChatWorkflowError::InvalidResult {
-                method: "checkChatInviteLink",
-                field: "type.@type",
-            });
-        }
-    })
+    Ok(
+        match chat_kind_ref(&value["type"], "checkChatInviteLink")? {
+            ChatKindRef::BasicGroup => ChatListEntryKind::BasicGroup,
+            ChatKindRef::Supergroup {
+                is_channel: Some(true),
+            } => ChatListEntryKind::Channel,
+            ChatKindRef::Supergroup {
+                is_channel: Some(false),
+            } => ChatListEntryKind::Supergroup,
+            ChatKindRef::Supergroup { is_channel: None } => {
+                return Err(ChatWorkflowError::InvalidResult {
+                    method: "checkChatInviteLink",
+                    field: "type.is_channel",
+                });
+            }
+            ChatKindRef::User { .. } => {
+                return Err(ChatWorkflowError::InvalidResult {
+                    method: "checkChatInviteLink",
+                    field: "type.@type",
+                });
+            }
+        },
+    )
 }
 
 fn public_link_username(link: &str) -> Result<&str, ChatWorkflowError> {
@@ -872,16 +871,10 @@ fn load_full_info(
 }
 
 fn full_info_kind(chat: &Value) -> Result<ChatFullInfoKind, ChatWorkflowError> {
-    Ok(match chat["type"]["@type"].as_str() {
-        Some("chatTypePrivate" | "chatTypeSecret") => ChatFullInfoKind::User,
-        Some("chatTypeBasicGroup") => ChatFullInfoKind::BasicGroup,
-        Some("chatTypeSupergroup") => ChatFullInfoKind::Supergroup,
-        _ => {
-            return Err(ChatWorkflowError::InvalidResult {
-                method: "chat",
-                field: "type.@type",
-            });
-        }
+    Ok(match chat_kind_ref(&chat["type"], "chat")? {
+        ChatKindRef::User { .. } => ChatFullInfoKind::User,
+        ChatKindRef::BasicGroup => ChatFullInfoKind::BasicGroup,
+        ChatKindRef::Supergroup { .. } => ChatFullInfoKind::Supergroup,
     })
 }
 
@@ -904,37 +897,51 @@ fn validate_full_info(
 }
 
 pub(super) fn full_info_request(chat: &Value) -> Result<(&'static str, Value), ChatWorkflowError> {
-    let chat_type = chat["type"]
-        .as_object()
-        .ok_or(ChatWorkflowError::InvalidResult {
-            method: "chat",
-            field: "type",
-        })?;
-    Ok(match chat_type.get("@type").and_then(Value::as_str) {
-        Some("chatTypePrivate" | "chatTypeSecret") => (
+    Ok(match chat_kind_ref(&chat["type"], "chat")? {
+        ChatKindRef::User { .. } => (
             "getUserFullInfo",
             json!({
                 "@type":"getUserFullInfo",
                 "user_id":required_i64(&chat["type"], "user_id", "chat")?
             }),
         ),
-        Some("chatTypeBasicGroup") => (
+        ChatKindRef::BasicGroup => (
             "getBasicGroupFullInfo",
             json!({
                 "@type":"getBasicGroupFullInfo",
                 "basic_group_id":required_i64(&chat["type"], "basic_group_id", "chat")?
             }),
         ),
-        Some("chatTypeSupergroup") => (
+        ChatKindRef::Supergroup { .. } => (
             "getSupergroupFullInfo",
             json!({
                 "@type":"getSupergroupFullInfo",
                 "supergroup_id":required_i64(&chat["type"], "supergroup_id", "chat")?
             }),
         ),
+    })
+}
+
+fn chat_kind_ref(
+    chat_type: &Value,
+    method: &'static str,
+) -> Result<ChatKindRef, ChatWorkflowError> {
+    Ok(match chat_type["@type"].as_str() {
+        Some("chatTypePrivate") => ChatKindRef::User { secret: false },
+        Some("chatTypeSecret") => ChatKindRef::User { secret: true },
+        Some("chatTypeBasicGroup" | "inviteLinkChatTypeBasicGroup") => ChatKindRef::BasicGroup,
+        Some("chatTypeSupergroup") => ChatKindRef::Supergroup {
+            is_channel: chat_type["is_channel"].as_bool(),
+        },
+        Some("inviteLinkChatTypeSupergroup") => ChatKindRef::Supergroup {
+            is_channel: Some(false),
+        },
+        Some("inviteLinkChatTypeChannel") => ChatKindRef::Supergroup {
+            is_channel: Some(true),
+        },
         _ => {
             return Err(ChatWorkflowError::InvalidResult {
-                method: "chat",
+                method,
                 field: "type.@type",
             });
         }
@@ -1074,17 +1081,16 @@ pub(super) fn ensure_membership_with(
 
 pub(super) fn membership_status_with(
     target: MembershipTarget<'_>,
-    mut call: impl FnMut(Value) -> Result<TdObject, ChatWorkflowError>,
+    mut call: impl FnMut(&'static str, Value) -> Result<TdObject, ChatWorkflowError>,
 ) -> Result<MembershipStatus, ChatWorkflowError> {
     let chat_id = match target {
         MembershipTarget::ChatId(chat_id) if chat_id != 0 => chat_id,
         MembershipTarget::ChatId(_) => return Err(ChatWorkflowError::InvalidTarget),
         MembershipTarget::InviteLink(invite_link) => {
             let invite_link = invite_link_value(invite_link)?;
-            let preview = membership_status_call(
+            let preview = call(
                 "checkChatInviteLink",
                 json!({"@type":"checkChatInviteLink","invite_link":invite_link}),
-                &mut call,
             )?;
             if preview.as_value()["@type"] != "chatInviteLinkInfo" {
                 return Err(ChatWorkflowError::UnexpectedResult {
@@ -1103,16 +1109,12 @@ pub(super) fn membership_status_with(
             chat_id
         }
     };
-    let chat = membership_status_call(
-        "getChat",
-        json!({"@type":"getChat","chat_id":chat_id}),
-        &mut call,
-    )?;
+    let chat = call("getChat", json!({"@type":"getChat","chat_id":chat_id}))?;
     if chat.as_value()["@type"] != "chat" {
         return Err(ChatWorkflowError::UnexpectedResult { method: "getChat" });
     }
-    let (method, request, expected) = match chat.as_value()["type"]["@type"].as_str() {
-        Some("chatTypeBasicGroup") => (
+    let (method, request, expected) = match chat_kind_ref(&chat.as_value()["type"], "getChat")? {
+        ChatKindRef::BasicGroup => (
             "getBasicGroup",
             json!({
                 "@type":"getBasicGroup",
@@ -1124,7 +1126,7 @@ pub(super) fn membership_status_with(
             }),
             "basicGroup",
         ),
-        Some("chatTypeSupergroup") => (
+        ChatKindRef::Supergroup { .. } => (
             "getSupergroup",
             json!({
                 "@type":"getSupergroup",
@@ -1136,9 +1138,9 @@ pub(super) fn membership_status_with(
             }),
             "supergroup",
         ),
-        _ => return Err(ChatWorkflowError::InvalidTarget),
+        ChatKindRef::User { .. } => return Err(ChatWorkflowError::InvalidTarget),
     };
-    let group = membership_status_call(method, request, &mut call)?;
+    let group = call(method, request)?;
     if group.as_value()["@type"] != expected {
         return Err(ChatWorkflowError::UnexpectedResult { method });
     }
@@ -1164,14 +1166,6 @@ pub(super) fn membership_status_with(
             MembershipStatusState::Unresolved | MembershipStatusState::Unknown
         ),
     })
-}
-
-fn membership_status_call(
-    method: &'static str,
-    request: Value,
-    call: &mut impl FnMut(Value) -> Result<TdObject, ChatWorkflowError>,
-) -> Result<TdObject, ChatWorkflowError> {
-    checked_response(method, call(request)?)
 }
 
 fn membership_status_state(status: &Value) -> Result<MembershipStatusState, ChatWorkflowError> {
@@ -1264,7 +1258,7 @@ mod tests {
 
         let status = membership_status_with(
             MembershipTarget::InviteLink("https://t.me/+private-link"),
-            |request| {
+            |_, request| {
                 let method = request["@type"].as_str().unwrap().to_owned();
                 methods.push(method.clone());
                 match method.as_str() {
@@ -1318,7 +1312,7 @@ mod tests {
         let mut methods = Vec::new();
         let status = membership_status_with(
             MembershipTarget::InviteLink("https://t.me/+private-link"),
-            |request| {
+            |_, request| {
                 methods.push(request["@type"].as_str().unwrap().to_owned());
                 workflow_object(json!({
                     "@type":"chatInviteLinkInfo",

@@ -146,7 +146,6 @@ fn last_sequence(runtime: &CoreRuntime) -> u64 {
         .map(|sequence| sequence.get())
         .unwrap_or(0)
 }
-
 fn require_resynced(runtime: &CoreRuntime) -> Result<(), ChatWorkflowError> {
     match runtime.state().gap() {
         Some(gap) => Err(ChatWorkflowError::ResyncRequired {
@@ -156,45 +155,46 @@ fn require_resynced(runtime: &CoreRuntime) -> Result<(), ChatWorkflowError> {
     }
 }
 
+fn wait_reducer_until<T>(
+    runtime: &mut CoreRuntime,
+    deadline: Instant,
+    mut predicate: impl FnMut(&CoreRuntime) -> Result<Option<T>, ChatWorkflowError>,
+) -> Result<Option<T>, ChatWorkflowError> {
+    loop {
+        if let Some(value) = predicate(runtime)? {
+            return Ok(Some(value));
+        }
+        match runtime.next_event_until(deadline) {
+            Ok(_) => {}
+            Err(RuntimeError::DeadlineExceeded) => return Ok(None),
+            Err(error) => return Err(ChatWorkflowError::Runtime(error)),
+        }
+    }
+}
+
 fn wait_message_send(
     runtime: &mut CoreRuntime,
     key: MessageSendKey,
     deadline: Instant,
 ) -> Result<BotStartReceipt, ChatWorkflowError> {
-    loop {
-        let outcome = runtime
+    let outcome = wait_reducer_until(runtime, deadline, |runtime| {
+        Ok(runtime
             .state()
             .message_send(key)
-            .map(|state| state.state.clone());
-        match outcome {
-            Some(MessageSendState::Succeeded { message }) => {
-                return Ok(bot_start_receipt(
-                    key.old_message_id,
-                    BotStartOutcome::Succeeded { message },
-                    true,
-                ));
-            }
-            Some(MessageSendState::Failed { message, error }) => {
-                return Ok(bot_start_receipt(
-                    key.old_message_id,
-                    BotStartOutcome::Failed { message, error },
-                    true,
-                ));
-            }
-            Some(MessageSendState::Acknowledged) | None => {}
-        }
-        match runtime.next_event_until(deadline) {
-            Ok(_) => {}
-            Err(RuntimeError::DeadlineExceeded) => {
-                return Ok(bot_start_receipt(
-                    key.old_message_id,
-                    BotStartOutcome::Uncertain,
-                    false,
-                ));
-            }
-            Err(error) => return Err(ChatWorkflowError::Runtime(error)),
-        }
-    }
+            .and_then(|state| match state.state.clone() {
+                MessageSendState::Succeeded { message } => {
+                    Some(BotStartOutcome::Succeeded { message })
+                }
+                MessageSendState::Failed { message, error } => {
+                    Some(BotStartOutcome::Failed { message, error })
+                }
+                MessageSendState::Acknowledged => None,
+            }))
+    })?;
+    Ok(match outcome {
+        Some(outcome) => bot_start_receipt(key.old_message_id, outcome, true),
+        None => bot_start_receipt(key.old_message_id, BotStartOutcome::Uncertain, false),
+    })
 }
 
 fn call_and_apply(

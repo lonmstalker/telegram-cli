@@ -157,3 +157,16 @@ Active append-only checkpoints. Решения и проблемы хранят�
   0 failed, 3 ignored; все `scripts/check-*.py` green под bundled Python 3.12.13; source-size,
   fmt и diff gates green.
 - Next: A4 — удалить повторный chat-type dispatch и reducer wait loops без изменения behavior.
+
+## [2026-07-19] completed | W-20260719-012 | A4 chat workflow refactor сохраняет contracts
+
+- Goal: убрать шесть независимых разборов chat type и три повторённых reducer wait loop без
+  изменения terminal/fail-closed semantics.
+- Actions: `ChatKindRef` централизует normal/invite type dispatch; missing `is_channel` всё ещё
+  invalid для chat-list. Один `wait_reducer_until` сохраняет predicate errors и deadline boundary
+  для leave, title apply и message send. `membership_status_with` получает method явно и больше
+  не обратным парсингом request discriminator.
+- Verification: existing core/workspace tests без добавления acceptance cases — 166 passed,
+  0 failed, 3 ignored; bundled Python 3.12.13 `scripts/check-*.py`, fmt/source-size/diff gates
+  green. `workflows/mod.rs` сохранён в 2146-line ratchet.
+- Next: A5 — one core constructor for title approval request.

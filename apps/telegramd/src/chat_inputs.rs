@@ -5,6 +5,26 @@ use telegram_core::reducer::ChatList;
 use telegram_core::workflows::{ChatTarget, MembershipTarget};
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ProfileNameInput {
+    pub(super) first_name: String,
+    pub(super) last_name: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ChatTitleInput {
+    pub(super) chat_id: i64,
+    pub(super) title: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct LeaveChatInput {
+    pub(super) chat_id: i64,
+}
+
+#[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(super) enum TargetInput {
     Id { chat_id: i64 },

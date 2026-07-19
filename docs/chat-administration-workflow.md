@@ -3,6 +3,8 @@
 Read resolve и membership остаются разными existing workflows: `resolve_chat` никогда не
 join-ит, `ensure_membership` сохраняет `request_pending` как незавершённое состояние, а
 `supergroup_members` требует fresh `can_get_members` и не считает short page terminal.
+Explicit `leave_chat` использует reviewed `reversible_mutation/reconcile`, ждёт ordered
+`chatMemberStatusLeft/Banned` и не повторяет uncertain dispatch.
 
 `plan_chat_title` — bounded configuration planner для primary harness scenario. Он требует
 fresh reducer state без gap, cached chat и текущее `permissions.can_change_info`, сохраняет

@@ -38,7 +38,8 @@ use zeroize::Zeroizing;
 
 use crate::authorization::{AuthorizationCoordinator, AuthorizationObservation};
 use crate::chat_inputs::{
-    ChatListInput, InspectInput, InvitePreviewInput, MembershipInput, TargetInput,
+    ChatListInput, ChatTitleInput, InspectInput, InvitePreviewInput, LeaveChatInput,
+    MembershipInput, ProfileNameInput, TargetInput,
 };
 use crate::lease::LeaseManager;
 use crate::scheduler::{
@@ -68,6 +69,7 @@ const WORKFLOWS: &[(&str, &str)] = &[
         r#"{"url":"https://t.me/+INVITE_TOKEN"}"#,
     ),
     ("ensure_membership", r#"{"kind":"chat_id","chat_id":0}"#),
+    ("leave_chat", r#"{"chat_id":0}"#),
     ("load_chat_list", r#"{"list":{"kind":"main"},"limit":100}"#),
     (
         "inspect_chat",
@@ -178,6 +180,7 @@ const WORKFLOWS: &[(&str, &str)] = &[
 ];
 const JOURNALED_WORKFLOWS: &[&str] = &[
     "ensure_membership",
+    "leave_chat",
     "send_text_message",
     "upload_sticker_file",
     "apply_custom_emoji_set",
@@ -1091,6 +1094,12 @@ fn run_workflow(
             let complete = result.state.complete();
             output(result, complete)
         }
+        "leave_chat" => {
+            let input: LeaveChatInput = parse(input)?;
+            let result = workflows::leave_chat(runtime, &policy, input.chat_id, deadline)?;
+            let complete = result.complete;
+            output(result, complete)
+        }
         "load_chat_list" => {
             let input: ChatListInput = parse(input)?;
             output(
@@ -1657,20 +1666,6 @@ impl UserTargetInput {
             Self::PublicUsername { username } => UserTarget::PublicUsername(username),
         }
     }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ProfileNameInput {
-    first_name: String,
-    last_name: String,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ChatTitleInput {
-    chat_id: i64,
-    title: String,
 }
 
 impl From<ChatWorkflowError> for WorkflowDispatchError {
@@ -2617,6 +2612,7 @@ mod tests {
                 "resolve_chat" => parse::<TargetInput>(input).is_ok(),
                 "preview_invite_link" => parse::<InvitePreviewInput>(input).is_ok(),
                 "ensure_membership" => parse::<MembershipInput>(input).is_ok(),
+                "leave_chat" => parse::<LeaveChatInput>(input).is_ok(),
                 "load_chat_list" => parse::<ChatListInput>(input).is_ok(),
                 "inspect_chat" => parse::<InspectInput>(input).is_ok(),
                 "forum_topics" => parse::<ForumTopicsInput>(input).is_ok(),

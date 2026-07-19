@@ -10,7 +10,10 @@
   вступает в чат;
 - `workflows::ensure_membership` — явная reversible mutation для
   `MembershipTarget::ChatId` или `InviteLink`; только здесь разрешены `joinChat` и
-  `joinChatByInviteLink`.
+  `joinChatByInviteLink`;
+- `workflows::leave_chat` — отдельная reversible mutation: `leaveChat` считается terminal
+  только после более нового reducer status `chatMemberStatusLeft/Banned`; timeout остаётся
+  `uncertain` без blind retry, а уже отсутствующий membership не dispatch-ит повторно.
 
 Публичный Rust API не принимает TDJSON и не требует от caller поля `@type`: discriminator
 создаётся внутри workflow перед общим schema-validated `td_call`. `resolve` возвращает только
@@ -20,7 +23,7 @@ Join различает
 `Member`, `RequestPending`, `ApprovalRequired`, `Declined` и неизвестный будущий result;
 pending не считается complete. TDLib `error` не превращается в доказанный `not_found`.
 
-Все операции проходят общую generated policy: resolver/preview methods имеют `read`, join methods —
+Все операции проходят общую generated policy: resolver/preview methods имеют `read`, join/leave methods —
 `reversible_mutation` и `reconcile`. Invite link не входит в `Debug` публичных target types и
 не добавляется в error.
 

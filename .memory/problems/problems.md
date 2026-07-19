@@ -89,3 +89,16 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Impact: checksum/link-integrity check всех wiki journals остаётся красным, хотя active work journal и новые rotated shards валидны. Product build/runtime/tests этим не затронуты.
 - Status: open, pre-existing относительно W-20260719-003. Immutable shard и существующая checksum row не изменялись; repair command намеренно запрещает tracked archive.
 - Next: определить отдельный migration/redirect contract для historical code links без переписывания immutable archive; затем добавить negative control и закрыть тем же ID.
+
+## [2026-07-19] open | P-20260719-002 | Повторное вступление ожидает одобрения администратора
+
+- Evidence: owner-requested CHAT-010 под returning `ready` сначала получил terminal
+  `leave_chat/outcome=verified_left`, затем `ensure_membership` по той же invite link вернул
+  root `partial`, `state=request_pending`. Sanitized trace:
+  [`2026-07-19-p10-chat-membership-roundtrip.md`](../raw/2026-07-19-p10-chat-membership-roundtrip.md).
+- Impact: аккаунт доказанно вышел из channel и отправил заявку, но текущее membership не доказано;
+  запрос пользователя «отписаться и подписаться» завершён только до внешнего approval boundary.
+- Safety: повторный join, raw TDLib call и попытка обойти invite approval через известный chat ID
+  не выполнялись. Lease released, daemon `Closed`.
+- Next: после решения администратора выполнить read-safe reconciliation и закрыть CHAT-010 только
+  при terminal member state с тем же chat ID; при отказе сохранить declined boundary.

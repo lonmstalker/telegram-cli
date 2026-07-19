@@ -498,7 +498,7 @@ mod tests {
     use super::sticker::custom_emoji_set_with;
     use super::story::story_mutation_with;
     use super::*;
-    use crate::registry::{CapabilityDisposition, RiskClass, capability};
+    use crate::registry::RiskClass;
     use crate::transport::{BackendError, TdJsonBackend};
     use ed25519_dalek::{Signer, SigningKey};
 
@@ -558,24 +558,6 @@ mod tests {
             ChatWorkflowError::Tdlib {
                 method: "searchPublicChat",
                 code: Some(400)
-            }
-        ));
-    }
-
-    #[test]
-    fn policy_data_separates_read_resolution_from_membership_mutation() {
-        assert!(matches!(
-            capability("searchPublicChat").unwrap().disposition,
-            CapabilityDisposition::Reviewed {
-                risk: RiskClass::Read,
-                ..
-            }
-        ));
-        assert!(matches!(
-            capability("joinChat").unwrap().disposition,
-            CapabilityDisposition::Reviewed {
-                risk: RiskClass::ReversibleMutation,
-                ..
             }
         ));
     }

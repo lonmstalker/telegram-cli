@@ -82,6 +82,22 @@ pub struct MembershipResult {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
+pub enum LeaveChatOutcome {
+    AlreadyNotMember,
+    VerifiedLeft,
+    Uncertain,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct LeaveChatReceipt {
+    pub chat_id: i64,
+    pub outcome: LeaveChatOutcome,
+    pub sequence: Option<u64>,
+    pub complete: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ChatListTerminal {
     AllChatsLoaded,
 }
@@ -200,6 +216,55 @@ pub fn ensure_membership(
     ensure_membership_with(target, |request| {
         td_call(runtime, policy, request, deadline)
     })
+}
+
+pub fn leave_chat(
+    runtime: &mut CoreRuntime,
+    policy: &RawPolicy,
+    chat_id: i64,
+    deadline: Instant,
+) -> Result<LeaveChatReceipt, ChatWorkflowError> {
+    require_resynced(runtime)?;
+    let cache = membership_cache(runtime, chat_id)?;
+    let before = membership_observation(runtime, cache)?;
+    if before.not_member {
+        return Ok(leave_chat_receipt(
+            chat_id,
+            LeaveChatOutcome::AlreadyNotMember,
+            Some(before.sequence),
+        ));
+    }
+    expect_ok(
+        call_and_apply(
+            runtime,
+            policy,
+            "leaveChat",
+            json!({"@type":"leaveChat","chat_id":chat_id}),
+            deadline,
+        )?,
+        "leaveChat",
+    )?;
+    loop {
+        let observed = membership_observation(runtime, cache)?;
+        if observed.sequence > before.sequence && observed.not_member {
+            return Ok(leave_chat_receipt(
+                chat_id,
+                LeaveChatOutcome::VerifiedLeft,
+                Some(observed.sequence),
+            ));
+        }
+        match runtime.next_event_until(deadline) {
+            Ok(_) => {}
+            Err(RuntimeError::DeadlineExceeded) => {
+                return Ok(leave_chat_receipt(
+                    chat_id,
+                    LeaveChatOutcome::Uncertain,
+                    None,
+                ));
+            }
+            Err(error) => return Err(ChatWorkflowError::Runtime(error)),
+        }
+    }
 }
 
 pub fn load_chat_list(
@@ -391,6 +456,73 @@ pub fn apply_chat_title(
             }
             Err(error) => return Err(ChatWorkflowError::Runtime(error)),
         }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum MembershipCache {
+    BasicGroup(i64),
+    Supergroup(i64),
+}
+
+struct MembershipObservation {
+    sequence: u64,
+    not_member: bool,
+}
+
+fn membership_cache(
+    runtime: &CoreRuntime,
+    chat_id: i64,
+) -> Result<MembershipCache, ChatWorkflowError> {
+    let chat = runtime
+        .state()
+        .chat(chat_id)
+        .ok_or(ChatWorkflowError::PrerequisiteMissing {
+            prerequisite: "chat",
+        })?;
+    match chat.value["type"]["@type"].as_str() {
+        Some("chatTypeBasicGroup") => Ok(MembershipCache::BasicGroup(required_i64(
+            &chat.value["type"],
+            "basic_group_id",
+            "chat",
+        )?)),
+        Some("chatTypeSupergroup") => Ok(MembershipCache::Supergroup(required_i64(
+            &chat.value["type"],
+            "supergroup_id",
+            "chat",
+        )?)),
+        _ => Err(ChatWorkflowError::InvalidTarget),
+    }
+}
+
+fn membership_observation(
+    runtime: &CoreRuntime,
+    cache: MembershipCache,
+) -> Result<MembershipObservation, ChatWorkflowError> {
+    let entity = match cache {
+        MembershipCache::BasicGroup(group_id) => runtime.state().basic_group(group_id),
+        MembershipCache::Supergroup(group_id) => runtime.state().supergroup(group_id),
+    }
+    .ok_or(ChatWorkflowError::PrerequisiteMissing {
+        prerequisite: "chat membership",
+    })?;
+    let status = required_string(&entity.value["status"], "@type", "chat membership")?;
+    Ok(MembershipObservation {
+        sequence: entity.sequence.get(),
+        not_member: matches!(status, "chatMemberStatusLeft" | "chatMemberStatusBanned"),
+    })
+}
+
+fn leave_chat_receipt(
+    chat_id: i64,
+    outcome: LeaveChatOutcome,
+    sequence: Option<u64>,
+) -> LeaveChatReceipt {
+    LeaveChatReceipt {
+        chat_id,
+        sequence,
+        complete: outcome != LeaveChatOutcome::Uncertain,
+        outcome,
     }
 }
 
@@ -832,6 +964,7 @@ pub(super) fn ensure_membership_with(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::registry::{CapabilityDisposition, capability};
 
     fn object(value: Value) -> Result<TdObject, RawApiError> {
         Ok(TdObject::from_value(value).unwrap())
@@ -899,5 +1032,26 @@ mod tests {
             method.as_str(),
             "joinChat" | "joinChatByInviteLink" | "openChat" | "closeChat"
         )));
+    }
+
+    #[test]
+    fn policy_data_separates_read_resolution_from_membership_mutation() {
+        assert!(matches!(
+            capability("searchPublicChat").unwrap().disposition,
+            CapabilityDisposition::Reviewed {
+                risk: RiskClass::Read,
+                ..
+            }
+        ));
+        for method in ["joinChat", "joinChatByInviteLink", "leaveChat"] {
+            assert!(matches!(
+                capability(method).unwrap().disposition,
+                CapabilityDisposition::Reviewed {
+                    risk: RiskClass::ReversibleMutation,
+                    retry: RetryClass::Reconcile,
+                    ..
+                }
+            ));
+        }
     }
 }

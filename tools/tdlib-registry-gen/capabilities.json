@@ -770,6 +770,15 @@
       "retry": "reconcile"
     },
     {
+      "method": "leaveChat",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatKnown { target: chat_id }",
+      "retry": "reconcile"
+    },
+    {
       "method": "loadChats",
       "risk": "read",
       "accounts": [

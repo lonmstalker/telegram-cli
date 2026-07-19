@@ -3786,7 +3786,7 @@ pub static CAPABILITIES: &[CapabilityDescriptor] = &[
     CapabilityDescriptor { method: "joinLiveStory", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "joinVideoChat", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "launchPrepaidGiveaway", disposition: CapabilityDisposition::DefaultDeny },
-    CapabilityDescriptor { method: "leaveChat", disposition: CapabilityDisposition::DefaultDeny },
+    CapabilityDescriptor { method: "leaveChat", disposition: CapabilityDisposition::Reviewed { risk: RiskClass::ReversibleMutation, accounts: &[AccountKind::RegularUser,], runtime_requirements: "ChatKnown { target: chat_id }", retry: RetryClass::Reconcile } },
     CapabilityDescriptor { method: "leaveGroupCall", disposition: CapabilityDisposition::Reviewed { risk: RiskClass::Presence, accounts: &[AccountKind::RegularUser,], runtime_requirements: "GroupCallProperty { group_call: group_call_id, property: IsJoined }", retry: RetryClass::Convergent } },
     CapabilityDescriptor { method: "listenToAudio", disposition: CapabilityDisposition::DefaultDeny },
     CapabilityDescriptor { method: "loadActiveStories", disposition: CapabilityDisposition::DefaultDeny },

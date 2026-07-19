@@ -76,13 +76,22 @@
 - [P10 read-only chat regression](../raw/2026-07-19-p10-chat-read-regression.md) — returning auth, terminal main/archive lists, compact channel inventory и graceful close без private payload
 - [P10 public-link chat resolve](../raw/2026-07-19-p10-chat-public-resolve.md) — три точных public-link fixtures разрешены без membership/open/send; похожие false matches отклонены
 - [P10 chat read projection refactor](../raw/2026-07-19-p10-chat-read-projection.md) — returning auth, compact direct-response inspect и exact public resolve без raw/private payload
+- [P10 CHAT-005 invite preview](../raw/2026-07-19-p10-chat-invite-preview.md) — owner-supplied fixture terminal-классифицирован без membership/open/send и без сохранения token/raw preview
+- [P10 CHAT-010 membership round-trip](../raw/2026-07-19-p10-chat-membership-roundtrip.md) — terminal leave доказан, повторный join остановился на admin `request_pending` без retry/bypass
 
 ## Current records
 
+- CHAT-010 partial: terminal `leave_chat=verified_left` реализован и доказан live; повторное
+  вступление отправило заявку и остановилось на `request_pending`. Membership не заявляется,
+  join не повторяется; см. [D-20260719-002](../decisions/decisions.md),
+  [P-20260719-002](../problems/problems.md), [W-20260719-007](../logs/work.md).
+- CHAT-005 принят live: owner-supplied invite fixture получил terminal preview как accessible
+  non-public channel; membership/open/send не вызывались, token/title/ID не сохранены; см.
+  [W-20260719-006](../logs/work.md).
 - Chat read projection refactor: public resolve, invite preview и membership разделены;
   resolve/inspect больше не сериализуют raw TDLib objects и не требуют cache update после
-  direct `chat` response. CHAT-001/003/004 повторно green live; CHAT-005 без disposable invite
-  остаётся pending; см. [D-20260719-001](../decisions/decisions.md), [W-20260719-005](../logs/work.md).
+  direct `chat` response. CHAT-001/003/004 повторно green live; см.
+  [D-20260719-001](../decisions/decisions.md), [W-20260719-005](../logs/work.md).
 - P10 CHAT-004 принят: три публичные ссылки live-сопоставлены с точными channel IDs через
   `resolve_chat` под `read` lease; membership/open/send не выполнялись, URL/IDs не сохранены;
   invite/folder/forum/presence и следующие domain scenarios остаются pending; см.

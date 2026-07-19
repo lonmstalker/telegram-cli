@@ -351,6 +351,7 @@ mod tests {
         sent_types: Vec<String>,
         version: String,
         load_calls: usize,
+        emit_leave_update: bool,
     }
 
     struct StartupBackend(StartupState);
@@ -363,6 +364,7 @@ mod tests {
                     sent_types: Vec::new(),
                     version,
                     load_calls: 0,
+                    emit_leave_update: true,
                 })),
             };
             (Self(state.clone()), state)
@@ -459,6 +461,19 @@ mod tests {
                             })
                             .to_string(),
                         );
+                        if inner.load_calls == 1 {
+                            inner.incoming.push_back(
+                                json!({
+                                    "@type":"updateSupergroup",
+                                    "supergroup":{
+                                        "@type":"supergroup",
+                                        "id":chat_id,
+                                        "status":{"@type":"chatMemberStatusMember"}
+                                    }
+                                })
+                                .to_string(),
+                            );
+                        }
                         inner.incoming.push_back(
                             json!({
                                 "@type":"updateChatPosition",
@@ -528,6 +543,25 @@ mod tests {
                         })
                         .to_string(),
                     );
+                }
+                "leaveChat" => {
+                    let chat_id = request["chat_id"].as_i64().unwrap();
+                    if inner.emit_leave_update {
+                        inner.incoming.push_back(
+                            json!({
+                                "@type":"updateSupergroup",
+                                "supergroup":{
+                                    "@type":"supergroup",
+                                    "id":chat_id,
+                                    "status":{"@type":"chatMemberStatusLeft"}
+                                }
+                            })
+                            .to_string(),
+                        );
+                    }
+                    inner
+                        .incoming
+                        .push_back(json!({"@type":"ok","@extra":extra}).to_string());
                 }
                 "openChat" | "closeChat" => inner
                     .incoming
@@ -680,6 +714,117 @@ mod tests {
             [(20, 3), (10, 2)]
         );
         assert_eq!(state.inner.lock().unwrap().load_calls, 3);
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn leave_chat_waits_for_left_update_and_is_idempotent() {
+        let identity = pinned_identity().unwrap();
+        let (backend, state) = StartupBackend::new(identity.version);
+        let mut runtime =
+            CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let policy = crate::raw_api::RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![
+                crate::registry::RiskClass::Read,
+                crate::registry::RiskClass::ReversibleMutation,
+            ],
+        );
+        crate::workflows::load_chat_list(
+            &mut runtime,
+            &policy,
+            crate::reducer::ChatList::Main,
+            100,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+
+        let left = crate::workflows::leave_chat(
+            &mut runtime,
+            &policy,
+            2,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+        assert_eq!(
+            left.outcome,
+            crate::workflows::LeaveChatOutcome::VerifiedLeft
+        );
+        assert!(left.complete);
+        assert!(left.sequence.is_some());
+
+        let already_left = crate::workflows::leave_chat(
+            &mut runtime,
+            &policy,
+            2,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+        assert_eq!(
+            already_left.outcome,
+            crate::workflows::LeaveChatOutcome::AlreadyNotMember
+        );
+        assert!(already_left.complete);
+        assert_eq!(
+            state
+                .inner
+                .lock()
+                .unwrap()
+                .sent_types
+                .iter()
+                .filter(|method| method.as_str() == "leaveChat")
+                .count(),
+            1
+        );
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn leave_chat_timeout_is_uncertain_without_retry() {
+        let identity = pinned_identity().unwrap();
+        let (backend, state) = StartupBackend::new(identity.version);
+        let mut runtime =
+            CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let policy = crate::raw_api::RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![
+                crate::registry::RiskClass::Read,
+                crate::registry::RiskClass::ReversibleMutation,
+            ],
+        );
+        crate::workflows::load_chat_list(
+            &mut runtime,
+            &policy,
+            crate::reducer::ChatList::Main,
+            100,
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+        state.inner.lock().unwrap().emit_leave_update = false;
+
+        let receipt = crate::workflows::leave_chat(
+            &mut runtime,
+            &policy,
+            2,
+            Instant::now() + Duration::from_millis(5),
+        )
+        .unwrap();
+        assert_eq!(
+            receipt.outcome,
+            crate::workflows::LeaveChatOutcome::Uncertain
+        );
+        assert!(!receipt.complete);
+        assert_eq!(
+            state
+                .inner
+                .lock()
+                .unwrap()
+                .sent_types
+                .iter()
+                .filter(|method| method.as_str() == "leaveChat")
+                .count(),
+            1
+        );
         runtime.shutdown().unwrap();
     }
 

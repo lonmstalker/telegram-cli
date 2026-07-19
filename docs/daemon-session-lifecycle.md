@@ -7,7 +7,7 @@
 1. `TELEGRAM_PROFILE` и absolute `TDLIB_DATABASE_DIR` выбираются process configuration; daemon первым получает `ProfileDatabaseLock`.
 2. Target-specific `libtdjson` берётся из pinned provenance cache path либо из `TDJSON_LIBRARY_PATH` packaging override. До unsafe ABI load проверяются exact byte length и SHA-256.
 3. Database key загружается как Base64 file secret из `TDLIB_DATABASE_KEY_FILE`; `.env.local` читает только protected loader, не daemon.
-4. `CoreRuntime` проходит pinned version/commit handshake, отправляет `setTdlibParameters` и принимает только returning `authorizationStateReady`. Любой phone/QR/OTP/2FA branch останавливает unattended startup с `InteractiveAuthorizationRequired`.
+4. `CoreRuntime` проходит pinned version/commit handshake. `authorizationStateWaitTdlibParameters` daemon закрывает сам через `setTdlibParameters`; phone/QR/OTP/2FA branch переводит daemon в `Starting` и оставляет private socket доступным для brokered owner login. Human `telegram-cli login`, machine `login status` и exact challenge handoff описаны в [CLI login status и update events](cli-login-events.md).
 5. `Ready` публикуется только после успешного `getMe`. Optional `TELEGRAM_EXPECTED_USER_ID` сверяется непосредственно; без него первый успешный startup создаёт `.telegramd-identity` как current-user regular single-link file `0600`, а дальнейшие starts требуют exact match. Identity не попадает в lifecycle output.
 
 ## Ready, activity и idle

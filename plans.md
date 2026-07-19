@@ -331,7 +331,7 @@ Decision gate: начинать только после acceptance P0–P7.
 - [x] B3. CLI повторяет owner password prompt после definite password rejection.
 - [x] B4. Protocol отличает invalid login input от stale/mismatched challenge.
 - [x] B5. Daemon resend хранит только timeout gate; availability проверяет core.
-- [ ] B6. Lifecycle и secure-login docs отражают actual interactive startup и single-owner timeout.
+- [x] B6. Lifecycle и secure-login docs отражают actual interactive startup и single-owner timeout.
 
 ### Scenarios
 

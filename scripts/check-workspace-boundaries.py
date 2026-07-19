@@ -36,6 +36,11 @@ EXPECTED_MANIFESTS = {
     "telegram-webapp-runner": ROOT / "apps/telegram-webapp-runner/Cargo.toml",
     "tdlib-registry-gen": ROOT / "tools/tdlib-registry-gen/Cargo.toml",
 }
+STRUCTURAL_GUARDS = (
+    "check-source-file-size.py",
+    "check-daemon-client-single-home.py",
+    "check-workspace-dependencies.py",
+)
 
 
 def fail(message: str) -> None:
@@ -187,7 +192,20 @@ def main() -> int:
             fail(error)
         return 1
 
-    print("workspace contract: ok (negative controls: 4)")
+    for guard in STRUCTURAL_GUARDS:
+        guard_result = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / guard)],
+            cwd=ROOT,
+            check=False,
+        )
+        if guard_result.returncode != 0:
+            fail(f"structural guard `{guard}` завершился с ошибкой")
+            return 1
+
+    print(
+        "workspace contract: ok "
+        "(negative controls: 4; structural guards: 3)"
+    )
     return 0
 
 

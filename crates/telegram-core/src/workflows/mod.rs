@@ -483,9 +483,7 @@ mod tests {
 
     use super::business::{business_connection_with, send_business_text_with};
     use super::call::leave_group_call_with;
-    use super::chat::{
-        ensure_membership_with, full_info_request, resolution_request, resolve_with,
-    };
+    use super::chat::{ensure_membership_with, full_info_request};
     use super::files::{FileDirection, cancel_download_with, file_size_verified};
     use super::forum::{forum_topics_with, set_forum_topic_closed_with};
     use super::members::{chat_statistics_with, resource_statistics_with, supergroup_members_with};
@@ -510,43 +508,6 @@ mod tests {
 
     fn workflow_object(value: Value) -> Result<TdObject, ChatWorkflowError> {
         Ok(TdObject::from_value(value).unwrap())
-    }
-
-    #[test]
-    fn resolve_never_dispatches_membership_methods() {
-        let mut methods = Vec::new();
-        for target in [
-            ChatTarget::Id(7),
-            ChatTarget::PublicUsername("public_name"),
-            ChatTarget::PublicLink("https://t.me/public_name?single"),
-            ChatTarget::InviteLink("private-link"),
-        ] {
-            resolve_with(target, |request| {
-                let method = request["@type"].as_str().unwrap().to_owned();
-                methods.push(method.clone());
-                match method.as_str() {
-                    "getChat" | "searchPublicChat" => object(json!({"@type":"chat","id":7})),
-                    "checkChatInviteLink" => {
-                        object(json!({"@type":"chatInviteLinkInfo","chat_id":7}))
-                    }
-                    _ => unreachable!(),
-                }
-            })
-            .unwrap();
-        }
-        assert_eq!(
-            methods,
-            [
-                "getChat",
-                "searchPublicChat",
-                "searchPublicChat",
-                "checkChatInviteLink"
-            ]
-        );
-        assert!(matches!(
-            resolution_request(ChatTarget::PublicLink("https://t.me/+invite")),
-            Err(ChatWorkflowError::InvalidTarget)
-        ));
     }
 
     #[test]

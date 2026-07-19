@@ -30,6 +30,7 @@
 - [CLI workflow routes contract](../../docs/cli-workflows.md)
 - [CLI secure login contract](../../docs/cli-secure-login.md)
 - [P6 cold-agent eval](../../docs/agent-skill-eval.md)
+- [Canonical live regression ledger](../../docs/live-regression.md)
 - [MCP stdio/SSH transport contract](../../docs/mcp-transport.md)
 - [F007 user/profile workflow](../../docs/user-profile-workflow.md)
 - [F008 chat/folder/topic workflows](../../docs/forum-topic-workflow.md)
@@ -72,9 +73,21 @@
 - [P10 owner TTY retry](../raw/2026-07-18-p10-owner-tty-retry.md) — corrected prompt ждал скрытый ввод до owner cancellation; immediate failure resolved, phone submission pending
 - [P10 first-login and returning acceptance](../raw/2026-07-18-p10-first-login-returning-acceptance.md) — owner TTY first login, `Ready + getMe`, graceful `Closed` и returning `Ready` без повторного secret input
 - [P9 reproducible native builds](../raw/2026-07-18-p9-reproducible-native-builds.md) — два independent exact-recipe build для macOS arm64 и Linux x86_64 совпали bit-for-bit; свежий provenance gate и guard suite green
+- [P10 read-only chat regression](../raw/2026-07-19-p10-chat-read-regression.md) — returning auth, terminal main/archive lists, compact channel inventory и graceful close без private payload
+- [P10 public-link chat resolve](../raw/2026-07-19-p10-chat-public-resolve.md) — три точных public-link fixtures разрешены без membership/open/send; похожие false matches отклонены
+- [P10 chat read projection refactor](../raw/2026-07-19-p10-chat-read-projection.md) — returning auth, compact direct-response inspect и exact public resolve без raw/private payload
 
 ## Current records
 
+- Chat read projection refactor: public resolve, invite preview и membership разделены;
+  resolve/inspect больше не сериализуют raw TDLib objects и не требуют cache update после
+  direct `chat` response. CHAT-001/003/004 повторно green live; CHAT-005 без disposable invite
+  остаётся pending; см. [D-20260719-001](../decisions/decisions.md), [W-20260719-005](../logs/work.md).
+- P10 CHAT-004 принят: три публичные ссылки live-сопоставлены с точными channel IDs через
+  `resolve_chat` под `read` lease; membership/open/send не выполнялись, URL/IDs не сохранены;
+  invite/folder/forum/presence и следующие domain scenarios остаются pending; см.
+  [W-20260719-004](../logs/work.md).
+- Первый P10 chat read slice: `docs/live-regression.md` хранит stable scenarios и reproduction; live main/archive inventory возвращает compact entries без message/file payload; см. [W-20260719-003](../logs/work.md).
 - Общий daemon client: `telegram-client` единолично владеет client-side socket path, metadata validation и JSON exchange; timeout/framing различия consumers передаются explicit options, локальные error mappings остаются в приложениях; см. [D-20260718-009](../decisions/decisions.md), [W-20260718-013](../logs/work.md).
 - Implementation: P0–P8 accepted; первый Tasks-пункт P9 про reproducible pinned TDLib builds закрыт, P9 продолжается с launchd/systemd packaging; см. [project-state.md](project-state.md) и [W-20260718-011](../logs/work.md).
 - P10 authorization slice принят: 2026-07-18 отдельный profile прошёл owner TTY first login, daemon `Ready + getMe`, graceful `Closed` и returning `Ready` без повторного phone/OTP; общая P10 остаётся pending по другим scenarios; см. [W-20260718-008](../logs/work.md).
@@ -95,6 +108,7 @@
 - Code resend: TDLib `timeout` считается eligibility delay, не guessed OTP TTL; при `next_type` human flow сам запрашивает fresh code и ждёт новый challenge. First login принят, но actual expired-code resend остаётся узким live follow-up [P-20260718-002](../problems/problems.md); см. [D-20260718-004](../decisions/decisions.md), [W-20260718-007](../logs/work.md).
 - Двуязычные пользовательские инструкции добавлены для source checkout и brokered authorization; acceptance-границы P9/P10 в них названы явно; см. [W-20260718-001](../logs/work.md).
 - Открытые проблемы: external source-session blocker [P-20260717-001](../problems/problems.md); live code resend [P-20260718-002](../problems/problems.md); owner TTY failure закрыт в [P-20260718-001](../problems/problems.md); local gateway key wiring закрыт в [P-20260715-001](../problems/problems.md), Linux artifact — в [P-20260715-003](../problems/problems.md).
+- Wiki link-integrity: tracked immutable decision shard содержит устаревшую ссылку на pre-split `workflows.rs`; archive/checksum не изменены, отдельный resolution отслеживается в [P-20260719-001](../problems/problems.md).
 - Консолидация журналов и удаление capability-движка: [D-20260715-035](../decisions/decisions.md), [W-20260715-039](../logs/work.md).
 - Linux x86_64 native artifact: [W-20260715-040](../logs/work.md), [P-20260715-003](../problems/problems.md).
 - Reuse/account model: [D-20260715-036](../decisions/decisions.md), [W-20260715-041](../logs/work.md), [`docs/tg-analytics-reuse.md`](../../docs/tg-analytics-reuse.md).

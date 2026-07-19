@@ -19,16 +19,16 @@ use telegram_core::idempotency::{
 use telegram_core::raw_api::{
     self, PolicyError, RawApiError, SchemaDescription, SchemaSearchResult,
 };
-use telegram_core::reducer::{AppliedUpdate, CachedUpdateKind, ChatList};
+use telegram_core::reducer::{AppliedUpdate, CachedUpdateKind};
 use telegram_core::registry::{
     self, AccountKind, CapabilityDisposition, RetryClass, RiskClass, SymbolKind, ValidatedRequest,
 };
 use telegram_core::runtime::CoreRuntime;
 use telegram_core::workflows::{
-    self, ChatSearchQuery, ChatTarget, ChatWorkflowError, CustomEmojiSetAction, DownloadQuery,
-    ForumTopicsQuery, HistoryQuery, InputFileSource, MembersQuery, MembershipTarget,
-    NotificationScope, NotificationSettingsPatch, PageOptions, StickerFormat, StoryAction,
-    StoryPrivacy, UserTarget, WebAppMode, WebAppRequest,
+    self, ChatSearchQuery, ChatWorkflowError, CustomEmojiSetAction, DownloadQuery,
+    ForumTopicsQuery, HistoryQuery, InputFileSource, MembersQuery, NotificationScope,
+    NotificationSettingsPatch, PageOptions, StickerFormat, StoryAction, StoryPrivacy, UserTarget,
+    WebAppMode, WebAppRequest,
 };
 use telegram_protocol::{
     CommandErrorCode, DaemonRequest, DaemonResponse, EventKind, EventRecord, LeaseErrorCode,
@@ -37,6 +37,9 @@ use telegram_protocol::{
 use zeroize::Zeroizing;
 
 use crate::authorization::{AuthorizationCoordinator, AuthorizationObservation};
+use crate::chat_inputs::{
+    ChatListInput, InspectInput, InvitePreviewInput, MembershipInput, TargetInput,
+};
 use crate::lease::LeaseManager;
 use crate::scheduler::{
     AccountScheduler, FloodScope, OperationClass, OperationContext, OperationPermit,
@@ -60,6 +63,10 @@ const WORKFLOWS: &[(&str, &str)] = &[
     ("plan_chat_title", r#"{"chat_id":0,"title":"Title"}"#),
     ("apply_chat_title", r#"{"chat_id":0,"title":"Title"}"#),
     ("resolve_chat", r#"{"kind":"id","chat_id":0}"#),
+    (
+        "preview_invite_link",
+        r#"{"url":"https://t.me/+INVITE_TOKEN"}"#,
+    ),
     ("ensure_membership", r#"{"kind":"chat_id","chat_id":0}"#),
     ("load_chat_list", r#"{"list":{"kind":"main"},"limit":100}"#),
     (
@@ -1069,7 +1076,13 @@ fn run_workflow(
         "resolve_chat" => {
             let input: TargetInput = parse(input)?;
             let result = workflows::resolve(runtime, &policy, input.target(), deadline)?;
-            let complete = matches!(result.state, workflows::ResolutionState::Chat { .. });
+            let complete = result.complete;
+            output(result, complete)
+        }
+        "preview_invite_link" => {
+            let input: InvitePreviewInput = parse(input)?;
+            let result = workflows::preview_invite_link(runtime, &policy, &input.url, deadline)?;
+            let complete = result.complete;
             output(result, complete)
         }
         "ensure_membership" => {
@@ -1664,74 +1677,6 @@ impl From<ChatWorkflowError> for WorkflowDispatchError {
     fn from(error: ChatWorkflowError) -> Self {
         Self::Core(error)
     }
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-enum TargetInput {
-    Id { chat_id: i64 },
-    PublicUsername { username: String },
-    PublicLink { url: String },
-    InviteLink { url: String },
-}
-
-impl TargetInput {
-    fn target(&self) -> ChatTarget<'_> {
-        match self {
-            Self::Id { chat_id } => ChatTarget::Id(*chat_id),
-            Self::PublicUsername { username } => ChatTarget::PublicUsername(username),
-            Self::PublicLink { url } => ChatTarget::PublicLink(url),
-            Self::InviteLink { url } => ChatTarget::InviteLink(url),
-        }
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-enum MembershipInput {
-    ChatId { chat_id: i64 },
-    InviteLink { url: String },
-}
-
-impl MembershipInput {
-    fn target(&self) -> MembershipTarget<'_> {
-        match self {
-            Self::ChatId { chat_id } => MembershipTarget::ChatId(*chat_id),
-            Self::InviteLink { url } => MembershipTarget::InviteLink(url),
-        }
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ChatListInput {
-    list: ChatListKind,
-    limit: i32,
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-enum ChatListKind {
-    Main,
-    Archive,
-    Folder { folder_id: i32 },
-}
-
-impl From<ChatListKind> for ChatList {
-    fn from(value: ChatListKind) -> Self {
-        match value {
-            ChatListKind::Main => Self::Main,
-            ChatListKind::Archive => Self::Archive,
-            ChatListKind::Folder { folder_id } => Self::Folder(folder_id),
-        }
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct InspectInput {
-    target: TargetInput,
-    open: bool,
 }
 
 #[derive(Deserialize)]
@@ -2551,6 +2496,20 @@ mod tests {
             }))
             .is_err()
         );
+        assert!(
+            parse::<TargetInput>(json!({
+                "kind": "invite_link",
+                "url": "https://t.me/+INVITE_TOKEN",
+            }))
+            .is_err()
+        );
+        assert!(
+            parse::<InvitePreviewInput>(json!({
+                "url": "https://t.me/+INVITE_TOKEN",
+                "unexpected": true,
+            }))
+            .is_err()
+        );
         assert_eq!(server.leases.active_count(), 0);
 
         drop(socket);
@@ -2656,6 +2615,7 @@ mod tests {
                 "update_profile_name" => parse::<ProfileNameInput>(input).is_ok(),
                 "plan_chat_title" | "apply_chat_title" => parse::<ChatTitleInput>(input).is_ok(),
                 "resolve_chat" => parse::<TargetInput>(input).is_ok(),
+                "preview_invite_link" => parse::<InvitePreviewInput>(input).is_ok(),
                 "ensure_membership" => parse::<MembershipInput>(input).is_ok(),
                 "load_chat_list" => parse::<ChatListInput>(input).is_ok(),
                 "inspect_chat" => parse::<InspectInput>(input).is_ok(),

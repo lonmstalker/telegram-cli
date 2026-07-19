@@ -19,7 +19,7 @@ source_of_truth: true
 Сделано и проверено:
 
 - Документационный bootstrap: `product.md`, `HARNESS.md` c inventory F001–F022, harness-файлы, `docs/tdlib-api-coverage.md`.
-- Cargo workspace из семи product-пакетов и generator tool; границы защищены `scripts/check-workspace-boundaries.py`.
+- Cargo workspace из семи product-пакетов и generator tool; `scripts/check-workspace-boundaries.py` защищает package boundaries и запускает structural guards для размера Rust-файлов, единственного daemon socket client и наследования общих Cargo dependencies.
 - Pinned schema: TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`, 1010 functions; gate `scripts/check-tdlib-pin.py`.
 - Strict schema parser и deterministic inventory в `crates/telegram-core/src/schema.rs`.
 - macOS arm64 и Linux x86_64 `tdjson` artifacts с provenance; gate `scripts/check-tdlib-native-pin.py`.
@@ -87,7 +87,7 @@ flowchart LR
 | `apps/telegram-mcp` | Optional adapter protocol→MCP | Отдельная бизнес-логика, второй TDLib owner |
 | `apps/telegram-webapp-runner` | Browser-side Mini App harness | Что-либо TDLib-side |
 | `tools/tdlib-registry-gen` | Offline-генерация registry из pinned schema + capability-таблицы | Runtime-код, сеть, TDLib DB |
-| `scripts/` | Fail-closed gates: schema pin, native pin, workspace/planning boundaries, wiki rotation | Дублирование проверок, которые уже делает cargo |
+| `scripts/` | Fail-closed gates: schema pin, native pin, workspace/planning boundaries, source-size ratchet, daemon-client single home, workspace dependencies, wiki rotation | Дублирование проверок, которые уже делает cargo |
 
 Правило: product-пакеты не зависят от tools; только daemon открывает DB; CLI/MCP не содержат TDLib.
 
@@ -303,6 +303,15 @@ Decision gate: начинать только после acceptance P0–P7.
 - [ ] File/key permissions fail closed — зачем: DB и ключи — это аккаунт целиком.
 
 ## P10 — Live end-to-end gate
+
+### Tasks
+
+- [x] Завести canonical live regression ledger и закрыть первый read-only chat slice:
+  returning authorization, main/archive list и компактный channel inventory без message payload.
+- [x] Закрыть CHAT-004 public-link resolve: три live fixture сопоставлены с точными chat IDs
+  под `read` lease без `ensure_membership`, open, send или сохранения ссылок/IDs в Git.
+- [x] Разделить public resolve и invite preview, вернуть из resolve/inspect только allowlisted
+  chat identity и доказать cache-independent hydration без join/open/send.
 
 ### Scenarios
 

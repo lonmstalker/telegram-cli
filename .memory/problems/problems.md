@@ -82,3 +82,10 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Исходный P0 resolution корректно закреплял Linux artifact после одной сборки и не заявлял bit-for-bit reproducibility.
 - Первый Tasks-пункт P9 теперь выполнил отдельную independent exact-recipe сборку обоих targets; digest совпал с committed reference, а rebuild path fail closed при mismatch ([W-20260718-011](../logs/work.md)).
 - Это correction к прежней boundary note, а не изменение P0 acceptance задним числом.
+
+## [2026-07-19] open | P-20260719-001 | Immutable decision shard ссылается на удалённый workflows.rs
+
+- Evidence/reproduction: `python3 scripts/rotate-wiki-journal.py --all --check` завершается с exit 1 на tracked shard `.memory/decisions/archive/2026-07-15--2026-07-15-044.md`: local link `../../../crates/telegram-core/src/workflows.rs` отсутствует в `HEAD`; current module root — `crates/telegram-core/src/workflows/mod.rs` после commit `46865c4`.
+- Impact: checksum/link-integrity check всех wiki journals остаётся красным, хотя active work journal и новые rotated shards валидны. Product build/runtime/tests этим не затронуты.
+- Status: open, pre-existing относительно W-20260719-003. Immutable shard и существующая checksum row не изменялись; repair command намеренно запрещает tracked archive.
+- Next: определить отдельный migration/redirect contract для historical code links без переписывания immutable archive; затем добавить negative control и закрыть тем же ID.

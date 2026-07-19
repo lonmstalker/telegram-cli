@@ -7,7 +7,6 @@ pub enum ChatTarget<'value> {
     Id(i64),
     PublicUsername(&'value str),
     PublicLink(&'value str),
-    InviteLink(&'value str),
 }
 
 pub enum MembershipTarget<'value> {
@@ -17,16 +16,46 @@ pub enum MembershipTarget<'value> {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum ResolutionState {
-    Chat { chat_id: i64 },
-    InvitePreview { chat_id: Option<i64> },
+pub enum ChatVisibility {
+    Public,
+    NonPublic,
     Unknown,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InviteAccess {
+    Accessible,
+    PreviewOnly,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ChatIdentity {
+    pub chat_id: i64,
+    pub title: String,
+    pub kind: ChatListEntryKind,
+    pub visibility: ChatVisibility,
+    pub active_usernames: Vec<String>,
+    pub canonical_public_url: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ChatResolution {
-    pub state: ResolutionState,
-    pub raw: TdObject,
+    pub chat: ChatIdentity,
+    pub freshness: Freshness,
+    pub complete: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct InvitePreview {
+    pub chat_id: Option<i64>,
+    pub title: String,
+    pub kind: ChatListEntryKind,
+    pub visibility: ChatVisibility,
+    pub access: InviteAccess,
+    pub accessible_for: i32,
+    pub creates_join_request: bool,
+    pub complete: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -57,28 +86,48 @@ pub enum ChatListTerminal {
     AllChatsLoaded,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChatListEntryKind {
+    Private,
+    BasicGroup,
+    Supergroup,
+    Channel,
+    Secret,
+    Unknown,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ChatListEntry {
+    pub chat_id: i64,
+    pub title: String,
+    pub kind: ChatListEntryKind,
+    pub is_pinned: bool,
+    pub order: i64,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ChatListSnapshot {
     pub positions: Vec<ChatListPosition>,
+    pub entries: Vec<ChatListEntry>,
     pub load_calls: usize,
     pub terminal: ChatListTerminal,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum ChatInspectionStatus {
-    Complete,
-    MembershipRequired,
-    Unknown,
+pub enum ChatFullInfoKind {
+    User,
+    BasicGroup,
+    Supergroup,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ChatInspection {
-    pub status: ChatInspectionStatus,
     pub resolution: ChatResolution,
-    pub cached_chat: Option<Value>,
-    pub full_info: Option<TdObject>,
+    pub full_info_kind: ChatFullInfoKind,
     pub used_open_lease: bool,
+    pub complete: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -112,7 +161,7 @@ pub struct ChatTitleReceipt {
 
 impl ChatInspection {
     pub fn complete(&self) -> bool {
-        self.status == ChatInspectionStatus::Complete
+        self.complete
     }
 }
 
@@ -122,7 +171,21 @@ pub fn resolve(
     target: ChatTarget<'_>,
     deadline: Instant,
 ) -> Result<ChatResolution, ChatWorkflowError> {
-    resolve_with(target, |request| {
+    let (method, request) = resolution_request(target)?;
+    let raw = checked_response(
+        method,
+        td_call(runtime, policy, request, deadline).map_err(ChatWorkflowError::Call)?,
+    )?;
+    resolution_from_raw(Some(runtime), target, method, &raw)
+}
+
+pub fn preview_invite_link(
+    runtime: &CoreRuntime,
+    policy: &RawPolicy,
+    invite_link: &str,
+    deadline: Instant,
+) -> Result<InvitePreview, ChatWorkflowError> {
+    preview_invite_link_with(invite_link, |request| {
         td_call(runtime, policy, request, deadline)
     })
 }
@@ -158,13 +221,52 @@ pub fn load_chat_list(
             .map_err(ChatWorkflowError::Runtime)?;
         Ok(response)
     })?;
+    let positions = runtime
+        .state()
+        .chat_list_positions(list)
+        .map_err(ChatWorkflowError::Reducer)?;
+    let entries = chat_list_entries(runtime, &positions)?;
     Ok(ChatListSnapshot {
-        positions: runtime
-            .state()
-            .chat_list_positions(list)
-            .map_err(ChatWorkflowError::Reducer)?,
+        positions,
+        entries,
         load_calls,
         terminal: ChatListTerminal::AllChatsLoaded,
+    })
+}
+
+fn chat_list_entries(
+    runtime: &CoreRuntime,
+    positions: &[ChatListPosition],
+) -> Result<Vec<ChatListEntry>, ChatWorkflowError> {
+    positions
+        .iter()
+        .map(|position| {
+            let chat = runtime.state().chat(position.chat_id).ok_or(
+                ChatWorkflowError::PrerequisiteMissing {
+                    prerequisite: "chat",
+                },
+            )?;
+            Ok(ChatListEntry {
+                chat_id: position.chat_id,
+                title: required_string(&chat.value, "title", "chat")?.to_owned(),
+                kind: chat_list_entry_kind(&chat.value)?,
+                is_pinned: position.is_pinned,
+                order: position.order,
+            })
+        })
+        .collect()
+}
+
+fn chat_list_entry_kind(chat: &Value) -> Result<ChatListEntryKind, ChatWorkflowError> {
+    Ok(match chat["type"]["@type"].as_str() {
+        Some("chatTypePrivate") => ChatListEntryKind::Private,
+        Some("chatTypeBasicGroup") => ChatListEntryKind::BasicGroup,
+        Some("chatTypeSupergroup") if required_bool(&chat["type"], "is_channel", "chat")? => {
+            ChatListEntryKind::Channel
+        }
+        Some("chatTypeSupergroup") => ChatListEntryKind::Supergroup,
+        Some("chatTypeSecret") => ChatListEntryKind::Secret,
+        _ => ChatListEntryKind::Unknown,
     })
 }
 
@@ -182,40 +284,17 @@ pub fn inspect_chat(
     runtime
         .apply_through_boundary(boundary, deadline)
         .map_err(ChatWorkflowError::Runtime)?;
-    let resolution = resolution_from_raw(method, checked_response(method, raw)?)?;
-
-    let chat_id = match resolution.state {
-        ResolutionState::Chat { chat_id } => chat_id,
-        ResolutionState::InvitePreview {
-            chat_id: Some(chat_id),
-        } if runtime.state().chat(chat_id).is_some() => chat_id,
-        ResolutionState::InvitePreview { .. } => {
-            return Ok(ChatInspection {
-                status: ChatInspectionStatus::MembershipRequired,
-                resolution,
-                cached_chat: None,
-                full_info: None,
-                used_open_lease: false,
-            });
-        }
-        ResolutionState::Unknown => {
-            return Ok(ChatInspection {
-                status: ChatInspectionStatus::Unknown,
-                resolution,
-                cached_chat: None,
-                full_info: None,
-                used_open_lease: false,
-            });
-        }
-    };
-    let cached_chat = wait_for_chat(runtime, chat_id, deadline)?;
-    let full_info = load_full_info(runtime, policy, &cached_chat, open, deadline)?;
+    let raw = checked_response(method, raw)?;
+    let resolution = resolution_from_raw(Some(runtime), target, method, &raw)?;
+    let chat = raw.as_value();
+    let full_info_kind = full_info_kind(chat)?;
+    let full_info = load_full_info(runtime, policy, chat, open, deadline)?;
+    validate_full_info(&full_info, full_info_kind)?;
     Ok(ChatInspection {
-        status: ChatInspectionStatus::Complete,
         resolution,
-        cached_chat: Some(cached_chat),
-        full_info: Some(full_info),
+        full_info_kind,
         used_open_lease: open,
+        complete: true,
     })
 }
 
@@ -345,13 +424,50 @@ fn load_until_terminal(
     }
 }
 
+#[cfg(test)]
 pub(super) fn resolve_with(
     target: ChatTarget<'_>,
     mut call: impl FnMut(Value) -> Result<TdObject, RawApiError>,
 ) -> Result<ChatResolution, ChatWorkflowError> {
     let (method, request) = resolution_request(target)?;
     let raw = checked_call(method, request, &mut call)?;
-    resolution_from_raw(method, raw)
+    resolution_from_raw(None, target, method, &raw)
+}
+
+pub(super) fn preview_invite_link_with(
+    invite_link: &str,
+    mut call: impl FnMut(Value) -> Result<TdObject, RawApiError>,
+) -> Result<InvitePreview, ChatWorkflowError> {
+    let invite_link = invite_link_value(invite_link)?;
+    let method = "checkChatInviteLink";
+    let raw = checked_call(
+        method,
+        json!({"@type":method,"invite_link":invite_link}),
+        &mut call,
+    )?;
+    if raw.as_value()["@type"] != "chatInviteLinkInfo" {
+        return Err(ChatWorkflowError::UnexpectedResult { method });
+    }
+    let chat_id = optional_nonzero_i64(raw.as_value(), "chat_id", method)?;
+    let accessible_for = required_i32(raw.as_value(), "accessible_for", method)?;
+    Ok(InvitePreview {
+        chat_id,
+        title: required_string(raw.as_value(), "title", method)?.to_owned(),
+        kind: invite_chat_kind(raw.as_value())?,
+        visibility: if required_bool(raw.as_value(), "is_public", method)? {
+            ChatVisibility::Public
+        } else {
+            ChatVisibility::NonPublic
+        },
+        access: if chat_id.is_some() {
+            InviteAccess::Accessible
+        } else {
+            InviteAccess::PreviewOnly
+        },
+        accessible_for,
+        creates_join_request: required_bool(raw.as_value(), "creates_join_request", method)?,
+        complete: true,
+    })
 }
 
 pub(super) fn resolution_request(
@@ -367,27 +483,98 @@ pub(super) fn resolution_request(
             "searchPublicChat",
             json!({"@type":"searchPublicChat","username":public_link_username(link)?}),
         ),
-        ChatTarget::InviteLink(invite_link) => (
-            "checkChatInviteLink",
-            json!({"@type":"checkChatInviteLink","invite_link":invite_link}),
-        ),
     })
 }
 
 fn resolution_from_raw(
+    runtime: Option<&CoreRuntime>,
+    target: ChatTarget<'_>,
     method: &'static str,
-    raw: TdObject,
+    raw: &TdObject,
 ) -> Result<ChatResolution, ChatWorkflowError> {
-    let state = match raw.as_value()["@type"].as_str() {
-        Some("chat") => ResolutionState::Chat {
-            chat_id: required_i64(raw.as_value(), "id", method)?,
-        },
-        Some("chatInviteLinkInfo") => ResolutionState::InvitePreview {
-            chat_id: optional_nonzero_i64(raw.as_value(), "chat_id", method)?,
-        },
-        _ => ResolutionState::Unknown,
+    if raw.as_value()["@type"] != "chat" {
+        return Err(ChatWorkflowError::UnexpectedResult { method });
+    }
+    Ok(ChatResolution {
+        chat: chat_identity(runtime, raw.as_value(), target_public_username(target)?)?,
+        freshness: Freshness::ServerSnapshot,
+        complete: true,
+    })
+}
+
+fn chat_identity(
+    runtime: Option<&CoreRuntime>,
+    chat: &Value,
+    known_public_username: Option<&str>,
+) -> Result<ChatIdentity, ChatWorkflowError> {
+    let mut active_usernames = Vec::new();
+    let mut has_location = false;
+    let mut has_supergroup_snapshot = false;
+    if chat["type"]["@type"] == "chatTypeSupergroup" {
+        let supergroup_id = required_i64(&chat["type"], "supergroup_id", "chat")?;
+        if let Some(supergroup) =
+            runtime.and_then(|runtime| runtime.state().supergroup(supergroup_id))
+        {
+            has_supergroup_snapshot = true;
+            has_location = supergroup.value["has_location"].as_bool().unwrap_or(false);
+            if let Some(usernames) = supergroup.value["usernames"]["active_usernames"].as_array() {
+                active_usernames.extend(
+                    usernames
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_owned),
+                );
+            }
+        }
+    }
+    if let Some(username) = known_public_username {
+        if !active_usernames
+            .iter()
+            .any(|candidate| candidate == username)
+        {
+            active_usernames.insert(0, username.to_owned());
+        }
+    }
+    let visibility = if !active_usernames.is_empty() || has_location {
+        ChatVisibility::Public
+    } else if has_supergroup_snapshot {
+        ChatVisibility::NonPublic
+    } else {
+        ChatVisibility::Unknown
     };
-    Ok(ChatResolution { state, raw })
+    let canonical_public_url = active_usernames
+        .first()
+        .map(|username| format!("https://t.me/{username}"));
+    Ok(ChatIdentity {
+        chat_id: required_i64(chat, "id", "chat")?,
+        title: required_string(chat, "title", "chat")?.to_owned(),
+        kind: chat_list_entry_kind(chat)?,
+        visibility,
+        active_usernames,
+        canonical_public_url,
+    })
+}
+
+fn target_public_username(target: ChatTarget<'_>) -> Result<Option<&str>, ChatWorkflowError> {
+    match target {
+        ChatTarget::Id(_) => Ok(None),
+        ChatTarget::PublicUsername(username) => username_value(username).map(Some),
+        ChatTarget::PublicLink(link) => public_link_username(link).map(Some),
+    }
+}
+
+fn invite_chat_kind(value: &Value) -> Result<ChatListEntryKind, ChatWorkflowError> {
+    Ok(match value["type"]["@type"].as_str() {
+        Some("inviteLinkChatTypeBasicGroup") => ChatListEntryKind::BasicGroup,
+        Some("inviteLinkChatTypeSupergroup") => ChatListEntryKind::Supergroup,
+        Some("inviteLinkChatTypeChannel") => ChatListEntryKind::Channel,
+        _ => {
+            return Err(ChatWorkflowError::InvalidResult {
+                method: "checkChatInviteLink",
+                field: "type.@type",
+            });
+        }
+    })
 }
 
 fn public_link_username(link: &str) -> Result<&str, ChatWorkflowError> {
@@ -408,26 +595,29 @@ fn public_link_username(link: &str) -> Result<&str, ChatWorkflowError> {
     username_value(username)
 }
 
-fn wait_for_chat(
-    runtime: &mut CoreRuntime,
-    chat_id: i64,
-    deadline: Instant,
-) -> Result<Value, ChatWorkflowError> {
-    loop {
-        if let Some(chat) = runtime.state().chat(chat_id) {
-            return Ok(chat.value.clone());
-        }
-        match runtime
-            .next_event_until(deadline)
-            .map_err(ChatWorkflowError::Runtime)?
-        {
-            crate::runtime::CoreRuntimeEvent::State(_) => {}
-            crate::runtime::CoreRuntimeEvent::UnmatchedResponse { .. } => {
-                return Err(ChatWorkflowError::Runtime(
-                    RuntimeError::UnexpectedRuntimeEvent,
-                ));
-            }
-        }
+fn invite_link_value(link: &str) -> Result<&str, ChatWorkflowError> {
+    let valid_web = [
+        "https://t.me/+",
+        "http://t.me/+",
+        "https://telegram.me/+",
+        "http://telegram.me/+",
+        "https://t.me/joinchat/",
+        "http://t.me/joinchat/",
+        "https://telegram.me/joinchat/",
+        "http://telegram.me/joinchat/",
+    ]
+    .iter()
+    .any(|prefix| {
+        link.strip_prefix(prefix)
+            .is_some_and(|value| !value.is_empty())
+    });
+    let valid_tg = link
+        .strip_prefix("tg://join?invite=")
+        .is_some_and(|value| !value.is_empty());
+    if valid_web || valid_tg {
+        Ok(link)
+    } else {
+        Err(ChatWorkflowError::InvalidTarget)
     }
 }
 
@@ -449,6 +639,38 @@ fn load_full_info(
     let cleanup = lease.close();
     cleanup?;
     result
+}
+
+fn full_info_kind(chat: &Value) -> Result<ChatFullInfoKind, ChatWorkflowError> {
+    Ok(match chat["type"]["@type"].as_str() {
+        Some("chatTypePrivate" | "chatTypeSecret") => ChatFullInfoKind::User,
+        Some("chatTypeBasicGroup") => ChatFullInfoKind::BasicGroup,
+        Some("chatTypeSupergroup") => ChatFullInfoKind::Supergroup,
+        _ => {
+            return Err(ChatWorkflowError::InvalidResult {
+                method: "chat",
+                field: "type.@type",
+            });
+        }
+    })
+}
+
+fn validate_full_info(
+    full_info: &TdObject,
+    kind: ChatFullInfoKind,
+) -> Result<(), ChatWorkflowError> {
+    let expected = match kind {
+        ChatFullInfoKind::User => "userFullInfo",
+        ChatFullInfoKind::BasicGroup => "basicGroupFullInfo",
+        ChatFullInfoKind::Supergroup => "supergroupFullInfo",
+    };
+    if full_info.as_value()["@type"] == expected {
+        Ok(())
+    } else {
+        Err(ChatWorkflowError::UnexpectedResult {
+            method: "chat full info",
+        })
+    }
 }
 
 pub(super) fn full_info_request(chat: &Value) -> Result<(&'static str, Value), ChatWorkflowError> {
@@ -605,4 +827,77 @@ pub(super) fn ensure_membership_with(
         _ => MembershipState::Unknown,
     };
     Ok(MembershipResult { state, raw })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn object(value: Value) -> Result<TdObject, RawApiError> {
+        Ok(TdObject::from_value(value).unwrap())
+    }
+
+    #[test]
+    fn discovery_never_dispatches_membership_or_presence_methods() {
+        let mut methods = Vec::new();
+        for target in [
+            ChatTarget::Id(7),
+            ChatTarget::PublicUsername("public_name"),
+            ChatTarget::PublicLink("https://t.me/public_name?single"),
+        ] {
+            resolve_with(target, |request| {
+                let method = request["@type"].as_str().unwrap().to_owned();
+                methods.push(method.clone());
+                object(json!({
+                    "@type":"chat",
+                    "id":7,
+                    "title":"Public chat",
+                    "type":{"@type":"chatTypeSupergroup","supergroup_id":8,"is_channel":true}
+                }))
+            })
+            .unwrap();
+        }
+        let preview = preview_invite_link_with("https://t.me/+invite", |request| {
+            methods.push(request["@type"].as_str().unwrap().to_owned());
+            object(json!({
+                "@type":"chatInviteLinkInfo",
+                "chat_id":7,
+                "accessible_for":0,
+                "type":{"@type":"inviteLinkChatTypeChannel"},
+                "title":"Public channel",
+                "creates_join_request":false,
+                "is_public":true,
+                "description":"PRIVATE_DESCRIPTION_CANARY",
+                "member_user_ids":[9]
+            }))
+        })
+        .unwrap();
+
+        assert_eq!(
+            methods,
+            [
+                "getChat",
+                "searchPublicChat",
+                "searchPublicChat",
+                "checkChatInviteLink"
+            ]
+        );
+        assert_eq!(preview.visibility, ChatVisibility::Public);
+        assert_eq!(preview.access, InviteAccess::Accessible);
+        let serialized = serde_json::to_string(&preview).unwrap();
+        assert!(!serialized.contains("PRIVATE_DESCRIPTION_CANARY"));
+        assert!(!serialized.contains("member_user_ids"));
+        assert!(matches!(
+            resolution_request(ChatTarget::PublicLink("https://t.me/+invite")),
+            Err(ChatWorkflowError::InvalidTarget)
+        ));
+        assert!(matches!(
+            preview_invite_link_with("https://t.me/public_name", |_| unreachable!()),
+            Err(ChatWorkflowError::InvalidTarget)
+        ));
+        assert!(methods.iter().all(|method| !matches!(
+            method.as_str(),
+            "joinChat" | "joinChatByInviteLink" | "openChat" | "closeChat"
+        )));
+    }
 }

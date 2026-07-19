@@ -10,6 +10,7 @@ use telegram_core::approval::ApprovalVerifier;
 use telegram_core::idempotency::IdempotencyJournal;
 
 pub mod authorization;
+mod chat_inputs;
 pub mod config;
 pub mod identity;
 pub mod lease;

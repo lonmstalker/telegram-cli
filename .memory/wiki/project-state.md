@@ -4,6 +4,15 @@
 
 ## Verified
 
+- Chat read boundary исправлен: public resolve, invite preview и membership разделены; resolve/
+  inspect возвращают только allowlisted identity, direct `chat` response не зависит от cache
+  update, а live returning-session повторно доказала CHAT-001/003/004 без raw/private payload
+  ([D-20260719-001](../decisions/decisions.md), [W-20260719-005](../logs/work.md)).
+- P10 CHAT-004 принят: три public-link fixtures разрешились в точные channel IDs через
+  `resolve_chat` под `read` lease; false matches отклонены, membership/open/send не выполнялись
+  ([W-20260719-004](../logs/work.md)).
+- Первый P10 chat read slice принят: canonical live regression ledger фиксирует reproduction и terminal proof; returning auth, main/archive lists и compact channel inventory проверены на реальной сессии без message/file payload ([W-20260719-003](../logs/work.md)).
+- Workspace structural gate запускает source-size ratchet, daemon-client single-home и `[workspace.dependencies]` inheritance checks; каждый guard имеет temporary-fixture positive/negative controls ([W-20260719-002](../logs/work.md)).
 - Root `Cargo.toml` единолично владеет общими versions/features и workspace-relative paths через `[workspace.dependencies]`; members используют `dep.workspace = true`, а однократные dependencies остаются локальными ([W-20260719-001](../logs/work.md)).
 - Три client-side реализации daemon socket сведены в `telegram-client`: security predicates для uid/type/`0700`/`0600`/`nlink == 1` едины, а CLI/MCP/runner сохраняют прежние timeout, response framing и локальный error mapping через explicit options ([D-20260718-009](../decisions/decisions.md), [W-20260718-013](../logs/work.md)).
 - Первый Tasks-пункт P9 закрыт: для macOS arm64 и Linux x86_64 две independent exact-recipe builds совпали bit-for-bit; rebuild сверяет новый artifact с committed reference digest до публикации ([D-20260718-007](../decisions/decisions.md), [W-20260718-011](../logs/work.md)).
@@ -58,7 +67,9 @@
 - P3 accepted: exact registry, capability data, universal raw API, policy-before-send и generated coverage report закрывают все Acceptance-критерии фазы.
 - Первый пункт P4 закрыт: Rust target enums разделяют read-only `resolve` и explicit `ensure_membership`; join outcomes сохраняют pending/approval/declined без ложного membership proof ([D-20260715-053](../decisions/decisions.md)).
 - Второй пункт P4 закрыт: chat-list loader повторяет `loadChats` до documented `404`, применяет ordered updates через response boundary и выдаёт positions по `(order, chat_id)` descending ([D-20260715-054](../decisions/decisions.md)).
-- Третий пункт P4 закрыт: chat inspection нормализует username/public link/invite, ждёт authoritative cache, выбирает full-info call по `ChatType` и парно закрывает optional open lease ([D-20260715-055](../decisions/decisions.md)).
+- Третий пункт P4 закрыт и позднее уточнён: chat inspection принимает ID/username/public link,
+  использует direct `chat` response, выбирает full-info call по `ChatType` и парно закрывает
+  optional open lease; invite preview теперь отдельный workflow ([D-20260715-055](../decisions/decisions.md), [D-20260719-001](../decisions/decisions.md)).
 - Четвёртый пункт P4 закрыт: history/search pager продолжает short pages, следует returned/derived cursors и различает complete count/date/exhausted от partial no-progress ([D-20260715-056](../decisions/decisions.md)).
 - Пятый пункт P4 закрыт: members pager проверяет reducer-owned capability и method-specific terminal condition; statistics walker раскрывает async graph tokens до data/error и сохраняет partial/lineage/freshness evidence ([D-20260715-057](../decisions/decisions.md)).
 - Шестой пункт P4 закрыт: typed file/sticker transfer, bot start и scoped Web App workflows ждут matching terminal updates; Web App URL redacted/zeroizing, close paired ([D-20260715-058](../decisions/decisions.md)).
@@ -108,6 +119,7 @@
 
 ## Active boundary
 
+- Wiki journal link-integrity check имеет pre-existing red boundary: tracked immutable decision shard указывает на удалённый до этой задачи `workflows.rs`; архив не переписан, resolution отслеживается в [P-20260719-001](../problems/problems.md).
 - Full API означает L0–L2 для всей pinned schema; curated workflows и live proofs учитываются отдельно.
 - Секреты — вне model-visible interfaces.
 - Protected key provider подключён к штатному daemon; [P-20260715-001](../problems/problems.md) resolved в P2.

@@ -432,12 +432,27 @@ mod tests {
                         let chat_id = i64::try_from(inner.load_calls + 1).unwrap();
                         let order = i64::try_from(inner.load_calls * 10).unwrap();
                         let list = request["chat_list"].clone();
+                        let chat_type = if inner.load_calls == 1 {
+                            json!({
+                                "@type":"chatTypeSupergroup",
+                                "supergroup_id":chat_id,
+                                "is_channel":true
+                            })
+                        } else {
+                            json!({"@type":"chatTypePrivate","user_id":chat_id})
+                        };
                         inner.incoming.push_back(
                             json!({
                                 "@type":"updateNewChat",
                                 "chat":{
                                     "@type":"chat",
                                     "id":chat_id,
+                                    "title":format!("Chat {chat_id}"),
+                                    "type":chat_type,
+                                    "last_message":{
+                                        "@type":"message",
+                                        "content":"PRIVATE_MESSAGE_CANARY"
+                                    },
                                     "positions":[],
                                     "chat_lists":[list.clone()]
                                 }
@@ -472,30 +487,48 @@ mod tests {
                     let failing = request["username"] == "fail";
                     let chat_id = if failing { 51 } else { 50 };
                     let supergroup_id = if failing { 61 } else { 60 };
-                    let chat = json!({
+                    let mut response = json!({
                         "@type":"chat",
                         "id":chat_id,
+                        "title":"Public channel",
                         "type":{
                             "@type":"chatTypeSupergroup",
                             "supergroup_id":supergroup_id,
                             "is_channel":true
                         },
+                        "last_message":{
+                            "@type":"message",
+                            "content":"PRIVATE_MESSAGE_CANARY"
+                        },
                         "positions":[],
                         "chat_lists":[]
                     });
-                    inner.incoming.push_back(
-                        json!({"@type":"updateNewChat","chat":chat.clone()}).to_string(),
-                    );
-                    let mut response = chat;
                     response
                         .as_object_mut()
                         .unwrap()
                         .insert("@extra".to_owned(), extra);
                     inner.incoming.push_back(response.to_string());
                 }
-                "checkChatInviteLink" => inner.incoming.push_back(
-                    json!({"@type":"chatInviteLinkInfo","chat_id":0,"@extra":extra}).to_string(),
-                ),
+                "checkChatInviteLink" => {
+                    let is_public = request["invite_link"]
+                        .as_str()
+                        .is_some_and(|link| link.contains("public"));
+                    inner.incoming.push_back(
+                        json!({
+                            "@type":"chatInviteLinkInfo",
+                            "chat_id":if is_public { 50 } else { 0 },
+                            "accessible_for":0,
+                            "type":{"@type":"inviteLinkChatTypeChannel"},
+                            "title":if is_public { "Public channel" } else { "Private channel" },
+                            "description":"PRIVATE_DESCRIPTION_CANARY",
+                            "member_user_ids":[7,8],
+                            "creates_join_request":!is_public,
+                            "is_public":is_public,
+                            "@extra":extra
+                        })
+                        .to_string(),
+                    );
+                }
                 "openChat" | "closeChat" => inner
                     .incoming
                     .push_back(json!({"@type":"ok","@extra":extra}).to_string()),
@@ -505,9 +538,15 @@ mod tests {
                             .to_string(),
                     );
                 }
-                "getSupergroupFullInfo" => inner
-                    .incoming
-                    .push_back(json!({"@type":"supergroupFullInfo","@extra":extra}).to_string()),
+                "getSupergroupFullInfo" => inner.incoming.push_back(
+                    json!({
+                        "@type":"supergroupFullInfo",
+                        "description":"PRIVATE_FULL_INFO_CANARY",
+                        "invite_link":{"invite_link":"https://t.me/+PRIVATE_CANARY"},
+                        "@extra":extra
+                    })
+                    .to_string(),
+                ),
                 _ => unreachable!(),
             }
             Ok(())
@@ -617,6 +656,21 @@ mod tests {
         .unwrap();
 
         assert_eq!(snapshot.load_calls, 3);
+        assert_eq!(snapshot.entries.len(), snapshot.positions.len());
+        assert_eq!(
+            snapshot
+                .entries
+                .iter()
+                .map(|entry| entry.kind)
+                .collect::<Vec<_>>(),
+            [
+                crate::workflows::ChatListEntryKind::Private,
+                crate::workflows::ChatListEntryKind::Channel,
+            ]
+        );
+        let serialized_entries = serde_json::to_string(&snapshot.entries).unwrap();
+        assert!(!serialized_entries.contains("PRIVATE_MESSAGE_CANARY"));
+        assert!(!serialized_entries.contains("last_message"));
         assert_eq!(
             snapshot
                 .positions
@@ -630,7 +684,7 @@ mod tests {
     }
 
     #[test]
-    fn chat_inspection_waits_for_cache_and_pairs_open_with_close() {
+    fn chat_inspection_uses_direct_chat_response_and_pairs_open_with_close() {
         let identity = pinned_identity().unwrap();
         let (backend, state) = StartupBackend::new(identity.version);
         let mut runtime =
@@ -653,9 +707,19 @@ mod tests {
 
         assert!(inspection.complete());
         assert_eq!(
-            inspection.full_info.unwrap().as_value()["@type"],
-            "supergroupFullInfo"
+            inspection.full_info_kind,
+            crate::workflows::ChatFullInfoKind::Supergroup
         );
+        assert_eq!(
+            inspection.resolution.chat.visibility,
+            crate::workflows::ChatVisibility::Public
+        );
+        let serialized = serde_json::to_string(&inspection).unwrap();
+        assert!(!serialized.contains("PRIVATE_MESSAGE_CANARY"));
+        assert!(!serialized.contains("PRIVATE_FULL_INFO_CANARY"));
+        assert!(!serialized.contains("PRIVATE_CANARY"));
+        assert!(!serialized.contains("last_message"));
+        assert!(!serialized.contains("invite_link"));
         assert!(state.inner.lock().unwrap().sent_types.ends_with(&[
             "searchPublicChat".to_owned(),
             "openChat".to_owned(),
@@ -705,39 +769,52 @@ mod tests {
     }
 
     #[test]
-    fn private_invite_inspection_requires_membership_without_joining() {
+    fn invite_preview_classifies_visibility_without_joining_or_opening() {
         let identity = pinned_identity().unwrap();
         let (backend, state) = StartupBackend::new(identity.version);
-        let mut runtime =
-            CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let runtime = CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
         let policy = crate::raw_api::RawPolicy::new(
             crate::registry::AccountKind::RegularUser,
             vec![crate::registry::RiskClass::Read],
         );
-        let inspection = crate::workflows::inspect_chat(
-            &mut runtime,
+        let public = crate::workflows::preview_invite_link(
+            &runtime,
             &policy,
-            crate::workflows::ChatTarget::InviteLink("private-link"),
-            true,
+            "https://t.me/+public",
             Instant::now() + Duration::from_secs(1),
         )
         .unwrap();
-
+        let non_public = crate::workflows::preview_invite_link(
+            &runtime,
+            &policy,
+            "https://t.me/+private",
+            Instant::now() + Duration::from_secs(1),
+        )
+        .unwrap();
+        assert_eq!(public.visibility, crate::workflows::ChatVisibility::Public);
+        assert_eq!(public.access, crate::workflows::InviteAccess::Accessible);
+        assert!(public.complete);
         assert_eq!(
-            inspection.status,
-            crate::workflows::ChatInspectionStatus::MembershipRequired
+            non_public.visibility,
+            crate::workflows::ChatVisibility::NonPublic
         );
-        assert!(!inspection.complete());
         assert_eq!(
-            state
-                .inner
-                .lock()
-                .unwrap()
-                .sent_types
-                .last()
-                .map(String::as_str),
-            Some("checkChatInviteLink")
+            non_public.access,
+            crate::workflows::InviteAccess::PreviewOnly
         );
+        assert!(non_public.creates_join_request);
+        let sent_types = state.inner.lock().unwrap().sent_types.clone();
+        assert_eq!(
+            sent_types
+                .iter()
+                .filter(|method| method.as_str() == "checkChatInviteLink")
+                .count(),
+            2
+        );
+        assert!(sent_types.iter().all(|method| !matches!(
+            method.as_str(),
+            "joinChat" | "joinChatByInviteLink" | "openChat" | "closeChat"
+        )));
         runtime.shutdown().unwrap();
     }
 }

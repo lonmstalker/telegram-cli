@@ -23,6 +23,8 @@ Atomicity опирается на canonical DB lock: одновременно so
 
 `crates/telegram-client` — единственный I/O client этого namespace. Перед каждым connect он через `symlink_metadata` требует current-user directory exact mode `0700` и current-user Unix socket exact mode `0600` с `nlink == 1`; wire-типы остаются в I/O-free `telegram-protocol`. CLI, MCP и Web App runner хранят только mapping `ClientErrorCode` в собственный UX.
 
+Граница защищена grep-level gate `scripts/check-daemon-client-single-home.py`: consumer-приложениям запрещены собственные `socket_path`, `validate_socket` и прямой `UnixStream::connect`. `apps/telegramd` исключён из client-side scan как сервер namespace: его `UnixListener` и stale-socket probes относятся к election/recovery, а не к consumer client.
+
 Различия существующих consumers закреплены параметрами, а не унифицированы неявно: CLI читает одну JSON line с timeout 35 секунд, MCP читает JSON до EOF с тем же timeout, Web App runner использует timeout 5 секунд и требует newline в пределах 16 KiB. Ошибка connect после успешной metadata-проверки остаётся `TransportFailed` для CLI и `SocketUnavailable` для runner.
 
 ## Current runtime boundary
@@ -35,3 +37,4 @@ Configured daemon держит lock/listener, обслуживает [lease JSON
 - Client tests подтверждают те же metadata predicates, private JSONL exchange и раздельные EOF/bounded-line framing contracts.
 - Process-level synthetic gate запускает конкурентный daemon, проверяет denial второго owner, оставляет stale socket через process termination и подтверждает успешный replacement bind с mode `0600`.
 - Live crash/restart gate подтвердил stale recovery поверх encrypted returning session; concurrent clients подтвердили blocking accepted streams под nonblocking lifecycle listener.
+- `python3 scripts/check-workspace-boundaries.py` запускает daemon-client single-home guard вместе с остальными structural checks.

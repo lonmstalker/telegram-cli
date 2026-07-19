@@ -63,7 +63,10 @@ Secret chats/user accounts, forum/admin operations and folder limits depend on a
 
 P4/P7 реализуют отдельные read-only `resolve`/explicit `ensure_membership`, terminal-correct
 main/archive/folder loader, paired chat inspection/open lease, cursor-safe forum topic list
-и desired-state close/reopen с post-timeout state probe. Live evidence ещё отсутствует.
+и desired-state close/reopen с post-timeout state probe. Live read-only evidence 2026-07-19
+закрывает returning auth, terminal main/archive lists и compact channel inventory без message/file
+payload. Public-link resolve подтверждён на трёх точных channel fixtures без membership/open;
+invite resolve, folder/forum fixtures и presence/open остаются pending.
 
 ## Scope
 
@@ -156,6 +159,8 @@ main/archive/folder loader, paired chat inspection/open lease, cursor-safe forum
 
 - Kernel coverage: resolve/membership, main/archive/folder loading, inspection/open и forum-topic read/close lifecycle implemented.
 - Modeled: chat/private/secret creation, Saved/direct topics и folder CRUD остаются universal raw/default-deny paths.
-- Partial: live rights matrix и disposable forum/folder fixtures.
+- Live: returning auth, terminal main/archive lists, compact channel inventory и public-link
+  resolve для трёх точных channel fixtures без membership/open.
+- Partial: invite resolve, live rights matrix, presence/open и disposable forum/folder fixtures.
 - Unknown: none blocking.
 - Not applicable: message payload semantics.

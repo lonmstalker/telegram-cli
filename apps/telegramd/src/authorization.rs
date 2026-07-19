@@ -85,6 +85,15 @@ impl AuthorizationCoordinator {
         (login_state(step), self.challenge_id.clone())
     }
 
+    pub fn status_response(&self) -> DaemonResponse {
+        let (state, challenge_id) = self.status();
+        DaemonResponse::LoginStatus {
+            state,
+            challenge_id,
+            next_action: state.next_action(),
+        }
+    }
+
     pub fn prompt(
         &self,
         challenge_id: &LoginChallengeId,
@@ -364,9 +373,9 @@ impl DispatchKind {
 
 fn challenge_token(epoch: u128, step: &AuthorizationStep) -> Option<LoginChallengeId> {
     let generation = match step {
-        AuthorizationStep::ParametersRequired { generation } => *generation,
         AuthorizationStep::Challenge(challenge) => challenge.id,
-        AuthorizationStep::Ready
+        AuthorizationStep::ParametersRequired { .. }
+        | AuthorizationStep::Ready
         | AuthorizationStep::LoggingOut
         | AuthorizationStep::Closing
         | AuthorizationStep::Closed => return None,

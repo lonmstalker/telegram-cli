@@ -10,7 +10,7 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 LINE_LIMIT = 1_500
 RATCHET = {
-    "apps/telegramd/src/server.rs": 2_542,
+    "apps/telegramd/src/server.rs": 2_535,
     "crates/telegram-core/src/workflows/mod.rs": 2_146,
 }
 

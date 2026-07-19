@@ -404,14 +404,7 @@ impl LeaseServer {
             DaemonRequest::SessionStatus => DaemonResponse::SessionStatus {
                 metrics: Box::new(self.telemetry.snapshot()),
             },
-            DaemonRequest::LoginStatus => {
-                let (state, challenge_id) = self.authorization.status();
-                DaemonResponse::LoginStatus {
-                    state,
-                    challenge_id,
-                    next_action: state.next_action(),
-                }
-            }
+            DaemonRequest::LoginStatus => self.authorization.status_response(),
             DaemonRequest::LoginPrompt { challenge_id } => {
                 match self.authorization.prompt(&challenge_id) {
                     Ok(prompt) => DaemonResponse::LoginPrompt {

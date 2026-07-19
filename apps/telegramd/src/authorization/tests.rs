@@ -4,7 +4,7 @@ use serde_json::json;
 use telegram_core::authorization::{AuthorizationError, SubmissionOutcome};
 use telegram_core::registry::AccountKind;
 use telegram_protocol::{
-    CommandErrorCode, DaemonResponse, LoginInput, LoginState, ProtectedString,
+    CommandErrorCode, DaemonResponse, LoginInput, LoginNextAction, LoginState, ProtectedString,
 };
 
 use super::AuthorizationCoordinator;
@@ -105,6 +105,26 @@ fn coordinator_exposes_token_but_redacts_protected_input() {
     coordinator
         .record_outcome(challenge, SubmissionOutcome::NotSent)
         .unwrap();
+}
+
+#[test]
+fn parameters_status_waits_without_a_wire_challenge_token() {
+    let mut coordinator = AuthorizationCoordinator::with_epoch(1);
+    coordinator
+        .observe(
+            &json!({"@type": "authorizationStateWaitTdlibParameters"}),
+            Instant::now(),
+        )
+        .unwrap();
+
+    assert_eq!(
+        coordinator.status_response(),
+        DaemonResponse::LoginStatus {
+            state: LoginState::Parameters,
+            challenge_id: None,
+            next_action: LoginNextAction::Wait,
+        }
+    );
 }
 
 #[test]

@@ -327,7 +327,7 @@ Decision gate: начинать только после acceptance P0–P7.
 - [x] A5. `setChatTitle` plan и receipt используют один core approval request constructor.
 - [x] A6. Chat-list broken `is_channel` деградирует запись до `unknown`, но не рвёт snapshot.
 - [x] B1. External authorization logout завершает daemon cleanly после `Closed` или deadline.
-- [ ] B2. `ParametersRequired` не получает wire challenge token.
+- [x] B2. `ParametersRequired` не получает wire challenge token.
 - [ ] B3. CLI повторяет owner password prompt после definite password rejection.
 - [ ] B4. Protocol отличает invalid login input от stale/mismatched challenge.
 - [ ] B5. Daemon resend хранит только timeout gate; availability проверяет core.

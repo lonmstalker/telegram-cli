@@ -356,6 +356,8 @@ mod tests {
         emit_resolution_update: bool,
         migrated_basic_group: bool,
         malformed_chat_list_entry: bool,
+        timeout_open_chat: bool,
+        timeout_full_info: bool,
     }
 
     struct StartupBackend(StartupState);
@@ -373,6 +375,8 @@ mod tests {
                     emit_resolution_update: false,
                     migrated_basic_group: false,
                     malformed_chat_list_entry: false,
+                    timeout_open_chat: false,
+                    timeout_full_info: false,
                 })),
             };
             (Self(state.clone()), state)
@@ -670,6 +674,7 @@ mod tests {
                         .to_string(),
                     );
                 }
+                "openChat" if inner.timeout_open_chat => {}
                 "openChat" | "closeChat" => inner
                     .incoming
                     .push_back(json!({"@type":"ok","@extra":extra}).to_string()),
@@ -679,6 +684,7 @@ mod tests {
                             .to_string(),
                     );
                 }
+                "getSupergroupFullInfo" if inner.timeout_full_info => {}
                 "getSupergroupFullInfo" => inner.incoming.push_back(
                     json!({
                         "@type":"supergroupFullInfo",
@@ -1237,6 +1243,89 @@ mod tests {
                 .map(String::as_str),
             Some("closeChat")
         );
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn chat_inspection_compensates_when_open_response_times_out() {
+        let identity = pinned_identity().unwrap();
+        let (backend, state) = StartupBackend::new(identity.version);
+        let mut runtime =
+            CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let policy = crate::raw_api::RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![
+                crate::registry::RiskClass::Read,
+                crate::registry::RiskClass::Presence,
+            ],
+        );
+        state.inner.lock().unwrap().timeout_open_chat = true;
+
+        assert!(matches!(
+            crate::workflows::inspect_chat(
+                &mut runtime,
+                &policy,
+                crate::workflows::ChatTarget::PublicUsername("public_name"),
+                true,
+                Instant::now() + Duration::from_millis(25),
+            ),
+            Err(crate::workflows::ChatWorkflowError::Call(
+                crate::raw_api::RawApiError::Transport(
+                    crate::transport::TransportError::ResponseTimeout
+                )
+            ))
+        ));
+        assert!(state.inner.lock().unwrap().sent_types.ends_with(&[
+            "searchPublicChat".to_owned(),
+            "openChat".to_owned(),
+            "closeChat".to_owned(),
+        ]));
+        assert!(matches!(
+            runtime.next_event_until(Instant::now() + Duration::from_millis(25)),
+            Err(RuntimeError::DeadlineExceeded)
+        ));
+        runtime.shutdown().unwrap();
+    }
+
+    #[test]
+    fn chat_inspection_acks_cleanup_after_full_info_timeout() {
+        let identity = pinned_identity().unwrap();
+        let (backend, state) = StartupBackend::new(identity.version);
+        let mut runtime =
+            CoreRuntime::start(backend, Instant::now() + Duration::from_secs(1)).unwrap();
+        let policy = crate::raw_api::RawPolicy::new(
+            crate::registry::AccountKind::RegularUser,
+            vec![
+                crate::registry::RiskClass::Read,
+                crate::registry::RiskClass::Presence,
+            ],
+        );
+        state.inner.lock().unwrap().timeout_full_info = true;
+
+        assert!(matches!(
+            crate::workflows::inspect_chat(
+                &mut runtime,
+                &policy,
+                crate::workflows::ChatTarget::PublicUsername("public_name"),
+                true,
+                Instant::now() + Duration::from_millis(25),
+            ),
+            Err(crate::workflows::ChatWorkflowError::Call(
+                crate::raw_api::RawApiError::Transport(
+                    crate::transport::TransportError::ResponseTimeout
+                )
+            ))
+        ));
+        assert!(state.inner.lock().unwrap().sent_types.ends_with(&[
+            "searchPublicChat".to_owned(),
+            "openChat".to_owned(),
+            "getSupergroupFullInfo".to_owned(),
+            "closeChat".to_owned(),
+        ]));
+        assert!(matches!(
+            runtime.next_event_until(Instant::now() + Duration::from_millis(25)),
+            Err(RuntimeError::DeadlineExceeded)
+        ));
         runtime.shutdown().unwrap();
     }
 

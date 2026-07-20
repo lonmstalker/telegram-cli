@@ -949,8 +949,16 @@ struct OpenChatLease<'runtime> {
     runtime: &'runtime CoreRuntime,
     policy: &'runtime RawPolicy,
     chat_id: i64,
-    deadline: Instant,
+    workflow_deadline: Instant,
     active: bool,
+}
+
+const OPEN_CHAT_CLEANUP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(4);
+
+fn open_chat_cleanup_deadline(workflow_deadline: Instant) -> Instant {
+    let now = Instant::now();
+    let safety_deadline = now.checked_add(OPEN_CHAT_CLEANUP_TIMEOUT).unwrap_or(now);
+    workflow_deadline.max(safety_deadline)
 }
 
 impl<'runtime> OpenChatLease<'runtime> {
@@ -960,28 +968,44 @@ impl<'runtime> OpenChatLease<'runtime> {
         chat_id: i64,
         deadline: Instant,
     ) -> Result<Self, ChatWorkflowError> {
-        expect_ok(
-            invoke(
-                runtime,
-                policy,
-                "openChat",
-                json!({"@type":"openChat","chat_id":chat_id}),
-                deadline,
-            )?,
+        let opened = match invoke(
+            runtime,
+            policy,
             "openChat",
-        )?;
+            json!({"@type":"openChat","chat_id":chat_id}),
+            deadline,
+        ) {
+            Ok(opened) => opened,
+            Err(error) => {
+                if response_timed_out(&error) {
+                    close_chat(
+                        runtime,
+                        policy,
+                        chat_id,
+                        open_chat_cleanup_deadline(deadline),
+                    )?;
+                }
+                return Err(error);
+            }
+        };
+        expect_ok(opened, "openChat")?;
         Ok(Self {
             runtime,
             policy,
             chat_id,
-            deadline,
+            workflow_deadline: deadline,
             active: true,
         })
     }
 
     fn close(mut self) -> Result<(), ChatWorkflowError> {
         self.active = false;
-        close_chat(self.runtime, self.policy, self.chat_id, self.deadline)
+        close_chat(
+            self.runtime,
+            self.policy,
+            self.chat_id,
+            open_chat_cleanup_deadline(self.workflow_deadline),
+        )
     }
 }
 
@@ -989,7 +1013,12 @@ impl Drop for OpenChatLease<'_> {
     fn drop(&mut self) {
         if self.active {
             self.active = false;
-            let _ = close_chat(self.runtime, self.policy, self.chat_id, self.deadline);
+            let _ = close_chat(
+                self.runtime,
+                self.policy,
+                self.chat_id,
+                open_chat_cleanup_deadline(self.workflow_deadline),
+            );
         }
     }
 }

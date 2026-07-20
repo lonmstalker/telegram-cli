@@ -1,9 +1,13 @@
 # Текущее состояние проекта
 
-Последняя полная проверка: 2026-07-19.
+Последняя полная проверка: 2026-07-21.
 
 ## Verified
 
+- CHAT-006 принят: live `inspect_chat(open=true)` под `read,presence` вернул complete после
+  correlated close ACK; response/full-info timeout branches получают bounded cleanup, а blind
+  retry uncertain close запрещён ([D-20260721-001](../decisions/decisions.md),
+  [P-20260721-001](../problems/problems.md), [W-20260721-001](../logs/work.md)).
 - CHAT-010 принят: typed leave доказал ordered `left`, join вернул terminal pending receipt, а
   поздний read-only `membership_status` применил TDLib update и доказал `member` без повторного
   join ([D-20260719-002](../decisions/decisions.md), [W-20260719-008](../logs/work.md)).

@@ -79,9 +79,15 @@
 - [P10 CHAT-005 invite preview](../raw/2026-07-19-p10-chat-invite-preview.md) — owner-supplied fixture terminal-классифицирован без membership/open/send и без сохранения token/raw preview
 - [P10 CHAT-010 membership round-trip](../raw/2026-07-19-p10-chat-membership-roundtrip.md) — terminal leave доказан, повторный join остановился на admin `request_pending` без retry/bypass
 - [P10 CHAT-010 async membership status](../raw/2026-07-19-p10-chat-async-membership-status.md) — поздний approval подтверждён `member` через read-only status без повторного join
+- [P10 CHAT-006 open/close pairing](../raw/2026-07-21-p10-chat-open-close.md) — scoped public-supergroup inspection получил paired cleanup ACK; timeout branches закрыты deterministic regressions
 
 ## Current records
 
+- CHAT-006 принят live: `inspect_chat(open=true)` под минимальным `read,presence` вернул complete
+  только после paired cleanup ACK. Timeout ответа open получает один compensating close, а
+  cleanup имеет отдельное bounded окно без blind retry; см.
+  [D-20260721-001](../decisions/decisions.md), [P-20260721-001](../problems/problems.md),
+  [W-20260721-001](../logs/work.md).
 - CHAT-010 принят: terminal leave и pending receipt отделены от membership; поздний read-only
   status принял TDLib update и доказал `member` без повторного join. См.
   [D-20260719-002](../decisions/decisions.md), [P-20260719-002](../problems/problems.md),
@@ -95,7 +101,7 @@
   [D-20260719-001](../decisions/decisions.md), [W-20260719-005](../logs/work.md).
 - P10 CHAT-004 принят: три публичные ссылки live-сопоставлены с точными channel IDs через
   `resolve_chat` под `read` lease; membership/open/send не выполнялись, URL/IDs не сохранены;
-  invite/folder/forum/presence и следующие domain scenarios остаются pending; см.
+  folder/forum и следующие domain scenarios остаются pending; см.
   [W-20260719-004](../logs/work.md).
 - Первый P10 chat read slice: `docs/live-regression.md` хранит stable scenarios и reproduction; live main/archive inventory возвращает compact entries без message/file payload; см. [W-20260719-003](../logs/work.md).
 - Общий daemon client: `telegram-client` единолично владеет client-side socket path, metadata validation и JSON exchange; timeout/framing различия consumers передаются explicit options, локальные error mappings остаются в приложениях; см. [D-20260718-009](../decisions/decisions.md), [W-20260718-013](../logs/work.md).

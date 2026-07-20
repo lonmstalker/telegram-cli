@@ -115,3 +115,18 @@ Active append-only problem lifecycle. Status changes добавляются но
   [D-20260719-002](../decisions/decisions.md).
 - Status: resolved; CHAT-010 accepted. Ordinary decline без terminal TDLib update остаётся общей
   documented observation boundary, но больше не блокирует этот owner fixture.
+
+## [2026-07-21] resolved | P-20260721-001 | CHAT-006 мог оставить chat открытым после timeout
+
+- Evidence: red deterministic regressions показали две реальные ветки: lost/late `openChat`
+  response после dispatch не создавал lease и не отправлял cleanup; full-info timeout отправлял
+  close с уже истёкшим deadline, поэтому correlated response оставался unmatched.
+- Impact: сервер мог продолжать присылать chat updates и учитывать presence/open lifetime после
+  завершения CLI workflow; одновременно runtime сохранял непринятый response.
+- Resolution: [D-20260721-001](../decisions/decisions.md) добавляет один compensating close после
+  timeout ответа open и отдельное четырёхсекундное cleanup window. Blind повтор после uncertain
+  close отклонён как небезопасный без desired-state probe.
+- Verification: четыре deterministic inspection cases green; live `inspect_chat(open=true)` под
+  `read,presence` вернул complete только после paired cleanup ACK, lease released, daemon `Closed`.
+  Sanitized evidence: [`2026-07-21-p10-chat-open-close.md`](../raw/2026-07-21-p10-chat-open-close.md).
+- Status: resolved; других подтверждённых влияющих CHAT-006 дефектов независимые reviews не нашли.

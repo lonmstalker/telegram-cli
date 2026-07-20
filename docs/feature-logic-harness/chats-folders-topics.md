@@ -66,7 +66,9 @@ main/archive/folder loader, paired chat inspection/open lease, cursor-safe forum
 и desired-state close/reopen с post-timeout state probe. Live read-only evidence 2026-07-19
 закрывает returning auth, terminal main/archive lists и compact channel inventory без message/file
 payload. Public-link resolve подтверждён на трёх точных channel fixtures без membership/open;
-invite resolve, folder/forum fixtures и presence/open остаются pending.
+invite preview закрыт без membership/open. CHAT-006 2026-07-21 подтвердил scoped
+`openChat`/`closeChat` на public supergroup под `read,presence`, включая deterministic
+timeout cleanup; folder/forum fixtures остаются pending.
 
 ## Scope
 
@@ -159,8 +161,8 @@ invite resolve, folder/forum fixtures и presence/open остаются pending.
 
 - Kernel coverage: resolve/membership, main/archive/folder loading, inspection/open и forum-topic read/close lifecycle implemented.
 - Modeled: chat/private/secret creation, Saved/direct topics и folder CRUD остаются universal raw/default-deny paths.
-- Live: returning auth, terminal main/archive lists, compact channel inventory и public-link
-  resolve для трёх точных channel fixtures без membership/open.
-- Partial: invite resolve, live rights matrix, presence/open и disposable forum/folder fixtures.
+- Live: returning auth, terminal main/archive lists, compact channel inventory, public-link
+  resolve, invite preview без membership и CHAT-006 scoped open/close pairing.
+- Partial: live rights matrix и disposable forum/folder fixtures.
 - Unknown: none blocking.
 - Not applicable: message payload semantics.

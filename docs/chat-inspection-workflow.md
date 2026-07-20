@@ -15,13 +15,22 @@ inspection target: для него существует отдельный `prev
 4. при `open=true` scoped lease вызывает `openChat` до full-info и `closeChat` после него.
 
 Lease имеет explicit close для видимой ошибки cleanup и `Drop` fallback для раннего выхода или
-panic. Full-info error не пропускает `closeChat`. `openChat`/`closeChat` classified как
-`presence/convergent`; resolver/full-info — `read/safe_read`.
+panic. Full-info error не пропускает `closeChat`. Поскольку transport timeout после dispatch не
+доказывает, что `openChat` не был применён, timeout его response вызывает ровно один exact
+compensating `closeChat`.
+
+Cleanup получает deadline `max(workflow_deadline, now + 4s)`: это отдельное bounded safety window
+для correlated acknowledgement после исчерпания основного workflow deadline и с запасом
+укладывается в 35-second CLI socket timeout при 30-second daemon workflow boundary. Timeout самого
+`closeChat` остаётся uncertain: `Drop` не повторяет уже отправленный close без observable
+desired-state probe. `openChat`/`closeChat` classified как `presence/convergent`;
+resolver/full-info — `read/safe_read`.
 
 Результат содержит compact resolution, `full_info_kind`, `used_open_lease` и `complete`.
 Cached chat, full-info object, description, invite links и message payload не сериализуются.
 Неожиданный future constructor является typed error, а не ложным `complete`.
 
 Invite preview не вызывает `joinChat`; membership остаётся отдельным explicit workflow.
-Deterministic TDJSON backend проверяет direct-response hydration, paired cleanup, raw canaries
-и отсутствие membership/presence calls в preview.
+Deterministic TDJSON backend проверяет direct-response hydration, success/error paired cleanup,
+compensating close после timeout ответа `openChat`, отдельный cleanup ACK после full-info timeout,
+raw canaries и отсутствие membership/presence calls в preview.

@@ -314,6 +314,9 @@ Decision gate: начинать только после acceptance P0–P7.
   chat identity и доказать cache-independent hydration без join/open/send.
 - [x] Закрыть CHAT-005: owner-supplied disposable invite preview terminal и классифицирован по
   TDLib `is_public/access` без membership/open/send и без сохранения token/raw response.
+- [x] Закрыть CHAT-006: `inspect_chat(open=true)` live-выполнен под минимальным `read,presence`
+  lease, а exact `closeChat` подтверждён после success и гарантирован одним компенсирующим вызовом
+  при timeout `openChat` response или full-info без blind retry после uncertain cleanup.
 - [x] Добавить typed terminal `leave_chat` с reviewed `reversible_mutation`, затем live-проверить
   owner-requested leave → pending → member по disposable invite без blind retry.
 - [x] Сделать join approval асинхронным: `ensure_membership` сразу возвращает typed pending

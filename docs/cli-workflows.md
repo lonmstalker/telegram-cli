@@ -63,8 +63,9 @@ generated source paths принимаются только внутри daemon-o
 
 `forum_topics` и `set_forum_topic_closed` описаны в
 [`forum-topic-workflow.md`](forum-topic-workflow.md). Folder list не имеет отдельного
-engine: `load_chat_list` принимает `{"kind":"folder","folder_id":...}` и сохраняет те же
-terminal/gap guarantees, что main/archive.
+engine: `load_chat_list` принимает
+`{"list":{"kind":"folder","folder_id":...},"limit":100}` и сохраняет те же terminal/gap
+guarantees, что main/archive.
 
 `plan_chat_title`/`apply_chat_title` и raw moderation boundary описаны в
 [`chat-administration-workflow.md`](chat-administration-workflow.md).

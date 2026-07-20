@@ -45,6 +45,24 @@ fn reviewed_capabilities_are_data_and_everything_else_is_default_deny() {
         capability("testSquareInt").unwrap().disposition,
         CapabilityDisposition::DefaultDeny
     );
+    assert!(matches!(
+        capability("createChatFolder").unwrap().disposition,
+        CapabilityDisposition::Reviewed {
+            risk: RiskClass::ReversibleMutation,
+            accounts: &[AccountKind::RegularUser],
+            retry: RetryClass::Reconcile,
+            ..
+        }
+    ));
+    assert!(matches!(
+        capability("deleteChatFolder").unwrap().disposition,
+        CapabilityDisposition::Reviewed {
+            risk: RiskClass::Destructive,
+            accounts: &[AccountKind::RegularUser],
+            retry: RetryClass::Reconcile,
+            ..
+        }
+    ));
 }
 
 #[test]

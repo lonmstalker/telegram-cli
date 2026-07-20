@@ -53,7 +53,7 @@ pub(super) const WORKFLOWS: &[WorkflowCatalogEntry] = &[
     WorkflowCatalogEntry::new("leave_chat", r#"{"chat_id":0}"#, true),
     WorkflowCatalogEntry::new(
         "load_chat_list",
-        r#"{"list":{"kind":"main"},"limit":100}"#,
+        r#"{"list":{"kind":"folder","folder_id":0},"limit":100}"#,
         false,
     ),
     WorkflowCatalogEntry::new(
@@ -228,5 +228,15 @@ mod tests {
         assert!(!is_journaled_workflow("membership_status"));
         assert!(!is_journaled_workflow("not_a_workflow"));
         assert!(workflow("not_a_workflow").is_none());
+    }
+
+    #[test]
+    fn chat_list_discovery_exposes_exact_folder_input() {
+        let entry = workflow("load_chat_list").unwrap();
+        let input: serde_json::Value = serde_json::from_str(entry.input_example).unwrap();
+
+        assert_eq!(input["list"]["kind"], "folder");
+        assert_eq!(input["list"]["folder_id"], 0);
+        assert_eq!(input["limit"], 100);
     }
 }

@@ -201,6 +201,15 @@
       "retry": "convergent"
     },
     {
+      "method": "createChatFolder",
+      "risk": "reversible_mutation",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "AuthorizationState { state: Ready }",
+      "retry": "reconcile"
+    },
+    {
       "method": "createChatInviteLink",
       "risk": "admin",
       "accounts": [
@@ -247,6 +256,15 @@
       ],
       "runtime_requirements": "(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanDeleteMessages }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanDeleteMessages })",
       "retry": "convergent"
+    },
+    {
+      "method": "deleteChatFolder",
+      "risk": "destructive",
+      "accounts": [
+        "regular_user"
+      ],
+      "runtime_requirements": "ChatFolderKnown { target: chat_folder_id } AND ExactExternalApproval",
+      "retry": "reconcile"
     },
     {
       "method": "deleteChatMessagesBySender",

@@ -1494,3 +1494,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "chat_folder_tests.rs"]
+mod chat_folder_tests;

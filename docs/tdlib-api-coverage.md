@@ -13,8 +13,8 @@ TDLib `1.8.66`, commit `07d3a0973f5113b0827a04d54a93aaaa9e288348`, schema `10a00
 | `registry_methods` | 1010 | generated |
 | `core_raw_methods` | 1010 | one validated `td_call` |
 | capability descriptors | 1010 | reviewed or `DefaultDeny` |
-| reviewed methods | 136 | explicit data rows |
-| default-deny methods | 874 | valid unreviewed state |
+| reviewed methods | 138 | explicit data rows |
+| default-deny methods | 872 | valid unreviewed state |
 | schema object constructors | 2159 | manifest definitions minus parsed builtins |
 | registry/codec constructors | 2159 | generated/lossless |
 | distinct result types | 745 | generated |

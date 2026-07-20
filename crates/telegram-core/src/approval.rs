@@ -321,6 +321,30 @@ mod tests {
         );
     }
 
+    #[test]
+    fn chat_folder_cleanup_plan_binds_target_and_leave_list() {
+        let request = ValidatedRequest::from_value(json!({
+            "@type": "deleteChatFolder",
+            "chat_folder_id": 17,
+            "leave_chat_ids": [],
+        }))
+        .unwrap();
+        let with_leave = ValidatedRequest::from_value(json!({
+            "@type": "deleteChatFolder",
+            "chat_folder_id": 17,
+            "leave_chat_ids": [23],
+        }))
+        .unwrap();
+
+        let preview = PlanPreview::for_request(&request).unwrap();
+        assert_eq!(preview.risk, RiskClass::Destructive);
+        assert_eq!(preview.retry, RetryClass::Reconcile);
+        assert_ne!(
+            preview.hash,
+            PlanPreview::for_request(&with_leave).unwrap().hash
+        );
+    }
+
     fn request(chat_id: i64) -> ValidatedRequest {
         ValidatedRequest::from_value(json!({
             "@type": "upgradeBasicGroupChatToSupergroupChat",

@@ -35,7 +35,7 @@ Canonical machine-readable source после P3 —
 - Generator создаёт descriptor для каждого pinned method. Reviewed rows получают эти
   поля, остальные — только `DefaultDeny` без угаданной классификации.
 
-## Reviewed contracts (109)
+## Reviewed contracts (111)
 
 | Method | Accounts | Runtime requirements |
 |---|---|---|
@@ -47,10 +47,12 @@ Canonical machine-readable source после P3 —
 | `cancelDownloadFile` | regular_user | `FileKnown { target: file_id }` |
 | `closeChat` | regular_user | `ChatKnown { target: chat_id }` |
 | `closeWebApp` | regular_user | `WebAppLaunchKnown { launch: web_app_launch_id }` |
+| `createChatFolder` | regular_user | `AuthorizationState { state: Ready }` |
 | `createChatInviteLink` | regular_user, bot | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatAdministratorRight { target: chat_id, right: CanInviteUsers })` |
 | `createVideoChat` | regular_user | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats }) OR (ChatKind { target: chat_id, kind: Channel } AND ChatAdministratorRight { target: chat_id, right: CanManageVideoChats })` |
 | `declineSuggestedPost` | regular_user, bot | `MessageCapability { subject: One { chat: chat_id, message: message_id }, capability: CanBeDeclined }` |
 | `deleteAllRecentMessageReactionsFromSender` | regular_user, bot | `(ChatKind { target: chat_id, kind: BasicGroup } AND ChatAdministratorRight { target: chat_id, right: CanDeleteMessages }) OR (ChatKind { target: chat_id, kind: Supergroup } AND ChatAdministratorRight { target: chat_id, right: CanDeleteMessages })` |
+| `deleteChatFolder` | regular_user | `ChatFolderKnown { target: chat_folder_id } AND ExactExternalApproval` |
 | `deleteChatMessagesBySender` | regular_user | `ChatKind { target: chat_id, kind: Supergroup } AND SupergroupFlag { target: chat_id, flag: IsDirectMessagesGroup, value: false } AND ChatAdministratorRight { target: chat_id, right: CanDeleteMessages }` |
 | `deleteGroupCallMessages` | regular_user, bot | `GroupCallKind { group_call: group_call_id, kind: LiveStory } AND GroupCallMessageCapability { subject: Each { group_call: group_call_id, messages: message_ids }, capability: CanBeDeleted }` |
 | `deleteGroupCallMessagesBySender` | regular_user, bot | `GroupCallKind { group_call: group_call_id, kind: LiveStory } AND GroupCallProperty { group_call: group_call_id, property: CanDeleteMessages }` |

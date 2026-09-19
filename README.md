@@ -11,7 +11,7 @@ policy review запрещены по умолчанию. Опциональны
 
 ## Установка
 
-**Без сборки — macOS arm64 (Apple Silicon):**
+**Без сборки — macOS 11+ arm64 (Apple Silicon):**
 
 ```sh
 curl -fsSL https://github.com/lonmstalker/telegram-cli/releases/latest/download/install-release.sh | sh

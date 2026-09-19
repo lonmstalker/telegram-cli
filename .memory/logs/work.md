@@ -153,3 +153,11 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Verification: scripts/check.py verify — 13 checks; scripts/test-install.py — source/bundle/download, custom prefix, both skills, PATH без Cargo/Python, checksum/path/download negative cases. CLI/daemon minimum macOS 11.0, TDLib native pin не менялся.
 - Boundary: Linux bundle отложен по явному выбору пользователя; конфигурация аккаунта и real Telegram не использовались. Download tests подменяют только HTTPS, выполняют настоящие установщик и бинарники.
 - Next: code-quality review, публикация macOS release и проверка скачивания с GitHub в isolated HOME; Linux и signing остаются отдельной работой.
+
+## [2026-09-19] work | W-20260919-003 | macOS release: public download acceptance
+
+- Goal: опубликовать готовую установку для других пользователей и проверить реальную ссылку.
+- Actions: release v0.1.0 из cf9050d, три assets (installer, bundle, SHA-256); first release только macOS arm64 по выбору пользователя.
+- Verification: anonymous GitHub download + запуск в isolated HOME с PATH без build tools; CLI doctor/discovery и оба global skills прошли. TDLib/CLI/daemon minimum macOS 11.0, native dependencies только system libraries.
+- Evidence: [public release install](../raw/2026-09-19-macos-release-install.md); Fable medium corrections и usage — [review](../../docs/reviews/2026-09-19-agent-onboarding.md).
+- Next: Linux bundle и platform acceptance отдельно; owner setup выполняет пользователь, существующие account files не менялись.

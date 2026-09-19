@@ -2,14 +2,6 @@
 
 Active append-only decision records. Изменение решения оформляется новой entry; старое решение не переписывается.
 
-## [2026-07-18] accepted | D-20260718-005 | Ready и login submission разделяют observed и verified outcomes
-
-- Context: supplied review показал три связанные trust-gap: response timeout очищал pending submission, numeric challenge generation повторялась после daemon restart, а re-auth `Ready` в основном serve loop не повторял `getMe`/identity proof.
-- Decision: wire challenge становится opaque boot-scoped token; core submission фиксирует `NotSent`, `DefinitiveRejected` или `Uncertain`; timeout остаётся pending до fresh auth update либо late-response reconciliation. Любой auth update снимает verified readiness, переводит lifecycle `Ready -> Starting` и отзывает leases; только новый успешный `getMe`/expected-identity proof возвращает lifecycle в Ready и снова открывает operations.
-- Owner boundary: protocol v4 добавляет отдельный private `LoginPrompt` для QR link, password hint и registration ToS/privacy. Machine status/MCP сохраняют только state/token/action. Registration требует explicit `terms_accepted`; default privacy choice даёт `disable_notification=true`.
-- Evidence: [`crates/telegram-core/src/authorization.rs`](../../crates/telegram-core/src/authorization.rs), [`crates/telegram-core/src/transport.rs`](../../crates/telegram-core/src/transport.rs), [`apps/telegramd/src/lifecycle.rs`](../../apps/telegramd/src/lifecycle.rs), [`apps/telegramd/src/server.rs`](../../apps/telegramd/src/server.rs), [`crates/telegram-protocol/src/lib.rs`](../../crates/telegram-protocol/src/lib.rs); `cargo test --workspace --all-targets -q` — 148 passed, 3 ignored; workspace clippy `-D warnings` green.
-- Consequences: numeric protocol v3 challenge handoffs intentionally несовместимы с v4; старый token после restart/profile/state change fail closed. Platform-specific passkey/web-token/Firebase/Premium/bot-token/password-recovery journeys не открываются generic raw pre-Ready route и остаются отдельным owner-broker scope.
-
 ## [2026-07-18] accepted | D-20260718-006 | Authorization имеет одного daemon owner и тестируемый CLI driver
 
 - Context: после исправления auth defects production daemon всё ещё создавал отдельную `AuthorizationMachine` в startup и вторую внутри server broker, а human loop смешивал protocol transitions, Unix socket, TTY и sleep в `main.rs`.
@@ -116,3 +108,10 @@ Active append-only decision records. Изменение решения офор�
 - Decision: bounded try-send event transport fail closed и завершается при overflow; retention eviction отмечает gap. Nonblocking IPC отделяет framing от serial workflows и исключает handler time из client I/O deadline. Потеря receipt после dispatch не считается доказанным failure операции.
 - Evidence: [transport](../../crates/telegram-core/src/transport.rs), [reducer](../../crates/telegram-core/src/reducer.rs), [IPC](../../apps/telegramd/src/ipc.rs), [review](../../docs/reviews/2026-09-19-agent-onboarding.md).
 - Consequences: transport overflow требует restart, retention gap — resync. Supersedes: unbounded lossless retention из D-20260715-041; остальные snapshot/terminal-proof contracts сохраняются.
+
+## [2026-09-19] accepted | D-20260919-003 | Явная отмена незавершённого QR login
+
+- Context: пользователь выбрал вход без QR; pinned TDLib сохраняет QR mode после restart и не принимает phone number в этом state.
+- Decision: owner-команда login phone использует typed CancelQrCode с текущим challenge. Core допускает destructive TDLib logOut только из WaitOtherDeviceConfirmation; это отменяет локальные данные незавершённой попытки, не удаляя внешний profile/key. Ready и другие states отклоняются. Generic raw logOut policy не меняется.
+- Evidence: [authorization guard](../../crates/telegram-core/src/authorization.rs), [owner flow](../../apps/telegram-cli/src/login.rs), [review](../../docs/reviews/2026-09-19-phone-login.md).
+- Consequences: нет blind retry при uncertain result; definite stale challenge перечитывается. Одновременное подтверждение старого QR может завершить именно эту новую сессию. Unix socket сохраняет existing same-UID boundary; отдельная server-side owner identity не вводится.

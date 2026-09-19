@@ -2,20 +2,6 @@
 
 Active append-only problem lifecycle. Status changes добавляются новой entry с тем же `P-*` ID.
 
-## [2026-07-15] open | P-20260715-001 | Database key не подключён к штатному gateway
-
-- Локальный database encryption key получен и хранится по `.env.local` contract, но штатный запуск пока не принимает его. Закрывается задачей P1 «Database encryption key из file descriptor/file secret/OS keychain».
-
-## [2026-07-15] open | P-20260715-003 | Linux x86_64 native artifact не закреплён
-
-- Закреплён только macOS arm64 `tdjson`. Linux x86_64 artifact с provenance — открытая задача P0; без него не начинается P9.
-
-## [2026-07-15] resolved | P-20260715-003 | Linux x86_64 native artifact закреплён
-
-- TDLib `1.8.66` собран exact pinned builder для `x86_64-unknown-linux-gnu`; artifact SHA-256 `e90ca3c25ad034b7227df918816c227de2b9aef92539c994a3bd41c42d68161b`, provenance — `vendor/tdlib/native-builds/x86_64-unknown-linux-gnu.json`.
-- `python3 scripts/check-tdlib-native-pin.py --require-local-artifact` проверяет оба supported target, Linux ELF identity, SONAME, dependencies, TDJSON exports, runtime version/commit и отсутствие DB-файлов в no-client smoke.
-- Bit-for-bit reproducibility остаётся незаявленной границей, но не является acceptance-критерием P0.
-
 ## [2026-07-15] narrowed | P-20260715-001 | Core provider готов, daemon wiring ещё отсутствует
 
 - P1 protected provider и `setTdlibParameters` integration готовы: FD/file/keychain sources, empty-key preflight deny и wrong-key 401 latch проверены synthetic tests.
@@ -146,3 +132,15 @@ Active append-only problem lifecycle. Status changes добавляются но
 - Resolution: QR выводится в owner TTY с инструкцией Telegram → Устройства; смена challenge обновляет его. Общий TTY writer продолжает partial writes/WouldBlock, чтобы macOS не обрезал QR.
 - Verification: PTY regression с двумя challenges, stdout/stderr privacy, старый бинарник проваливает проверку; macOS Vision декодировал оба synthetic QR. [Code-quality review и usage](../../docs/reviews/2026-09-19-qr-login.md).
 - Status: defect resolved по deterministic evidence; реальное подтверждение входа остаётся действием владельца.
+
+## [2026-09-19] reopened | P-20260919-003 | Unicode QR не читается камерой в Terminal
+
+- Correction: декодирование восстановленной пиксельной матрицы в v0.1.1 не доказывало читаемость реального terminal rendering. Синтетический capture macOS Terminal показывает зазоры между рядами блочных glyphs; Vision не обнаруживает QR (0 detections).
+- User direction: прекратить QR-путь и использовать вход по номеру/коду. QR rendering не объявляется исправленным; owner workaround — login phone.
+- Related: W-20260919-005. Реальные QR, номер и коды не захватывались.
+
+## [2026-09-19] resolved | P-20260919-004 | QR mode сохраняется после перезапуска TDLib
+
+- Evidence: после остановки текущего неавторизованного daemon и lazy restart sanitized state остался qr_code. Pinned AuthManager запрещает setAuthenticationPhoneNumber в WaitQrCodeConfirmation.
+- Resolution: owner login phone отменяет только свежий QR challenge через CancelQrCode → logOut, ждёт завершения daemon, затем запускает phone/code flow из прежних API settings. Нет blind replay после uncertain response.
+- Verification: state guards для QR, stale, phone и Ready; fake-daemon QR cancellation → restart → phone submission; сохранённый profile не меняется. Реальное завершение входа требует owner phone/OTP.

@@ -29,7 +29,7 @@ Rust, Cargo, Python, Git и Homebrew не нужны. Загрузчик про�
 Скрипт не меняет shell configuration и не запускает вход в аккаунт.
 
 Можно сначала скачать и прочитать установщик, затем выполнить
-`sh install-release.sh --version v0.1.1 --skill both`.
+`sh install-release.sh --version v0.1.2 --skill both`.
 `--prefix /absolute/path` меняет корень установки;
 `--skill codex|claude|both|none` выбирает скиллы, default — `both`.
 Для ручной/offline установки распакуйте bundle и выполните
@@ -41,7 +41,7 @@ Rust, Cargo, Python, Git и Homebrew не нужны. Загрузчик про�
 **Из исходников** (Rust 1.95.0 и Python 3):
 
 ```sh
-git clone --branch v0.1.1 https://github.com/lonmstalker/telegram-cli.git
+git clone --branch v0.1.2 https://github.com/lonmstalker/telegram-cli.git
 cd telegram-cli
 ./install.sh --native /absolute/path/to/pinned/libtdjson --skill both
 ```
@@ -72,9 +72,10 @@ phone/QR, код, 2FA при необходимости. API credentials и ко
 аргументы CLI, stdin или чат с агентом. Native-библиотека после установки находится
 автоматически; при запуске из checkout CLI спросит её абсолютный путь.
 
-При выборе QR откройте на телефоне **Telegram → Настройки → Устройства → Подключить
-устройство** и отсканируйте QR в терминале. Одноразовый код из сообщения для этого шага
-не нужен. Продолжить незавершённый вход можно командой `telegram-cli login`.
+Для входа без QR выполните `telegram-cli login phone`: CLI запросит номер, код и при
+необходимости пароль 2FA. Незавершённая QR-попытка отменяется перед вводом номера;
+профиль, API ID/hash и database key сохраняются. Если аккаунт уже имеет статус `ready`,
+повторный вход не нужен. Продолжить текущий способ входа можно командой `telegram-cli login`.
 
 Профиль находится в `~/.config/telegram-cli/default/`: каталог `0700`, `profile.json`
 и `database-key` — `0600`, отдельные `database/` и `files/`. Для другого аккаунта

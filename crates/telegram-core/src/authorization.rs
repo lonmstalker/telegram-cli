@@ -150,6 +150,7 @@ pub enum AuthorizationInput {
     QrCode {
         other_user_ids: Vec<i64>,
     },
+    CancelQrCode,
     EmailAddress(SensitiveString),
     EmailCode(SensitiveString),
     AppleIdToken(SensitiveString),
@@ -531,6 +532,13 @@ fn request_for(
     match input {
         AuthorizationInput::PhoneNumber(phone) => phone_request(state, phone),
         AuthorizationInput::QrCode { other_user_ids } => qr_request(state, other_user_ids),
+        AuthorizationInput::CancelQrCode => {
+            require_state(matches!(
+                state,
+                AuthorizationState::WaitOtherDeviceConfirmation { .. }
+            ))?;
+            Ok(json!({"@type": "logOut"}))
+        }
         AuthorizationInput::EmailAddress(email) => email_address_request(state, email),
         AuthorizationInput::EmailCode(code) => email_code_request(state, code),
         AuthorizationInput::AppleIdToken(token) => apple_id_request(state, token),

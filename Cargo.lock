@@ -587,7 +587,7 @@ dependencies = [
 
 [[package]]
 name = "tdlib-registry-gen"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -596,7 +596,7 @@ dependencies = [
 
 [[package]]
 name = "telegram-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "libc",
  "qrcode",
@@ -608,7 +608,7 @@ dependencies = [
 
 [[package]]
 name = "telegram-client"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "libc",
  "serde_json",
@@ -618,7 +618,7 @@ dependencies = [
 
 [[package]]
 name = "telegram-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64",
  "ed25519-dalek",
@@ -631,7 +631,7 @@ dependencies = [
 
 [[package]]
 name = "telegram-mcp"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "rmcp",
  "serde",
@@ -643,7 +643,7 @@ dependencies = [
 
 [[package]]
 name = "telegram-protocol"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -652,7 +652,7 @@ dependencies = [
 
 [[package]]
 name = "telegram-webapp-runner"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -663,7 +663,7 @@ dependencies = [
 
 [[package]]
 name = "telegramd"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "libc",
  "serde",

@@ -43,8 +43,32 @@ try:
             if not data: continue
             request = json.loads(data)
             kind = request["type"]
+            stop_after_response = False
             with (db / "requests").open("a") as log: log.write(kind + "\n")
-            if (db / "qr-fixture").exists() and kind in ("login_status", "login_prompt"):
+            if (db / "phone-login").exists() and kind.startswith("login_"):
+                phase = (db / "phone-login").read_text()
+                rotated = (db / "phone-rotated").exists()
+                challenge = "auth-" + "1" * 32 + ("-0000000000000002" if rotated else "-0000000000000001")
+                if kind == "login_submit":
+                    assert request["challenge_id"] == challenge
+                    if phase == "qr":
+                        assert request["input"] == {"kind":"cancel_qr_code"}
+                        if not rotated:
+                            (db / "phone-rotated").touch()
+                            client.sendall(json.dumps({"type":"command_error", "code":"login_challenge_invalid"}).encode() + b"\n")
+                            continue
+                        (db / "phone-login").write_text("phone")
+                        stop_after_response = True
+                    else:
+                        assert phase == "phone" and request["input"] == {"kind":"phone_number", "value":"+15550000000"}
+                        (db / "phone-login").write_text("ready")
+                    response = {"type":"login_submitted", "challenge_id":challenge}
+                elif kind == "login_prompt":
+                    assert phase == "phone"
+                    response = {"type":"login_prompt", "challenge_id":challenge, "prompt":{"kind":"phone_number"}}
+                else:
+                    response = {"type":"login_status", "state":{"qr":"qr_code","phone":"phone_number","ready":"ready"}[phase], "challenge_id":None if phase == "ready" else challenge, "next_action":"ready" if phase == "ready" else "submit_via_protected_channel"}
+            elif (db / "qr-fixture").exists() and kind in ("login_status", "login_prompt"):
                 challenge = "auth-" + "0" * 32 + "-" + format(qr_prompts + 1, "016x")
                 if kind == "login_prompt":
                     assert request["challenge_id"] == challenge
@@ -63,6 +87,7 @@ try:
             else: response = {"type":"login_status", "state":"ready", "challenge_id":None, "next_action":"ready"}
             try: client.sendall(json.dumps(response).encode() + b"\n")
             except BrokenPipeError: pass
+            if stop_after_response: break
 finally:
     server.close(); path.unlink(missing_ok=True)
 '''
@@ -75,7 +100,7 @@ def run(binary, arguments, environment, code=0):
     return result
 
 
-def run_owner(binary, arguments, environment, streams=None):
+def run_owner(binary, arguments, environment, streams=None, answers=()):
     pid, master = pty.fork()
     if pid == 0:
         if streams is not None:
@@ -84,6 +109,8 @@ def run_owner(binary, arguments, environment, streams=None):
         os.execve(str(binary), [str(binary), *arguments], environment)
     deadline = time.monotonic() + 15
     output = bytearray()
+    pending = iter(answers)
+    answer = next(pending, None)
     # Deliberately let the small macOS TTY output queue fill before reading a QR.
     if streams is not None: time.sleep(0.2)
     try:
@@ -93,6 +120,9 @@ def run_owner(binary, arguments, environment, streams=None):
                 except OSError: break
                 if not chunk: break
                 output.extend(chunk)
+                if answer is not None and answer[0].encode() in output:
+                    os.write(master, answer[1].encode())
+                    answer = next(pending, None)
             ended, status = os.waitpid(pid, os.WNOHANG)
             if ended:
                 assert os.waitstatus_to_exitcode(status) == 0, output.decode(errors="replace")
@@ -188,6 +218,15 @@ def main():
             assert "tg://login" not in terminal
             for output in (result.stdout + result.stderr, *(path.read_text() for path in streams)):
                 assert "tg://login" not in output and "█" not in output and "Отсканируйте" not in output
+            (db / "phone-login").write_text("qr")
+            run(cli, ["--agent", "login", "phone"], environment, 2)
+            assert (db / "phone-login").read_text() == "qr"
+            terminal = run_owner(cli, ["login", "phone"], environment, streams,
+                [("Телефон в международном формате:", "+15550000000\n")])
+            assert "Войти по QR" not in terminal and "█" not in terminal
+            assert (db / "phone-login").read_text() == "ready"
+            assert saved.read_bytes() == original
+            assert all("+15550000000" not in path.read_text() for path in streams)
         finally:
             if (db / "pid").exists():
                 try: os.kill(int((db / "pid").read_text()), signal.SIGTERM)

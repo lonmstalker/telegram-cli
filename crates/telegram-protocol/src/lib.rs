@@ -390,6 +390,7 @@ pub enum LoginInput {
         value: ProtectedString,
     },
     QrCode,
+    CancelQrCode,
     AuthenticationCode {
         value: ProtectedString,
     },
@@ -421,6 +422,7 @@ impl fmt::Debug for LoginInput {
         let kind = match self {
             Self::PhoneNumber { .. } => "phone_number",
             Self::QrCode => "qr_code",
+            Self::CancelQrCode => "cancel_qr_code",
             Self::AuthenticationCode { .. } => "authentication_code",
             Self::Password { .. } => "password",
             Self::EmailAddress { .. } => "email_address",

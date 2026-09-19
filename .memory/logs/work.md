@@ -2,22 +2,6 @@
 
 Active append-only checkpoints. Решения и проблемы хранятся отдельно и здесь только упоминаются по ID.
 
-## [2026-07-19] completed | W-20260719-011 | A3 migration basic group не выдаёт guessed membership
-
-- Goal: не оставлять membership workflow на старом basic-group cache после TDLib migration в
-  supergroup и не превращать такую ситуацию в `member/not_member` или бесконечный deadline.
-- Sources: [`plans.md`](../../plans.md), [`chat-resolution-membership.md`](../../docs/chat-resolution-membership.md),
-  pinned `basicGroup.upgraded_to_supergroup_id` schema и явное ТЗ пользователя.
-- Actions: cache несёт `Migrated { supergroup_id }`; `membership_status` возвращает тот же typed
-  state c `complete=false` после fresh `getBasicGroup`, без probing нового supergroup и без
-  guessed membership. `leave_chat` останавливается без dispatch на typed incomplete
-  `migration_required { supergroup_id }` receipt.
-- Verification: deterministic status и leave cache tests фиксируют ID migration, incomplete
-  outcome и отсутствие `leaveChat` dispatch. `cargo test --workspace --jobs 2 -q` — 166 passed,
-  0 failed, 3 ignored; все `scripts/check-*.py` green под bundled Python 3.12.13; source-size,
-  fmt и diff gates green.
-- Next: A4 — удалить повторный chat-type dispatch и reducer wait loops без изменения behavior.
-
 ## [2026-07-19] completed | W-20260719-012 | A4 chat workflow refactor сохраняет contracts
 
 - Goal: убрать шесть независимых разборов chat type и три повторённых reducer wait loop без
@@ -154,3 +138,11 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Verification: 13-check harness, PTY refresh/privacy regression, old-version negative check, Vision decode двух synthetic QR, release/installer checks. Fable medium замечания обработаны, usage записан в review.
 - Related: P-20260919-003. Auth state/DB/key не изменялись; native library переиспользована из установленного pinned bundle.
 - Next: публикация macOS patch и установка; владелец повторяет telegram-cli login и сканирует QR на телефоне.
+
+## [2026-09-19] work | W-20260919-005 | Вход по номеру вместо QR
+
+- Goal: выполнить пользовательское «давай просто без qr» после нечитаемого terminal QR.
+- Actions: login phone с owner TTY, QR-only cancellation, ожидание завершения daemon и phone/code flow; API setup сохраняется; версия 0.1.2 и RU/EN docs.
+- Verification: scripts/check.py verify (13 checks), release build, source/bundle/download installer checks; fake-daemon переключение без QR prompt и без номера в stdout/stderr.
+- Related: P-20260919-003 reopened; P-20260919-004 resolved. QR camera acceptance не заявляется.
+- Next: Fable review, macOS patch release/install; номер и OTP вводит владелец через telegram-cli login phone.

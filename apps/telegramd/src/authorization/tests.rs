@@ -231,6 +231,34 @@ fn owner_prompt_enables_qr_without_exposing_link_to_status() {
     let prompt = coordinator.prompt(&token).unwrap();
     assert!(!format!("{prompt:?}").contains(canary));
     assert_eq!(coordinator.status().0, LoginState::QrCode);
+    let (challenge, request) = coordinator
+        .begin_submit(&token, LoginInput::CancelQrCode)
+        .unwrap();
+    assert_eq!(request.request_type(), "logOut");
+    coordinator
+        .record_outcome(challenge, SubmissionOutcome::NotSent)
+        .unwrap();
+    coordinator
+        .observe(&json!({"@type": "authorizationStateWaitPhoneNumber"}), now)
+        .unwrap();
+    assert!(
+        coordinator
+            .begin_submit(&token, LoginInput::CancelQrCode)
+            .is_err()
+    );
+    let phone_token = coordinator.status().1.unwrap();
+    assert!(matches!(
+        coordinator.begin_submit(&phone_token, LoginInput::CancelQrCode),
+        Err(AuthorizationError::InputDoesNotMatchState)
+    ));
+    coordinator
+        .observe(&json!({"@type": "authorizationStateReady"}), now)
+        .unwrap();
+    assert!(
+        coordinator
+            .begin_submit(&phone_token, LoginInput::CancelQrCode)
+            .is_err()
+    );
 }
 
 #[test]

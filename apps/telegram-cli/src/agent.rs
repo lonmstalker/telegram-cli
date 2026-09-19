@@ -90,6 +90,7 @@ const HELP: &str = "Telegram CLI — одна сохранённая сесси�
 Usage: telegram-cli [--agent] [--profile NAME] [--scopes read,...] COMMAND\n\n\
   setup [--import-env]            Настроить профиль один раз и войти через owner TTY\n\
   login                          Войти (human) / прочитать состояние (JSON или --agent)\n\
+  login phone                    Войти по номеру и коду; отменить незавершённый QR\n\
   doctor                         Проверить установку без запуска TDLib и сети\n\
   init [--global] [--claude]      Установить skill (по умолчанию .agents/skills)\n\
   run WORKFLOW JSON|-            Workflow с автоматическим lease и cleanup\n\

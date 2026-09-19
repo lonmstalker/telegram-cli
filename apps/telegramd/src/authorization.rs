@@ -475,6 +475,7 @@ fn authorization_input(input: LoginInput) -> AuthorizationInput {
         LoginInput::QrCode => AuthorizationInput::QrCode {
             other_user_ids: Vec::new(),
         },
+        LoginInput::CancelQrCode => AuthorizationInput::CancelQrCode,
         LoginInput::AuthenticationCode { value } => {
             AuthorizationInput::AuthenticationCode(SensitiveString::new(value.into_inner()))
         }

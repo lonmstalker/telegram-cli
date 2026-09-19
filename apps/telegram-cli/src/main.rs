@@ -89,6 +89,16 @@ fn run(invocation: agent::Invocation) -> Result<ExitCode, CliError> {
     {
         return agent::automatic(&arguments, format, &profile, principal, &scopes);
     }
+    if arguments == ["login", "phone"] {
+        if format != OutputFormat::Human {
+            return Err(CliError::new(ClientErrorCode::InvalidArguments));
+        }
+        install_signal_handlers()?;
+        open_tty()?;
+        profile::ensure_started(&profile)?;
+        let response = login::phone(&profile)?;
+        return show_login_response(format, &response);
+    }
     if interactive_login(&arguments, format) {
         profile::ensure_started(&profile)?;
         return login_tty(&profile, format, None);

@@ -64,6 +64,15 @@ Apple/Google token alternatives. Registration сначала показывае�
 затем отдельно спрашивает notification choice; безопасный default даёт
 `disable_notification=true`. Decline не вызывает `registerUser`.
 
+`login phone` — owner-TTY-only режим без выбора/вывода QR. При текущем `qr_code` он
+отправляет `LoginInput::CancelQrCode` с актуальным challenge ID. Core разрешает этот
+input только для `WaitOtherDeviceConfirmation` и вызывает TDLib `logOut`; Ready,
+другие states, stale challenge и pending submission отклоняются. CLI не повторяет
+неопределённый результат, ждёт исчезновения старого daemon socket и запускает новый
+daemon из сохранённого профиля. API settings и database key не удаляются; TDLib
+сбрасывает локальные данные незавершённой попытки. Уже активная авторизация не
+сбрасывается командой, увидевшей Ready. Номер и OTP по-прежнему не идут через args/stdin.
+
 `LoginSubmitted` и `LoginCodeResent` имеют machine `status:"partial"`. Terminal completion
 по-прежнему требует `authorizationStateReady`, успешный `getMe` и проверку expected identity
 в daemon. Любой auth-loss сбрасывает verified readiness и отзывает leases; следующий Ready

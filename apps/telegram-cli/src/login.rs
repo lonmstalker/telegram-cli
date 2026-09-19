@@ -2,6 +2,7 @@
 
 use std::sync::atomic::Ordering;
 use std::thread;
+use std::time::{Duration, Instant};
 
 use telegram_protocol::{
     ClientErrorCode, CommandErrorCode, DaemonRequest, DaemonResponse, LoginChallengeId, LoginInput,
@@ -20,10 +21,98 @@ pub(crate) fn run(
 ) -> Result<DaemonResponse, CliError> {
     LoginDriver::new(
         SocketLoginBroker { profile },
-        TtyOwnerPrompt,
+        TtyOwnerPrompt { phone_only: false },
         SystemLoginRuntime,
     )
     .run(expected_challenge)
+}
+
+pub(crate) fn phone(profile: &str) -> Result<DaemonResponse, CliError> {
+    let deadline = Instant::now() + Duration::from_secs(45);
+    let mut runtime = SystemLoginRuntime;
+    let mut cancellation_sent = false;
+    loop {
+        if runtime.cancelled() {
+            return Err(CliError::new(ClientErrorCode::Cancelled));
+        }
+        if Instant::now() >= deadline {
+            return Err(CliError::new(ClientErrorCode::TransportFailed));
+        }
+        if !telegram_client::daemon_reachable(profile).map_err(CliError::new)? {
+            crate::profile::ensure_started(profile)?;
+        }
+        let options = telegram_client::ExchangeOptions::new(
+            Duration::from_secs(1),
+            telegram_client::ResponseFraming::BoundedLine { max_bytes: 16_384 },
+        );
+        let response = match telegram_client::exchange_with_options(
+            profile,
+            &DaemonRequest::LoginStatus,
+            options,
+        ) {
+            Ok(response) => response,
+            Err(
+                ClientErrorCode::SocketUnavailable
+                | ClientErrorCode::TransportFailed
+                | ClientErrorCode::ResponseLost,
+            ) => {
+                runtime.wait();
+                continue;
+            }
+            Err(error) => return Err(CliError::new(error)),
+        };
+        match response {
+            DaemonResponse::LoginStatus {
+                state: LoginState::QrCode,
+                challenge_id: Some(challenge_id),
+                ..
+            } if !cancellation_sent => {
+                write_tty_notice(
+                    "Отменяю незавершённую QR-попытку. Затем потребуется номер телефона.\n",
+                )?;
+                // Only a definite stale-challenge rejection may be retried; never replay uncertainty.
+                match exchange(
+                    profile,
+                    &DaemonRequest::LoginSubmit {
+                        challenge_id: challenge_id.clone(),
+                        input: LoginInput::CancelQrCode,
+                    },
+                )? {
+                    DaemonResponse::LoginSubmitted { challenge_id: id } if id == challenge_id => {
+                        cancellation_sent = true
+                    }
+                    DaemonResponse::CommandError {
+                        code: CommandErrorCode::LoginChallengeInvalid,
+                    } => {}
+                    response @ (DaemonResponse::CommandError { .. }
+                    | DaemonResponse::Error { .. }) => return Ok(response),
+                    _ => return Err(invalid_response()),
+                }
+            }
+            DaemonResponse::LoginStatus {
+                state:
+                    LoginState::QrCode
+                    | LoginState::Unknown
+                    | LoginState::Parameters
+                    | LoginState::LoggingOut
+                    | LoginState::Closing
+                    | LoginState::Closed,
+                ..
+            } => {}
+            DaemonResponse::LoginStatus { .. } => break,
+            response @ (DaemonResponse::CommandError { .. } | DaemonResponse::Error { .. }) => {
+                return Ok(response);
+            }
+            _ => return Err(invalid_response()),
+        }
+        runtime.wait();
+    }
+    LoginDriver::new(
+        SocketLoginBroker { profile },
+        TtyOwnerPrompt { phone_only: true },
+        SystemLoginRuntime,
+    )
+    .run(None)
 }
 
 trait LoginBroker {
@@ -346,7 +435,9 @@ impl LoginBroker for SocketLoginBroker<'_> {
     }
 }
 
-struct TtyOwnerPrompt;
+struct TtyOwnerPrompt {
+    phone_only: bool,
+}
 
 impl OwnerPrompt for TtyOwnerPrompt {
     fn action(
@@ -354,7 +445,7 @@ impl OwnerPrompt for TtyOwnerPrompt {
         state: LoginState,
         prompt: OwnerLoginPrompt,
     ) -> Result<LoginAction, CliError> {
-        tty_login_action(state, prompt)
+        tty_login_action(state, prompt, !self.phone_only)
     }
 
     fn notice(&mut self, message: &'static str) -> Result<(), CliError> {
@@ -374,12 +465,18 @@ impl LoginRuntime for SystemLoginRuntime {
     }
 }
 
-fn tty_login_action(state: LoginState, prompt: OwnerLoginPrompt) -> Result<LoginAction, CliError> {
+fn tty_login_action(
+    state: LoginState,
+    prompt: OwnerLoginPrompt,
+    allow_qr: bool,
+) -> Result<LoginAction, CliError> {
     if !prompt_matches_state(state, &prompt) {
         return Err(invalid_response());
     }
     match prompt {
-        OwnerLoginPrompt::PhoneNumber | OwnerLoginPrompt::PremiumPurchase => phone_login_action(),
+        OwnerLoginPrompt::PhoneNumber | OwnerLoginPrompt::PremiumPurchase => {
+            phone_login_action(allow_qr)
+        }
         OwnerLoginPrompt::AuthenticationCode => authentication_code_login_action(),
         OwnerLoginPrompt::Password {
             hint,
@@ -403,7 +500,8 @@ fn tty_login_action(state: LoginState, prompt: OwnerLoginPrompt) -> Result<Login
             minimum_user_age,
             show_popup,
         } => registration_login_action(terms, minimum_user_age, show_popup),
-        OwnerLoginPrompt::QrCode { link } => qr_login_action(link),
+        OwnerLoginPrompt::QrCode { link } if allow_qr => qr_login_action(link),
+        OwnerLoginPrompt::QrCode { .. } => Err(invalid_response()),
     }
 }
 
@@ -461,12 +559,13 @@ fn prompt_matches_state(state: LoginState, prompt: &OwnerLoginPrompt) -> bool {
     )
 }
 
-fn phone_login_action() -> Result<LoginAction, CliError> {
-    let input = if read_yes_no("Войти по QR вместо номера? [y/N]: ")? {
+fn phone_login_action(allow_qr: bool) -> Result<LoginAction, CliError> {
+    let input = if allow_qr && read_yes_no("Войти по QR вместо номера? [y/N]: ")?
+    {
         LoginInput::QrCode
     } else {
         LoginInput::PhoneNumber {
-            value: read_tty_visible("Телефон: ")?,
+            value: read_tty_visible("Телефон в международном формате: ")?,
         }
     };
     Ok(LoginAction::Submit(input))

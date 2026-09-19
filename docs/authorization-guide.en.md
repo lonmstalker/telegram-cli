@@ -110,6 +110,15 @@ The legacy `login tty` alias remains for compatibility. Use the interactive form
 
 ## 5. QR login
 
+For login **without QR**, run `telegram-cli login phone` in the owner's terminal.
+It cancels only a pending QR challenge using TDLib `logOut`, waits for the daemon to close,
+and starts phone/code login. Local TDLib data for that unauthenticated attempt is reset;
+saved API settings and the database key remain. No reset is sent when the observed state is `ready`.
+A regular restart does not switch methods because TDLib persists QR mode. This command
+is unavailable in `--agent`/JSON; phone and code input stay in the owner TTY.
+Unicode QR may be unreadable in terminals with gaps between block glyphs; use phone login
+in that case.
+
 In `phone_number`/`premium_purchase`, the CLI offers QR instead of a phone number and sends a
 typed `requestQrCodeAuthentication`. In `qr_code`, the CLI renders a QR code only to `/dev/tty`;
 neither the QR nor its link appears in machine output/MCP. On a phone already signed in to

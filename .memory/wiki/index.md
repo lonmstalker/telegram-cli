@@ -55,7 +55,7 @@
 
 ## Raw evidence
 
-- [QR login patch review](../../docs/reviews/2026-09-19-qr-login.md) — terminal QR, TTY backpressure, synthetic scan verification и Fable usage; P-20260919-003.
+- [QR login patch review](../../docs/reviews/2026-09-19-qr-login.md) — terminal QR, TTY backpressure и Fable usage; P-20260919-003 reopened: камера не читает glyph rendering в Terminal. Для входа без QR используйте `login phone` ([guide](../../docs/authorization-guide.ru.md)).
 
 - [macOS v0.1.0 public install](../raw/2026-09-19-macos-release-install.md) — CLI/daemon/TDLib + Codex/Claude skills без toolchain, проверено анонимное скачивание из GitHub.
 

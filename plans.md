@@ -297,6 +297,7 @@ Decision gate: начинать только после acceptance P0–P7.
 - [x] Установка готовых CLI + daemon + TDLib + двух skills без сборки: GitHub release downloader, SHA-256 sidecar и macOS arm64 bundle.
 - [x] Опубликовать macOS arm64 release bundle с SHA-256 и проверить анонимную установку из GitHub в isolated HOME без build tools.
 - [x] Исправить QR onboarding: сканируемый QR в owner TTY, автоматическое обновление и полный вывод при заполненной TTY-очереди.
+- [x] Добавить явный owner flow `login phone` для перехода с незавершённого QR на номер/код без повторного API setup.
 - [ ] Опубликовать Linux bundle и проверить установку на свежем Linux host.
 - [ ] launchd/systemd socket activation, persistent DB, keychain/file-secret integration.
 - [ ] Backup только после Closed; restore, schema upgrade, rollback на копии DB.

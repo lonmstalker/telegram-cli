@@ -1,6 +1,9 @@
 //! Последовательное применение TDLib updates к core caches.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
+
+const UNKNOWN_UPDATE_LIMIT: usize = 1024;
+const UNKNOWN_UPDATE_BYTES: usize = 8 * 1024 * 1024;
 use std::fmt;
 
 use serde::Serialize;
@@ -111,7 +114,8 @@ pub struct StateReducer {
     connection: Option<VersionedValue>,
     message_sends: BTreeMap<MessageSendKey, VersionedMessageSendState>,
     web_app_messages: BTreeMap<i64, UpdateSequence>,
-    unknown_updates: Vec<VersionedValue>,
+    unknown_updates: VecDeque<VersionedValue>,
+    unknown_update_bytes: usize,
 }
 
 impl fmt::Debug for StateReducer {
@@ -247,11 +251,12 @@ impl StateReducer {
         self.web_app_messages.get(&launch_id).copied()
     }
 
-    pub fn unknown_updates(&self) -> &[VersionedValue] {
+    pub fn unknown_updates(&self) -> &VecDeque<VersionedValue> {
         &self.unknown_updates
     }
 
     pub fn drain_unknown_updates(&mut self) -> impl Iterator<Item = VersionedValue> + '_ {
+        self.unknown_update_bytes = 0;
         self.unknown_updates.drain(..)
     }
 
@@ -366,10 +371,24 @@ impl StateReducer {
                 CachedUpdateKind::WebAppMessage
             }
             _ => {
-                self.unknown_updates.push(VersionedValue {
-                    sequence,
-                    value: update.clone(),
-                });
+                let bytes = update.to_string().len();
+                while !self.unknown_updates.is_empty()
+                    && (self.unknown_updates.len() >= UNKNOWN_UPDATE_LIMIT
+                        || self.unknown_update_bytes.saturating_add(bytes) > UNKNOWN_UPDATE_BYTES)
+                {
+                    let removed = self.unknown_updates.pop_front().expect("nonempty queue");
+                    self.unknown_update_bytes -= removed.value.to_string().len();
+                    self.mark_update_gap();
+                }
+                if bytes <= UNKNOWN_UPDATE_BYTES {
+                    self.unknown_update_bytes += bytes;
+                    self.unknown_updates.push_back(VersionedValue {
+                        sequence,
+                        value: update.clone(),
+                    });
+                } else {
+                    self.mark_update_gap();
+                }
                 CachedUpdateKind::Unknown
             }
         };
@@ -830,6 +849,25 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn unknown_update_retention_is_bounded_and_eviction_marks_a_gap() {
+        let mut reducer = StateReducer::default();
+        for id in 0..10_000 {
+            reducer
+                .apply(&serde_json::json!({"@type":"updateNewMessage", "message":{"id":id}}))
+                .unwrap();
+        }
+        assert_eq!(reducer.unknown_updates().len(), UNKNOWN_UPDATE_LIMIT);
+        assert!(reducer.gap().is_some());
+        assert_eq!(
+            reducer.unknown_updates().back().unwrap().value["message"]["id"],
+            9999
+        );
+        reducer.drain_unknown_updates().for_each(drop);
+        assert_eq!(reducer.unknown_update_bytes, 0);
+        assert!(reducer.unknown_updates().is_empty());
+    }
 
     #[test]
     fn representative_updates_fill_caches_in_call_order() {

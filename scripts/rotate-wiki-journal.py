@@ -230,22 +230,26 @@ def relative_targets(text: str):
             yield match.group("target")
 
 
-def target_exists(root: Path, source: Path, target: str) -> bool:
+def target_exists(root: Path, source: Path, target: str, historical_source: bool = False) -> bool:
     parsed = local_link_parts(target)
     if parsed is None:
         return True
     canonical_root = root.resolve()
     candidate = (source.parent / unquote(parsed.path)).resolve()
     try:
-        candidate.relative_to(canonical_root)
+        relative = candidate.relative_to(canonical_root)
     except ValueError:
         return False
-    return candidate.exists()
+    # Source files can move after an immutable archive was published. Raw evidence and
+    # wiki/journal links must still exist; new archives validate every link before publication.
+    return candidate.exists() or (historical_source and relative.parts
+        and relative.parts[0] in {"apps", "crates", "scripts", "tools"}
+        and candidate.suffix in {".rs", ".py", ".sh"})
 
 
-def validate_local_links(root: Path, source: Path, text: str, label: str) -> None:
+def validate_local_links(root: Path, source: Path, text: str, label: str, historical_source: bool = False) -> None:
     for target in relative_targets(text):
-        if not target_exists(root, source, target):
+        if not target_exists(root, source, target, historical_source):
             raise SystemExit(f"{label}: broken or escaping local path {target!r}")
 
 
@@ -633,7 +637,7 @@ def validate(root: Path, kind: str) -> None:
             raise SystemExit(f"{kind}: checksum drift in {name}")
         if len(entries) != int(expected_count) or dates[0] != first or dates[-1] != last:
             raise SystemExit(f"{kind}: entry/date drift in {name}")
-        validate_local_links(root, path, text, f"{kind}:{name}")
+        validate_local_links(root, path, text, f"{kind}:{name}", historical_source=True)
         for entry in entries:
             normalized = rebase_relative_markdown_links(
                 entry,

@@ -1,7 +1,7 @@
 //! Startup handshake и ordered runtime driver поверх TDJSON transport.
 
 use std::fmt;
-use std::sync::mpsc::{Receiver, RecvTimeoutError};
+use std::sync::mpsc::RecvTimeoutError;
 use std::time::Instant;
 
 use serde_json::{Value, json};
@@ -35,7 +35,7 @@ pub enum CoreRuntimeEvent {
 
 pub struct CoreRuntime {
     transport: TdJsonTransport,
-    events: Receiver<TdJsonEvent>,
+    events: crate::transport::EventReceiver,
     reducer: StateReducer,
     identity: RuntimeIdentity,
 }
@@ -49,7 +49,7 @@ impl CoreRuntime {
 
     pub fn initialize(
         transport: TdJsonTransport,
-        events: Receiver<TdJsonEvent>,
+        events: crate::transport::EventReceiver,
         deadline: Instant,
     ) -> Result<Self, RuntimeError> {
         let expected = pinned_identity()?;
@@ -297,7 +297,7 @@ fn startup_call(
 }
 
 fn discard_through_boundary(
-    events: &Receiver<TdJsonEvent>,
+    events: &crate::transport::EventReceiver,
     boundary: u64,
     deadline: Instant,
 ) -> Result<(), RuntimeError> {

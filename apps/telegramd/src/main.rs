@@ -12,7 +12,9 @@ use telegram_core::idempotency::IdempotencyJournal;
 pub mod authorization;
 mod chat_inputs;
 pub mod config;
+mod discovery;
 pub mod identity;
+mod ipc;
 pub mod lease;
 pub mod lifecycle;
 pub mod ownership;
@@ -43,6 +45,27 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), Box<dyn Error>> {
+    if env::args_os().skip(1).eq(["--discover"]) {
+        use std::io::Read;
+        let mut bytes = zeroize::Zeroizing::new(Vec::new());
+        io::stdin().take(16 * 1024 + 1).read_to_end(&mut bytes)?;
+        if bytes.len() > 16 * 1024 {
+            return Err(io::Error::other("discovery input too large").into());
+        }
+        let request = serde_json::from_slice(&bytes)
+            .map_err(|_| io::Error::other("invalid discovery request"))?;
+        serde_json::to_writer(io::stdout().lock(), &discovery::respond(request, None))?;
+        return Ok(());
+    }
+    let args = env::args_os().skip(1).collect::<Vec<_>>();
+    if args.len() == 2 && args[0] == "--check-native" {
+        config::check_native(std::path::Path::new(&args[1]))?;
+        return Ok(());
+    }
+    if env::args_os().len() != 1 {
+        return Err(io::Error::other("usage: telegramd [--discover | --check-native PATH]").into());
+    }
+
     let (profile, database_directory) = profile_config()?;
     let ownership = ProfileDatabaseLock::acquire(profile, database_directory)?;
     let config = DaemonConfig::from_environment(&ownership)?;
@@ -136,9 +159,9 @@ fn profile_config() -> Result<(String, PathBuf), io::Error> {
     let profile = env::var("TELEGRAM_PROFILE");
     let database_directory = env::var_os("TDLIB_DATABASE_DIR");
     match (profile, database_directory) {
-        (Err(env::VarError::NotPresent), None) => {
-            Err(io::Error::other("runtime ещё не реализован"))
-        }
+        (Err(env::VarError::NotPresent), None) => Err(io::Error::other(
+            "profile is not configured; run telegram-cli setup",
+        )),
         (Ok(profile), Some(database_directory)) => Ok((profile, PathBuf::from(database_directory))),
         (Err(env::VarError::NotPresent), Some(database_directory)) => {
             Ok(("default".to_owned(), PathBuf::from(database_directory)))

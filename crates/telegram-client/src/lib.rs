@@ -31,7 +31,7 @@ impl ExchangeOptions {
         Self {
             io_timeout,
             response_framing,
-            connect_error: ClientErrorCode::TransportFailed,
+            connect_error: ClientErrorCode::SocketUnavailable,
         }
     }
 
@@ -45,7 +45,12 @@ pub fn exchange(profile: &str, request: &DaemonRequest) -> Result<DaemonResponse
     exchange_with_options(
         profile,
         request,
-        ExchangeOptions::new(DEFAULT_IO_TIMEOUT, ResponseFraming::Line),
+        ExchangeOptions::new(
+            DEFAULT_IO_TIMEOUT,
+            ResponseFraming::BoundedLine {
+                max_bytes: 16 * 1024 * 1024,
+            },
+        ),
     )
 }
 
@@ -61,13 +66,13 @@ pub fn exchange_with_options(
         .set_read_timeout(Some(options.io_timeout))
         .and_then(|_| stream.set_write_timeout(Some(options.io_timeout)))
         .map_err(|_| ClientErrorCode::TransportFailed)?;
-    serde_json::to_writer(&mut stream, request).map_err(|_| ClientErrorCode::TransportFailed)?;
+    serde_json::to_writer(&mut stream, request).map_err(|_| ClientErrorCode::ResponseLost)?;
     stream
         .write_all(b"\n")
         .and_then(|_| stream.flush())
-        .map_err(|_| ClientErrorCode::TransportFailed)?;
+        .map_err(|_| ClientErrorCode::ResponseLost)?;
 
-    read_response(stream, options.response_framing)
+    read_response(stream, options.response_framing).map_err(|_| ClientErrorCode::ResponseLost)
 }
 
 pub fn socket_path(profile: &str) -> Result<PathBuf, ClientErrorCode> {
@@ -78,6 +83,16 @@ pub fn socket_path(profile: &str) -> Result<PathBuf, ClientErrorCode> {
         "/tmp/telegramd-{}/{profile}.sock",
         effective_uid()
     )))
+}
+
+/// Connect-only liveness probe; never sends or replays an operation.
+pub fn daemon_reachable(profile: &str) -> Result<bool, ClientErrorCode> {
+    let path = socket_path(profile)?;
+    match validate_socket(&path) {
+        Ok(()) => Ok(UnixStream::connect(path).is_ok()),
+        Err(ClientErrorCode::SocketUnavailable) => Ok(false),
+        Err(error) => Err(error),
+    }
 }
 
 pub fn validate_socket(path: &Path) -> Result<(), ClientErrorCode> {
@@ -100,6 +115,8 @@ pub fn validate_socket(path: &Path) -> Result<(), ClientErrorCode> {
 
 pub fn valid_name(value: &str) -> bool {
     !value.is_empty()
+        && value != "."
+        && value != ".."
         && value.len() <= 48
         && value
             .bytes()
@@ -237,7 +254,7 @@ mod tests {
                     },
                 ),
             ),
-            Err(ClientErrorCode::InvalidResponse)
+            Err(ClientErrorCode::ResponseLost)
         );
         server.join().unwrap();
         fs::remove_file(path).unwrap();

@@ -1,5 +1,11 @@
 # Пошаговая авторизация Telegram CLI
 
+
+> Установленная версия: `telegram-cli setup` один раз в терминале владельца, затем
+> `telegram-cli --agent login` / `telegram-cli --agent run ...`. Daemon запускается
+> автоматически из сохранённого профиля. Установка, skill и быстрый старт — в
+> [README](../README.md). Ниже сохранён также development flow через `.env.local`.
+
 [English version](authorization-guide.en.md) · [Руководство пользователя](user-guide.ru.md)
 
 ## Граница безопасности

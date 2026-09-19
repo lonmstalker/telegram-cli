@@ -536,6 +536,8 @@ pub enum EventKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CommandErrorCode {
+    /// The operation may have completed but its receipt exceeded IPC capacity. Do not replay it.
+    ResponseTooLarge,
     SchemaNotFound,
     RuntimeUnavailable,
     InvalidTdjson,
@@ -582,6 +584,11 @@ pub enum LeaseErrorCode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClientErrorCode {
+    /// A request was dispatched but no trustworthy response was received.
+    ResponseLost,
+    ProfileNotConfigured,
+    InvalidConfiguration,
+    DaemonStartFailed,
     InvalidArguments,
     InvalidJson,
     InvalidOutputFormat,

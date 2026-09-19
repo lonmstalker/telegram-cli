@@ -520,6 +520,7 @@ fn transport_error_code(error: TransportError) -> CommandErrorCode {
         TransportError::ResponseTimeout
         | TransportError::Backend(_)
         | TransportError::InvalidTdJsonResponse
+        | TransportError::Overloaded
         | TransportError::TransportStopped => CommandErrorCode::TdlibTransport,
         TransportError::RequestMustBeObject
         | TransportError::ReservedExtra

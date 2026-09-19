@@ -33,3 +33,11 @@ Event receiver один: `CoreRuntime` является его consumer, при�
 - Deadline и explicit cancellation проверяют удаление pending correlation; late response не переиспользуется.
 - Updates и unmatched response проверяются в exact receive order; malformed JSON проверяет fail-closed pending behavior.
 - Ignored native tests с `TDJSON_LIBRARY_PATH` запускаются отдельно на pinned artifact и подтверждают handshake/current state, secret-output canary, wrong/missing-key fail-closed и returning-session live path.
+
+## Перегрузка (2026-09-19)
+
+Commands и pending requests ограничены 1024, events — 1024 и 16 MiB
+сериализованного JSON. Producer использует `try_send`: переполнение event queue
+закрывает transport, pending calls получают ошибку, runtime propagates disconnect, daemon завершается; следующий CLI запускает новый daemon с сохранённой DB. Resync по закрытому transport невозможен.
+Блокирующий send в event queue запрещён: caller может ждать response boundary.
+Один raw frame также ограничен 16 MiB.

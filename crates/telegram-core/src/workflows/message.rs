@@ -388,7 +388,7 @@ fn message_values<'response>(
 }
 
 fn validate_page_options(options: PageOptions) -> Result<(), ChatWorkflowError> {
-    if options.count == 0 || !(1..=100).contains(&options.page_limit) {
+    if !(1..=1000).contains(&options.count) || !(1..=100).contains(&options.page_limit) {
         return Err(ChatWorkflowError::InvalidPageOptions);
     }
     Ok(())
@@ -407,5 +407,29 @@ pub(super) fn message_page(
         boundary,
         content_redacted: false,
         complete: boundary != PageBoundary::NoProgress,
+    }
+}
+
+#[cfg(test)]
+mod page_limit_tests {
+    use super::*;
+    #[test]
+    fn history_rejects_unbounded_result_requests() {
+        assert!(
+            validate_page_options(PageOptions {
+                count: 1001,
+                min_date: None,
+                page_limit: 100
+            })
+            .is_err()
+        );
+        assert!(
+            validate_page_options(PageOptions {
+                count: 1000,
+                min_date: None,
+                page_limit: 100
+            })
+            .is_ok()
+        );
     }
 }

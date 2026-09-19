@@ -17,7 +17,9 @@ use telegram_protocol::{
 };
 use zeroize::{Zeroize, Zeroizing};
 
+mod agent;
 mod login;
+mod profile;
 
 const DEFAULT_TTL_MS: u64 = 60_000;
 const EXIT_INPUT: u8 = 2;
@@ -29,40 +31,70 @@ const WATCH_POLL_INTERVAL: Duration = Duration::from_millis(200);
 static RECEIVED_SIGNAL: AtomicI32 = AtomicI32::new(0);
 
 fn main() -> ExitCode {
-    execute(env::args().skip(1).collect())
+    match env::args_os()
+        .skip(1)
+        .map(|arg| arg.into_string())
+        .collect::<Result<Vec<_>, _>>()
+    {
+        Ok(arguments) => execute(arguments),
+        Err(_) => finish_error(
+            OutputFormat::Json,
+            CliError::new(ClientErrorCode::InvalidArguments),
+        ),
+    }
 }
 
 fn execute(arguments: Vec<String>) -> ExitCode {
-    let default_output = match env::var("TELEGRAM_OUTPUT") {
-        Ok(value) => match OutputFormat::parse(&value) {
-            Ok(format) => format,
-            Err(error) => return finish_error(OutputFormat::Human, error),
-        },
-        Err(env::VarError::NotPresent) => OutputFormat::Human,
-        Err(env::VarError::NotUnicode(_)) => {
-            return finish_error(
-                OutputFormat::Human,
-                CliError::new(ClientErrorCode::InvalidOutputFormat),
-            );
-        }
-    };
-    let (format, arguments) = match split_output(arguments, default_output) {
+    let invocation = match agent::invocation(arguments, OutputFormat::Human) {
         Ok(invocation) => invocation,
-        Err(error) => return finish_error(default_output, error),
+        Err(error) => return finish_error(OutputFormat::Json, error),
     };
-    match run(arguments, format) {
+    let format = invocation.format;
+    match run(invocation) {
         Ok(exit) => exit,
         Err(error) => finish_error(format, error),
     }
 }
 
-fn run(arguments: Vec<String>, format: OutputFormat) -> Result<ExitCode, CliError> {
-    let profile = env::var("TELEGRAM_PROFILE").unwrap_or_else(|_| "default".to_owned());
-    let principal = env::var("TELEGRAM_PRINCIPAL").unwrap_or_else(|_| "telegram-cli".to_owned());
+fn run(invocation: agent::Invocation) -> Result<ExitCode, CliError> {
+    let agent::Invocation {
+        arguments,
+        format,
+        profile,
+        principal,
+        agent,
+        scopes,
+    } = invocation;
+    if let Some(exit) = agent::local(&arguments, format, &profile, agent)? {
+        return Ok(exit);
+    }
+    if agent
+        && (arguments.first().is_some_and(|arg| arg == "setup")
+            || (arguments.first().is_some_and(|arg| arg == "login")
+                && arguments.get(1).is_some_and(|arg| arg == "tty")))
+    {
+        return Err(CliError::new(ClientErrorCode::InvalidArguments));
+    }
+    if arguments == ["setup"] || arguments == ["setup", "--import-env"] {
+        if format != OutputFormat::Human {
+            return Err(CliError::new(ClientErrorCode::InvalidArguments));
+        }
+        profile::setup(&profile, arguments.len() == 2)?;
+        profile::ensure_started(&profile)?;
+        return login_tty(&profile, format, None);
+    }
+    if arguments
+        .first()
+        .is_some_and(|arg| arg == "run" || arg == "call")
+    {
+        return agent::automatic(&arguments, format, &profile, principal, &scopes);
+    }
     if interactive_login(&arguments, format) {
+        profile::ensure_started(&profile)?;
         return login_tty(&profile, format, None);
     }
     if arguments == ["login", "tty"] {
+        profile::ensure_started(&profile)?;
         return login_tty(&profile, format, None);
     }
     if let [login, tty, challenge_id] = arguments.as_slice()
@@ -72,26 +104,33 @@ fn run(arguments: Vec<String>, format: OutputFormat) -> Result<ExitCode, CliErro
         let challenge_id = challenge_id
             .parse()
             .map_err(|_| CliError::new(ClientErrorCode::InvalidArguments))?;
+        profile::ensure_started(&profile)?;
         return login_tty(&profile, format, Some(challenge_id));
     }
     let request = command(&arguments, principal)?;
-    if format != OutputFormat::Json {
-        if let DaemonRequest::EventsWatch {
+    if agent::is_discovery(&request) {
+        let response = agent::discover(&request)?;
+        write_response(format, &response)
+            .map_err(|_| CliError::new(ClientErrorCode::OutputFailed))?;
+        return Ok(response_exit(&response));
+    }
+    profile::ensure_started(&profile)?;
+    if format != OutputFormat::Json
+        && let DaemonRequest::EventsWatch {
             lease_id,
             principal,
             after,
         } = request
-        {
-            install_signal_handlers()?;
-            return stream_events(
-                &profile,
-                lease_id,
-                principal,
-                after,
-                |response| write_response(format, response),
-                || RECEIVED_SIGNAL.load(Ordering::Relaxed) != 0,
-            );
-        }
+    {
+        install_signal_handlers()?;
+        return stream_events(
+            &profile,
+            lease_id,
+            principal,
+            after,
+            |response| write_response(format, response),
+            || RECEIVED_SIGNAL.load(Ordering::Relaxed) != 0,
+        );
     }
     let response = exchange(&profile, &request)?;
     let exit = response_exit(&response);
@@ -584,7 +623,19 @@ fn release_watch(profile: &str, lease_id: &LeaseId, principal: &str) -> Result<(
 }
 
 fn parse_json(value: &str) -> Result<serde_json::Value, CliError> {
-    serde_json::from_str(value).map_err(|_| CliError::new(ClientErrorCode::InvalidJson))
+    if value == "-" {
+        let mut bytes = Zeroizing::new(Vec::new());
+        io::stdin()
+            .take(16 * 1024 + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|_| CliError::new(ClientErrorCode::InvalidJson))?;
+        if bytes.len() > 16 * 1024 {
+            return Err(CliError::new(ClientErrorCode::InvalidJson));
+        }
+        serde_json::from_slice(&bytes).map_err(|_| CliError::new(ClientErrorCode::InvalidJson))
+    } else {
+        serde_json::from_str(value).map_err(|_| CliError::new(ClientErrorCode::InvalidJson))
+    }
 }
 
 fn parse_approval(value: &str) -> Result<PlanApproval, CliError> {
@@ -609,22 +660,6 @@ impl OutputFormat {
     }
 }
 
-fn split_output(
-    mut arguments: Vec<String>,
-    default: OutputFormat,
-) -> Result<(OutputFormat, Vec<String>), CliError> {
-    if arguments.first().is_some_and(|value| value == "--output") {
-        if arguments.len() < 2 {
-            return Err(CliError::new(ClientErrorCode::InvalidOutputFormat));
-        }
-        let format = OutputFormat::parse(&arguments[1])?;
-        arguments.drain(..2);
-        Ok((format, arguments))
-    } else {
-        Ok((default, arguments))
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct CliError {
     code: ClientErrorCode,
@@ -641,10 +676,15 @@ impl CliError {
             | ClientErrorCode::InvalidJson
             | ClientErrorCode::InvalidOutputFormat
             | ClientErrorCode::InvalidProfile => EXIT_INPUT,
-            ClientErrorCode::SocketUnavailable
+            ClientErrorCode::ProfileNotConfigured
+            | ClientErrorCode::InvalidConfiguration
+            | ClientErrorCode::DaemonStartFailed
+            | ClientErrorCode::SocketUnavailable
             | ClientErrorCode::UnsafeSocket
             | ClientErrorCode::TransportFailed => EXIT_UNAVAILABLE,
-            ClientErrorCode::InvalidResponse | ClientErrorCode::OutputFailed => EXIT_PROTOCOL,
+            ClientErrorCode::ResponseLost
+            | ClientErrorCode::InvalidResponse
+            | ClientErrorCode::OutputFailed => EXIT_PROTOCOL,
             ClientErrorCode::Cancelled => EXIT_CANCELLED,
             ClientErrorCode::SecureTtyUnavailable | ClientErrorCode::SecureTtyFailed => {
                 EXIT_UNAVAILABLE
@@ -654,6 +694,15 @@ impl CliError {
 
     const fn message(self) -> &'static str {
         match self.code {
+            ClientErrorCode::ProfileNotConfigured => {
+                "профиль не настроен; выполните telegram-cli setup в терминале владельца"
+            }
+            ClientErrorCode::InvalidConfiguration => {
+                "неверная конфигурация или права доступа; telegram-cli doctor"
+            }
+            ClientErrorCode::DaemonStartFailed => {
+                "daemon не запустился; проверьте pinned TDLib и конфигурацию через telegram-cli doctor"
+            }
             ClientErrorCode::InvalidArguments => {
                 "usage: telegram-cli session ... | login [tty [challenge_id]] | schema ... | td preview <json> | td call <lease_id> <json> [approval_json] | workflow list|describe|run ... | events watch ..."
             }
@@ -663,6 +712,9 @@ impl CliError {
             ClientErrorCode::SocketUnavailable => "daemon socket недоступен",
             ClientErrorCode::UnsafeSocket => "daemon socket не прошёл проверку безопасности",
             ClientErrorCode::TransportFailed => "обмен с daemon не выполнен",
+            ClientErrorCode::ResponseLost => {
+                "ответ после отправки запроса потерян; операция могла выполниться, не повторяйте её вслепую"
+            }
             ClientErrorCode::InvalidResponse => "daemon вернул неверный protocol response",
             ClientErrorCode::OutputFailed => "не удалось записать output",
             ClientErrorCode::Cancelled => "операция отменена",
@@ -1169,7 +1221,7 @@ mod tests {
 
     #[test]
     fn output_selection_and_human_digest_are_bounded() {
-        let (format, command) = split_output(
+        let invocation = agent::invocation(
             vec![
                 "--output".to_owned(),
                 "jsonl".to_owned(),
@@ -1178,8 +1230,8 @@ mod tests {
             OutputFormat::Human,
         )
         .unwrap();
-        assert_eq!(format, OutputFormat::Jsonl);
-        assert_eq!(command, vec!["status"]);
+        assert_eq!(invocation.format, OutputFormat::Jsonl);
+        assert_eq!(invocation.arguments, vec!["status"]);
         assert_eq!(
             CliError::new(ClientErrorCode::UnsafeSocket).exit_code(),
             EXIT_UNAVAILABLE

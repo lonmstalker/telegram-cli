@@ -1,10 +1,16 @@
 # Telegram CLI User Guide
 
+
+> Installed CLI: run `telegram-cli setup` once in the owner's terminal, then
+> `telegram-cli --agent login` / `telegram-cli --agent run ...`. The saved profile
+> starts the daemon automatically. See [README](../README.md) for installation and
+> skill setup. The development `.env.local` flow below remains supported.
+
 [Русская версия](user-guide.ru.md) · [Step-by-step authorization](authorization-guide.en.md)
 
 ## Guide status
 
-This guide covers running from a source checkout. Packaged installation, systemd/launchd integration, and upgrades belong to P9 and are not yet claimed as complete. First authorization with phone/OTP/2FA and restarting the same encrypted profile have been verified live; the remaining P10 scenarios are not complete yet.
+This guide covers running from a source checkout. Local source/bundle installation and saved-profile lazy startup are available. systemd/launchd integration and verified upgrades remain in P9. First authorization with phone/OTP/2FA and restarting the same encrypted profile have been verified live; the remaining P10 scenarios are not complete yet.
 
 ## What runs
 

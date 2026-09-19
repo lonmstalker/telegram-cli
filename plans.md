@@ -31,7 +31,7 @@ source_of_truth: true
 - Существующая зашифрованная TDLib-сессия свежим live-gate достигла Ready, прошла `getMe` и штатно закрылась без нового login input; database key поступил через protected loader.
 - Источник reusable решений: `tg-analytics/crates/telegram-tdlib` и `telegram-agent-gateway`; evidence-backed disposition закреплён в `docs/tg-analytics-reuse.md`, без копирования analytics-оркестрации.
 
-Не сделано: runtime P2–P10. Product binaries — fail-closed заглушки.
+Этот baseline исторический. Актуальные статусы реализации приведены в таблице фаз ниже; CLI/core/daemon реализованы.
 
 ## Правила работы
 
@@ -292,6 +292,9 @@ Decision gate: начинать только после acceptance P0–P7.
 ### Tasks
 
 - [x] Reproducible pinned TDLib builds для обоих targets.
+- [x] Local source/bundle installer, owner-only saved profile/setup, lazy daemon start, agent run/call и portable skill install.
+- [x] Offline discovery, bounded IPC/update retention и serial fast/verify/release harness.
+- [ ] Опубликовать подписанные/проверяемые release bundles и проверить установку на свежем Linux host.
 - [ ] launchd/systemd socket activation, persistent DB, keychain/file-secret integration.
 - [ ] Backup только после Closed; restore, schema upgrade, rollback на копии DB.
 - [ ] Server deployment без публичного unauthenticated port.

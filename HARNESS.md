@@ -99,3 +99,10 @@ Bot-only, Premium/Business, admin-gated, financial и official-app-only мето
 Для TDLib-фич дополнительно обязательны: `Request Graph`, `Completion Proof`, `Cache and Update Semantics`, `Retry and Reconciliation`, `CLI/MCP Exposure`, `Permissions and Account Capabilities`, `Live Verification Boundary`. Сгенерированные списки method/update/type не редактируются вручную.
 
 Первичные файлы имеют `Mode: draft`, пока generated API manifest, implementation contracts и live evidence не закрыли `source_gap`.
+
+## Developer entry point
+
+`python3 scripts/check.py fast|verify|build|release` запускает serial offline проверки
+или Rust-only сборку. `verify` включает `scripts/test-agent-cli.py`: fake daemon
+проверяет cold discovery, protected setup, session reuse/restart, no replay после
+потери ответа и lease cleanup; реальный Telegram не вызывается.

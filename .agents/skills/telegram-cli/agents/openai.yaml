@@ -1,4 +1,4 @@
 interface:
   display_name: "Telegram CLI"
   short_description: "Безопасные Telegram workflows и TDLib discovery"
-  default_prompt: "Используй $telegram-cli: возьми минимальный lease, найди workflow или schema on demand, следуй structured next_action и обязательно освободи lease."
+  default_prompt: "Используй $telegram-cli: проверь профиль и вход через --agent, найди workflow on demand, выполни run с минимальными scopes и проверь structured completion."

@@ -83,6 +83,11 @@
 
 ## Current records
 
+- 2026-09-19: local installer, saved owner profile, lazy daemon, agent run/call и offline
+  discovery доступны; [README](../../README.md) — quick start,
+  [review/verification](../../docs/reviews/2026-09-19-agent-onboarding.md) — evidence.
+  См. D-20260919-001/002, P-20260919-001/002, W-20260919-001.
+
 - CHAT-006 принят live: `inspect_chat(open=true)` под минимальным `read,presence` вернул complete
   только после paired cleanup ACK. Timeout ответа open получает один compensating close, а
   cleanup имеет отдельное bounded окно без blind retry; см.

@@ -235,13 +235,13 @@ fn validate_fields(
         });
     }
     for field in descriptor.fields {
-        if let Some(value) = object.get(field.name) {
-            if !validate_value(field.ty, value) {
-                return Err(ValidationError::InvalidField {
-                    symbol: descriptor.name,
-                    field: field.name,
-                });
-            }
+        if let Some(value) = object.get(field.name)
+            && !validate_value(field.ty, value)
+        {
+            return Err(ValidationError::InvalidField {
+                symbol: descriptor.name,
+                field: field.name,
+            });
         }
     }
     Ok(())

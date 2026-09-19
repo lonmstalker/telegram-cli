@@ -3,8 +3,12 @@
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::fs;
-use std::io::{self, BufRead, BufReader, Read, Write};
-use std::os::unix::net::{UnixListener, UnixStream};
+use std::io;
+#[cfg(test)]
+use std::io::{BufRead, BufReader, Write};
+use std::os::unix::net::UnixListener;
+#[cfg(test)]
+use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -16,12 +20,10 @@ use telegram_core::authorization::AuthorizationError;
 use telegram_core::idempotency::{
     BeginDecision, IdempotencyJournal, OperationFingerprint, OperationState,
 };
-use telegram_core::raw_api::{
-    self, PolicyError, RawApiError, SchemaDescription, SchemaSearchResult,
-};
+use telegram_core::raw_api::{self, PolicyError, RawApiError};
 use telegram_core::reducer::{AppliedUpdate, CachedUpdateKind};
 use telegram_core::registry::{
-    self, AccountKind, CapabilityDisposition, RetryClass, RiskClass, SymbolKind, ValidatedRequest,
+    self, AccountKind, CapabilityDisposition, RetryClass, RiskClass, ValidatedRequest,
 };
 use telegram_core::runtime::CoreRuntime;
 use telegram_core::workflows::{
@@ -31,8 +33,8 @@ use telegram_core::workflows::{
     WebAppMode, WebAppRequest,
 };
 use telegram_protocol::{
-    CommandErrorCode, DaemonRequest, DaemonResponse, EventKind, EventRecord, LeaseErrorCode,
-    PlanApproval, ProtectedString,
+    CommandErrorCode, DaemonRequest, DaemonResponse, EventKind, EventRecord, PlanApproval,
+    ProtectedString,
 };
 use zeroize::Zeroizing;
 
@@ -46,10 +48,10 @@ use crate::scheduler::{
     AccountScheduler, FloodScope, OperationClass, OperationContext, OperationPermit,
 };
 use crate::telemetry::{AuditEvent, AuditLog, OperationOutcome, Telemetry};
-use crate::workflow_catalog::{WORKFLOWS, is_journaled_workflow, workflow as workflow_by_name};
+#[cfg(test)]
+use crate::workflow_catalog::WORKFLOWS;
+use crate::workflow_catalog::{is_journaled_workflow, workflow as workflow_by_name};
 
-const MAX_REQUEST_BYTES: u64 = 16 * 1024;
-const CLIENT_IO_TIMEOUT: Duration = Duration::from_secs(5);
 const CALL_TIMEOUT: Duration = Duration::from_secs(30);
 const EVENT_BUFFER_CAPACITY: usize = 1024;
 const WEB_APP_ARTIFACT_TTL: Duration = Duration::from_secs(60);
@@ -122,6 +124,7 @@ impl WebAppArtifactStore {
 }
 
 pub struct LeaseServer {
+    inbox: crate::ipc::Inbox,
     leases: LeaseManager,
     scheduler: AccountScheduler,
     telemetry: Telemetry,
@@ -144,6 +147,7 @@ impl LeaseServer {
         authorization: AuthorizationCoordinator,
     ) -> Self {
         Self {
+            inbox: crate::ipc::Inbox::default(),
             leases,
             scheduler,
             telemetry,
@@ -216,20 +220,12 @@ impl LeaseServer {
     ) -> Result<(), ServerError> {
         self.leases.expire(now);
         self.web_app_artifacts.expire(now);
-        loop {
-            match self.serve_once(listener, Some(&mut *runtime)) {
-                Ok(()) => {}
-                Err(ServerError::Accept(io::ErrorKind::WouldBlock)) => return Ok(()),
-                Err(error @ ServerError::Accept(_)) => return Err(error),
-                Err(ServerError::ClientIo(_) | ServerError::SerializeResponse) => {}
-                Err(
-                    error
-                    @ (ServerError::MissingAuthorizationState | ServerError::Authorization(_)),
-                ) => {
-                    return Err(error);
-                }
-            }
-        }
+        let mut inbox = std::mem::take(&mut self.inbox);
+        let result = inbox.poll(listener, |request| {
+            self.handle(request, Some(&mut *runtime), Instant::now())
+        });
+        self.inbox = inbox;
+        result.map_err(|error| ServerError::Accept(error.kind()))
     }
 
     pub fn active_leases(&self) -> usize {
@@ -323,67 +319,6 @@ impl LeaseServer {
         self.telemetry.record_request(latency, outcome);
     }
 
-    fn serve_once(
-        &mut self,
-        listener: &UnixListener,
-        runtime: Option<&mut CoreRuntime>,
-    ) -> Result<(), ServerError> {
-        let (stream, _) = listener
-            .accept()
-            .map_err(|error| ServerError::Accept(error.kind()))?;
-        stream
-            .set_nonblocking(false)
-            .map_err(|error| ServerError::ClientIo(error.kind()))?;
-        self.serve_connection(stream, runtime)
-    }
-
-    fn serve_connection(
-        &mut self,
-        mut stream: UnixStream,
-        runtime: Option<&mut CoreRuntime>,
-    ) -> Result<(), ServerError> {
-        stream
-            .set_read_timeout(Some(CLIENT_IO_TIMEOUT))
-            .map_err(|error| ServerError::ClientIo(error.kind()))?;
-        stream
-            .set_write_timeout(Some(CLIENT_IO_TIMEOUT))
-            .map_err(|error| ServerError::ClientIo(error.kind()))?;
-        let mut bytes = Zeroizing::new(Vec::new());
-        {
-            let reader = BufReader::new(&mut stream);
-            let mut limited = reader.take(MAX_REQUEST_BYTES + 1);
-            limited
-                .read_until(b'\n', &mut bytes)
-                .map_err(|error| ServerError::ClientIo(error.kind()))?;
-        }
-        let response = if bytes.is_empty()
-            || bytes.len() as u64 > MAX_REQUEST_BYTES
-            || !bytes.ends_with(b"\n")
-        {
-            DaemonResponse::Error {
-                code: LeaseErrorCode::InvalidRequest,
-            }
-        } else {
-            bytes.pop();
-            if bytes.ends_with(b"\r") {
-                bytes.pop();
-            }
-            let request = serde_json::from_slice(&bytes);
-            match request {
-                Ok(request) => self.handle(request, runtime, Instant::now()),
-                Err(_) => DaemonResponse::Error {
-                    code: LeaseErrorCode::InvalidRequest,
-                },
-            }
-        };
-        serde_json::to_writer(&mut stream, &response)
-            .map_err(|_| ServerError::SerializeResponse)?;
-        stream
-            .write_all(b"\n")
-            .and_then(|_| stream.flush())
-            .map_err(|error| ServerError::ClientIo(error.kind()))
-    }
-
     fn handle(
         &mut self,
         request: DaemonRequest,
@@ -425,36 +360,15 @@ impl LeaseServer {
             DaemonRequest::LoginCodeResend { challenge_id } => {
                 self.authorization.resend_code(runtime, &challenge_id, now)
             }
-            DaemonRequest::SchemaVersion => runtime.map_or_else(runtime_unavailable, |runtime| {
-                DaemonResponse::SchemaVersion {
-                    version: serde_json::to_value(raw_api::version(runtime))
-                        .expect("version descriptor is serializable"),
-                }
-            }),
-            DaemonRequest::SchemaCapabilities => DaemonResponse::SchemaCapabilities {
-                capabilities: serde_json::to_value(raw_api::capabilities())
-                    .expect("capability descriptors are serializable"),
-            },
-            DaemonRequest::SchemaSearch { query } => DaemonResponse::SchemaSearchResults {
-                results: Value::Array(
-                    raw_api::schema_search(&query)
-                        .into_iter()
-                        .map(search_result)
-                        .collect(),
-                ),
-            },
-            DaemonRequest::SchemaDescribe { name } => raw_api::schema_describe(&name).map_or_else(
-                || DaemonResponse::CommandError {
-                    code: CommandErrorCode::SchemaNotFound,
-                },
-                |description| DaemonResponse::SchemaDescription {
-                    description: describe(description),
-                },
-            ),
-            DaemonRequest::TdPreview { request } => match plan_preview(request) {
-                Ok(preview) => DaemonResponse::TdPlanPreview { preview },
-                Err(code) => DaemonResponse::CommandError { code },
-            },
+            request @ (DaemonRequest::SchemaVersion
+            | DaemonRequest::SchemaCapabilities
+            | DaemonRequest::SchemaSearch { .. }
+            | DaemonRequest::SchemaDescribe { .. }
+            | DaemonRequest::TdPreview { .. }
+            | DaemonRequest::WorkflowList
+            | DaemonRequest::WorkflowDescribe { .. }) => {
+                crate::discovery::respond(request, runtime.as_deref())
+            }
             DaemonRequest::TdCall {
                 lease_id,
                 principal,
@@ -574,22 +488,6 @@ impl LeaseServer {
                     },
                 }
             }
-            DaemonRequest::WorkflowList => DaemonResponse::WorkflowList {
-                workflows: WORKFLOWS
-                    .iter()
-                    .map(|entry| entry.name.to_owned())
-                    .collect(),
-            },
-            DaemonRequest::WorkflowDescribe { workflow } => match workflow_input_example(&workflow)
-            {
-                Some(input_example) => DaemonResponse::WorkflowDescription {
-                    workflow,
-                    input_example,
-                },
-                None => DaemonResponse::CommandError {
-                    code: CommandErrorCode::WorkflowNotFound,
-                },
-            },
             DaemonRequest::WorkflowRun {
                 lease_id,
                 principal,
@@ -734,7 +632,7 @@ impl LeaseServer {
     }
 }
 
-fn workflow_input_example(name: &str) -> Option<Value> {
+pub(crate) fn workflow_input_example(name: &str) -> Option<Value> {
     let input_example = workflow_by_name(name)?.input_example;
     Some(serde_json::from_str(input_example).expect("workflow input example is valid JSON"))
 }
@@ -1399,7 +1297,7 @@ fn parse<T: DeserializeOwned>(input: Value) -> Result<T, WorkflowDispatchError> 
     serde_json::from_value(input).map_err(|_| WorkflowDispatchError::InvalidInput)
 }
 
-fn plan_preview(request: Value) -> Result<Value, CommandErrorCode> {
+pub(crate) fn plan_preview(request: Value) -> Result<Value, CommandErrorCode> {
     let request =
         ValidatedRequest::from_value(request).map_err(|_| CommandErrorCode::InvalidTdjson)?;
     let preview =
@@ -2094,38 +1992,6 @@ fn runtime_unavailable() -> DaemonResponse {
     }
 }
 
-fn search_result(result: SchemaSearchResult) -> Value {
-    match result {
-        SchemaSearchResult::Symbol(symbol) => json!({
-            "kind": symbol_kind(symbol.kind),
-            "name": symbol.name,
-            "result": symbol.result.name,
-        }),
-        SchemaSearchResult::Type(name) => json!({"kind": "type", "name": name}),
-    }
-}
-
-fn describe(description: SchemaDescription) -> Value {
-    match description {
-        SchemaDescription::Symbol(symbol) => {
-            serde_json::to_value(symbol).expect("symbol descriptor is serializable")
-        }
-        SchemaDescription::Type { name, constructors } => json!({
-            "kind": "type",
-            "name": name,
-            "constructors": constructors,
-        }),
-    }
-}
-
-fn symbol_kind(kind: SymbolKind) -> &'static str {
-    match kind {
-        SymbolKind::Builtin => "builtin",
-        SymbolKind::Constructor => "constructor",
-        SymbolKind::Method => "method",
-    }
-}
-
 fn raw_error(error: RawApiError) -> CommandErrorCode {
     match error {
         RawApiError::Validation(_) => CommandErrorCode::InvalidTdjson,
@@ -2298,11 +2164,9 @@ mod tests {
                     && preview["risk"] == "admin"
                     && preview["plan_hash"].as_str().is_some_and(|hash| hash.len() == 64)
         ));
-        assert_eq!(
-            exchange(&mut server, &socket, DaemonRequest::SchemaVersion),
-            DaemonResponse::CommandError {
-                code: CommandErrorCode::RuntimeUnavailable,
-            }
+        assert!(
+            matches!(exchange(&mut server, &socket, DaemonRequest::SchemaVersion),
+            DaemonResponse::SchemaVersion { version } if version["runtime_verified"] == false)
         );
         let DaemonResponse::WorkflowList { workflows } =
             exchange(&mut server, &socket, DaemonRequest::WorkflowList)
@@ -2515,7 +2379,14 @@ mod tests {
         let mut client = UnixStream::connect(socket.path()).unwrap();
         serde_json::to_writer(&mut client, &request).unwrap();
         client.write_all(b"\n").unwrap();
-        server.serve_once(socket.listener(), None).unwrap();
+        let mut inbox = std::mem::take(&mut server.inbox);
+        inbox
+            .poll(socket.listener(), |request| {
+                server.handle(request, None, Instant::now())
+            })
+            .unwrap();
+        inbox.poll(socket.listener(), |_| unreachable!()).unwrap();
+        server.inbox = inbox;
         let mut response = String::new();
         BufReader::new(client).read_line(&mut response).unwrap();
         serde_json::from_str(&response).unwrap()

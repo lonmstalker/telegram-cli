@@ -145,14 +145,12 @@ impl StoryAction<'_> {
             active_period,
             ..
         } = self
-        {
-            if photo_file_id <= 0
+            && (photo_file_id <= 0
                 || caption.chars().count() > 1024
                 || !matches!(active_period, 21_600 | 43_200 | 86_400 | 172_800)
-                || !privacy.valid()
-            {
-                return Err(ChatWorkflowError::InvalidStoryMutation);
-            }
+                || !privacy.valid())
+        {
+            return Err(ChatWorkflowError::InvalidStoryMutation);
         }
         Ok(())
     }

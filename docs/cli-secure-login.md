@@ -70,7 +70,8 @@ Apple/Google token alternatives. Registration сначала показывае�
 
 ## Текущее ограничение parallel login
 
-`LoginSubmit` синхронно занимает single-thread daemon serve loop до 30 секунд (`AUTH_CALL_TIMEOUT`).
+IPC framing неблокирующий: неполный input или медленное чтение ответа не занимают serve loop.
+Сам `LoginSubmit` синхронно занимает single-thread daemon workflow loop до 30 секунд (`AUTH_CALL_TIMEOUT`).
 У CLI socket timeout 35 секунд, чтобы один owner client получил ответ с запасом на framing/transport.
 Этот запас корректен только при одном одновременном login client: второй клиент ждёт тот же serve
 loop и не получает отдельной гарантии 35 секунд. Parallel login не является поддержанным contract.

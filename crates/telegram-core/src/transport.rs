@@ -2,12 +2,17 @@
 
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, SyncSender, TryRecvError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
+
+const COMMAND_CAPACITY: usize = 1024;
+const EVENT_CAPACITY: usize = 1024;
+const EVENT_BYTES: usize = 16 * 1024 * 1024;
 
 const RECEIVE_POLL: Duration = Duration::from_millis(25);
 
@@ -45,6 +50,7 @@ pub enum TransportError {
     ReservedExtra,
     CorrelationExhausted,
     TransportStopped,
+    Overloaded,
     ResponseTimeout,
     Backend(String),
     InvalidTdJsonResponse,
@@ -61,6 +67,7 @@ impl fmt::Display for TransportError {
                 formatter.write_str("TDJSON correlation identifier space is exhausted")
             }
             Self::TransportStopped => formatter.write_str("TDJSON transport is stopped"),
+            Self::Overloaded => formatter.write_str("TDJSON request queue is full"),
             Self::ResponseTimeout => formatter.write_str("TDJSON response deadline exceeded"),
             Self::Backend(message) => write!(formatter, "TDJSON backend failed: {message}"),
             Self::InvalidTdJsonResponse => {
@@ -81,9 +88,63 @@ pub enum TdJsonEvent {
     Fatal(TransportError),
 }
 
+/// Ordered bounded events. Overflow disconnects the stream, forcing runtime failure and a daemon restart.
+pub struct EventReceiver {
+    receiver: Receiver<(TdJsonEvent, usize)>,
+    bytes: Arc<AtomicUsize>,
+}
+
+impl EventReceiver {
+    pub fn recv_timeout(&self, timeout: Duration) -> Result<TdJsonEvent, RecvTimeoutError> {
+        let (event, bytes) = self.receiver.recv_timeout(timeout)?;
+        self.bytes.fetch_sub(bytes, Ordering::Relaxed);
+        Ok(event)
+    }
+}
+
+struct EventSender {
+    sender: SyncSender<(TdJsonEvent, usize)>,
+    bytes: Arc<AtomicUsize>,
+}
+
+fn event_channel() -> (EventSender, EventReceiver) {
+    let (sender, receiver) = mpsc::sync_channel(EVENT_CAPACITY);
+    let bytes = Arc::new(AtomicUsize::new(0));
+    (
+        EventSender {
+            sender,
+            bytes: bytes.clone(),
+        },
+        EventReceiver { receiver, bytes },
+    )
+}
+
+impl EventSender {
+    fn send(&self, event: TdJsonEvent) -> Result<(), ()> {
+        let bytes = match &event {
+            TdJsonEvent::Update(value) => value.to_string().len(),
+            TdJsonEvent::UnmatchedResponse { extra, response } => {
+                extra.to_string().len() + response.to_string().len()
+            }
+            _ => 64,
+        };
+        self.bytes
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
+                used.checked_add(bytes)
+                    .filter(|total| *total <= EVENT_BYTES)
+            })
+            .map_err(|_| ())?;
+        if self.sender.try_send((event, bytes)).is_err() {
+            self.bytes.fetch_sub(bytes, Ordering::Relaxed);
+            return Err(());
+        }
+        Ok(())
+    }
+}
+
 pub struct PendingResponse {
     receiver: Receiver<Result<Value, TransportError>>,
-    commands: Sender<Command>,
+    commands: SyncSender<Command>,
     correlation_id: u64,
     finished: bool,
 }
@@ -120,11 +181,11 @@ impl PendingResponse {
     pub fn cancel(mut self) -> Result<(), TransportError> {
         let (acknowledgement, acknowledged) = mpsc::channel();
         self.commands
-            .send(Command::Cancel {
+            .try_send(Command::Cancel {
                 extra: self.correlation_id,
                 acknowledgement: Some(acknowledgement),
             })
-            .map_err(|_| TransportError::TransportStopped)?;
+            .map_err(command_queue_error)?;
         acknowledged
             .recv()
             .map_err(|_| TransportError::TransportStopped)?;
@@ -136,7 +197,7 @@ impl PendingResponse {
 impl Drop for PendingResponse {
     fn drop(&mut self) {
         if !self.finished {
-            let _ = self.commands.send(Command::Cancel {
+            let _ = self.commands.try_send(Command::Cancel {
                 extra: self.correlation_id,
                 acknowledgement: None,
             });
@@ -160,17 +221,15 @@ enum Command {
 /// Thread-safe request handle. Сам transport не `Clone`; для параллельных
 /// callers его можно разделять через `Arc`, сохраняя один backend/receive loop.
 pub struct TdJsonTransport {
-    commands: Sender<Command>,
+    commands: SyncSender<Command>,
     next_extra: AtomicU64,
     thread: Option<JoinHandle<()>>,
 }
 
 impl TdJsonTransport {
-    pub fn start<B: TdJsonBackend>(
-        backend: B,
-    ) -> Result<(Self, Receiver<TdJsonEvent>), TransportError> {
-        let (command_tx, command_rx) = mpsc::channel();
-        let (event_tx, event_rx) = mpsc::channel();
+    pub fn start<B: TdJsonBackend>(backend: B) -> Result<(Self, EventReceiver), TransportError> {
+        let (command_tx, command_rx) = mpsc::sync_channel(COMMAND_CAPACITY);
+        let (event_tx, event_rx) = event_channel();
         let thread = thread::Builder::new()
             .name("telegram-tdjson-receive".into())
             .spawn(move || receive_loop(backend, command_rx, event_tx))
@@ -198,12 +257,12 @@ impl TdJsonTransport {
             serde_json::to_string(&request).map_err(|_| TransportError::RequestMustBeObject)?;
         let (response_tx, response_rx) = mpsc::channel();
         self.commands
-            .send(Command::Request {
+            .try_send(Command::Request {
                 extra,
                 json,
                 response: response_tx,
             })
-            .map_err(|_| TransportError::TransportStopped)?;
+            .map_err(command_queue_error)?;
         Ok(PendingResponse {
             receiver: response_rx,
             commands: self.commands.clone(),
@@ -249,26 +308,37 @@ impl Drop for TdJsonTransport {
     }
 }
 
+fn command_queue_error<T>(error: mpsc::TrySendError<T>) -> TransportError {
+    match error {
+        mpsc::TrySendError::Full(_) => TransportError::Overloaded,
+        mpsc::TrySendError::Disconnected(_) => TransportError::TransportStopped,
+    }
+}
+
 fn receive_loop<B: TdJsonBackend>(
     mut backend: B,
     commands: Receiver<Command>,
-    events: Sender<TdJsonEvent>,
+    events: EventSender,
 ) {
     let mut pending = HashMap::<u64, Sender<Result<Value, TransportError>>>::new();
     loop {
         let mut shutdown = false;
-        loop {
+        for _ in 0..COMMAND_CAPACITY {
             match commands.try_recv() {
                 Ok(Command::Request {
                     extra,
                     json,
                     response,
                 }) => {
+                    if pending.len() >= COMMAND_CAPACITY {
+                        let _ = response.send(Err(TransportError::Overloaded));
+                        continue;
+                    }
                     pending.insert(extra, response);
-                    if let Err(error) = backend.send(&json) {
-                        if let Some(response) = pending.remove(&extra) {
-                            let _ = response.send(Err(TransportError::Backend(error.to_string())));
-                        }
+                    if let Err(error) = backend.send(&json)
+                        && let Some(response) = pending.remove(&extra)
+                    {
+                        let _ = response.send(Err(TransportError::Backend(error.to_string())));
                     }
                 }
                 Ok(Command::Cancel {
@@ -302,6 +372,10 @@ fn receive_loop<B: TdJsonBackend>(
                 return;
             }
         };
+        if raw.len() > EVENT_BYTES {
+            fail_pending(&mut pending, TransportError::TransportStopped);
+            return;
+        }
         let mut value: Value = match serde_json::from_str(&raw) {
             Ok(value) => value,
             Err(_) => {
@@ -316,7 +390,9 @@ fn receive_loop<B: TdJsonBackend>(
             .and_then(|object| object.remove("@extra"));
         match extra {
             None => {
-                let _ = events.send(TdJsonEvent::Update(value));
+                if events.send(TdJsonEvent::Update(value)).is_err() {
+                    return;
+                }
             }
             Some(extra) => {
                 let response = extra
@@ -324,21 +400,34 @@ fn receive_loop<B: TdJsonBackend>(
                     .and_then(|id| pending.remove(&id).map(|response| (id, response)));
                 match response {
                     Some((correlation_id, response)) => {
-                        let _ = events.send(TdJsonEvent::ResponseBoundary { correlation_id });
+                        if events
+                            .send(TdJsonEvent::ResponseBoundary { correlation_id })
+                            .is_err()
+                        {
+                            return;
+                        }
                         if let Err(undelivered) = response.send(Ok(value))
                             && let Ok(response) = undelivered.0
+                            && events
+                                .send(TdJsonEvent::UnmatchedResponse {
+                                    extra: Value::from(correlation_id),
+                                    response,
+                                })
+                                .is_err()
                         {
-                            let _ = events.send(TdJsonEvent::UnmatchedResponse {
-                                extra: Value::from(correlation_id),
-                                response,
-                            });
+                            return;
                         }
                     }
                     None => {
-                        let _ = events.send(TdJsonEvent::UnmatchedResponse {
-                            extra,
-                            response: value,
-                        });
+                        if events
+                            .send(TdJsonEvent::UnmatchedResponse {
+                                extra,
+                                response: value,
+                            })
+                            .is_err()
+                        {
+                            return;
+                        }
                     }
                 }
             }
@@ -363,6 +452,62 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn command_queue_overload_is_distinct_from_shutdown() {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        sender.try_send(()).unwrap();
+        assert_eq!(
+            command_queue_error(sender.try_send(()).unwrap_err()),
+            TransportError::Overloaded
+        );
+        drop(receiver);
+        assert_eq!(
+            command_queue_error(sender.try_send(()).unwrap_err()),
+            TransportError::TransportStopped
+        );
+    }
+
+    #[test]
+    fn event_queue_bounds_count_and_bytes_without_blocking() {
+        let (sender, receiver) = event_channel();
+        for _ in 0..EVENT_CAPACITY {
+            sender
+                .send(TdJsonEvent::Update(json!({"@type":"updateNewMessage"})))
+                .unwrap();
+        }
+        assert!(sender.send(TdJsonEvent::Update(json!({}))).is_err());
+        receiver.recv_timeout(Duration::ZERO).unwrap();
+        assert!(sender.send(TdJsonEvent::Update(json!({}))).is_ok());
+        let (sender, receiver) = event_channel();
+        assert!(
+            sender
+                .send(TdJsonEvent::Update(Value::String("x".repeat(EVENT_BYTES))))
+                .is_err()
+        );
+        assert_eq!(receiver.bytes.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn overflow_stops_transport_instead_of_hanging_a_pending_call() {
+        let state = ScriptedState::default();
+        state
+            .inner
+            .lock()
+            .unwrap()
+            .incoming
+            .extend((0..EVENT_CAPACITY + 1).map(|_| r#"{"@type":"updateNewMessage"}"#.to_owned()));
+        let (transport, _events) = TdJsonTransport::start(ScriptedBackend::new(state)).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !transport.thread.as_ref().unwrap().is_finished() && Instant::now() < deadline {
+            thread::yield_now();
+        }
+        assert!(transport.thread.as_ref().unwrap().is_finished());
+        assert!(matches!(
+            transport.call(json!({"@type":"getMe"}), Duration::from_millis(50)),
+            Err(TransportError::TransportStopped)
+        ));
+    }
 
     #[derive(Clone, Default)]
     struct ScriptedState {
@@ -393,7 +538,7 @@ mod tests {
             let request: Value = serde_json::from_str(request).unwrap();
             let mut inner = self.state.inner.lock().unwrap();
             inner.sent.push(request.clone());
-            if inner.reverse_pairs && inner.sent.len() % 2 == 0 {
+            if inner.reverse_pairs && inner.sent.len().is_multiple_of(2) {
                 let pair = &inner.sent[inner.sent.len() - 2..];
                 let responses = pair
                     .iter()

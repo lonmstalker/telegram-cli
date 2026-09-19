@@ -24,9 +24,6 @@ unsafe extern "C" {
     fn dlerror() -> *const c_char;
 }
 
-const RTLD_NOW: c_int = 2;
-const RTLD_LOCAL: c_int = 4;
-
 struct DynamicLibrary {
     handle: NonNull<c_void>,
 }
@@ -41,7 +38,7 @@ impl DynamicLibrary {
         let path = CString::new(path.as_os_str().as_bytes())
             .map_err(|_| BackendError::new("tdjson library path contains NUL"))?;
         // SAFETY: path is a valid NUL-terminated string; the handle is checked.
-        let handle = unsafe { dlopen(path.as_ptr(), RTLD_NOW | RTLD_LOCAL) };
+        let handle = unsafe { dlopen(path.as_ptr(), libc::RTLD_NOW | libc::RTLD_LOCAL) };
         NonNull::new(handle)
             .map(|handle| Self { handle })
             .ok_or_else(last_dynamic_error)

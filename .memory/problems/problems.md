@@ -130,3 +130,17 @@ Active append-only problem lifecycle. Status changes добавляются но
   `read,presence` вернул complete только после paired cleanup ACK, lease released, daemon `Closed`.
   Sanitized evidence: [`2026-07-21-p10-chat-open-close.md`](../raw/2026-07-21-p10-chat-open-close.md).
 - Status: resolved; других подтверждённых влияющих CHAT-006 дефектов независимые reviews не нашли.
+
+## [2026-09-19] resolved | P-20260919-001 | Рост очередей, Linux loader и ошибки agent lifecycle
+
+- Evidence: comparison audit выявил unbounded retention/events и Darwin RTLD_LOCAL=4 в Linux loader; Fable review выявил deadline/starvation при handler, early startup timeout, env fallback и потерю receipt без отдельного кода.
+- Resolution: libc platform flags, bounded queues/retention с fail-closed semantics, nonblocking framing, full startup deadline, owner profile без env fallback, typed response_lost/response_too_large, безопасный orphan-key reuse.
+- Verification: regression tests и fake-daemon scenario в [review](../../docs/reviews/2026-09-19-agent-onboarding.md); изменения связаны с D-20260919-001/002. Linux runtime и новый live login не запускались.
+- Status: resolved по доступному deterministic/macOS evidence. Проверка Linux native execution остаётся platform acceptance, mixed-version upgrade — отдельный P9 scope.
+
+## [2026-09-19] resolved | P-20260919-002 | Wiki check требовал существования перенесённых исходников
+
+- Evidence: existing immutable archive ссылался на прежний crates/telegram-core/src/workflows.rs; checksum был верен, текущий файл уже разделён на модули.
+- Resolution: проверка published archives допускает исторические ссылки на source code внутри repo; escaping paths и отсутствующие raw/wiki evidence по-прежнему отклоняются. Новые archives проверяют targets до публикации. Существующие shards и checksum index не переписывались.
+- Verification: scripts/test-rotate-wiki-journal.py и scripts/rotate-wiki-journal.py --all --check.
+- Status: resolved.

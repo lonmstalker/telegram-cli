@@ -28,3 +28,9 @@ chat workflow. Если cached chat имеет `has_protected_content=true`, п�
 Mark-read/presence по умолчанию не выполняются. Только explicit `mark_read=true` после
 complete page вызывает один `viewMessages(..., force_read=true)` для реально возвращённых
 IDs; partial/no-progress result не создаёт скрытого side effect.
+
+## Размер результата (2026-09-19)
+
+`PageOptions.count` допускает 1..1000, `page_limit` — 1..100. Нулевые и
+безразмерные выборки отклоняются до TDLib call. Workflow собирает bounded результат
+в памяти; streaming export и входной continuation cursor пока не реализованы.

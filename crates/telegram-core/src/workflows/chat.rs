@@ -741,13 +741,12 @@ fn chat_identity(
             }
         }
     }
-    if let Some(username) = known_public_username {
-        if !active_usernames
+    if let Some(username) = known_public_username
+        && !active_usernames
             .iter()
             .any(|candidate| candidate == username)
-        {
-            active_usernames.insert(0, username.to_owned());
-        }
+    {
+        active_usernames.insert(0, username.to_owned());
     }
     let visibility = if !active_usernames.is_empty() || has_location {
         ChatVisibility::Public

@@ -2,26 +2,6 @@
 
 Active append-only checkpoints. Решения и проблемы хранятся отдельно и здесь только упоминаются по ID.
 
-## [2026-07-19] completed | W-20260719-008 | Async membership receipt/status закрыли CHAT-010
-
-- Goal: не блокировать join до admin approval, вернуть немедленный typed status и принять поздний
-  Telegram member update без повторной mutation.
-- Implementation: `ensure_membership` разделяет submission/membership completeness и больше не
-  сериализует raw result; read-only `membership_status` поддерживает chat ID/invite, fresh group
-  probe и response-boundary update application. Journal policy вынесена из server; status не
-  journaled, structural ratchets снижены до 2679/2146. Decision correction:
-  [D-20260719-002](../decisions/decisions.md).
-- Deterministic verification: pending → late `updateSupergroup/member` → status member, exact join
-  count 1; closed mappings для current TDLib member statuses и честный unresolved. Workspace —
-  163 passed, 0 failed, 3 ignored; clippy/fmt/planning/workspace/skeleton/registry/secret/diff gates
-  green.
-- Live: returning auth `ready`; discovery/describe подтвердили `membership_status`; один read-only
-  status по owner fixture дал complete `member` server snapshot. Lease released, daemon
-  `Draining -> Closed`; invite/title/chat ID/raw response не сохранены. Evidence:
-  [`2026-07-19-p10-chat-async-membership-status.md`](../raw/2026-07-19-p10-chat-async-membership-status.md).
-- Boundary: CHAT-010 accepted, [P-20260719-002](../problems/problems.md) resolved; общая P10 всё ещё
-  pending по остальным domain/live-failure scenarios.
-
 ## [2026-07-19] completed | W-20260719-009 | A1 resolve применяет response boundary
 
 - Goal: не маркировать reducer-derived supergroup fields как fresh server snapshot, пока updates,
@@ -170,3 +150,12 @@ Active append-only checkpoints. Решения и проблемы хранят�
   [P-20260721-001](../problems/problems.md),
   [sanitized live checkpoint](../raw/2026-07-21-p10-chat-open-close.md).
 - Next: CHAT-007 — найти существующий folder fixture и доказать terminal folder list contract.
+
+## [2026-09-19] work | W-20260919-001 | Agent UX, profile onboarding и local installer
+
+- Goal: доработать существующий Telegram CLI, сохранив runtime/policy/workflows, дать владельцу one-time setup и агенту самостоятельный reuse.
+- Sources: пользовательская постановка, P9, исходный code audit, Fable medium code-quality review.
+- Actions: setup/import-env, lazy daemon, --agent/run/call, offline discovery, doctor, skill init, source/bundle installer, README, serial lightweight harness и resource/IPC fixes.
+- Verification: 181 default Rust tests + 6 MCP tests; 3 native/live cases ignored. Cold CLI integration, installer/bundle с isolated HOME, skill validator и fmt/clippy. Подробности и Fable usage — [review](../../docs/reviews/2026-09-19-agent-onboarding.md).
+- Related: D-20260919-001/002; P-20260919-001/002.
+- Next: owner setup в личном терминале; Linux clean-install/native acceptance и P9 upgrade/rollback отдельно. Секреты и реальный аккаунт не изменялись.

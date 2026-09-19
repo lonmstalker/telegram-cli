@@ -2,14 +2,6 @@
 
 Active append-only decision records. Изменение решения оформляется новой entry; старое решение не переписывается.
 
-## [2026-07-18] accepted | D-20260718-004 | Code resend следует server timeout, а не guessed OTP TTL
-
-- Context: после долгого ожидания TDLib оставалась в `authorizationStateWaitCode`, CLI просила прежний OTP, а `LoginSubmissionRejected` завершал весь human flow без попытки `resendAuthenticationCode`.
-- Decision: `authenticationCodeInfo.timeout` трактуется только как задержка до разрешённого resend, не как гарантированный срок жизни OTP. Daemon запоминает момент наблюдения exact code challenge и разрешает typed `resendAuthenticationCode` только после timeout и при ненулевом `next_type`.
-- Human UX: обычный `telegram-cli login` делает одну proactive resend-попытку до OTP prompt; после отклонённого кода снова проверяет resend eligibility. До timeout пользователь может повторить ввод, после успешного resend CLI ждёт новый challenge. Exact-ID one-shot остаётся one-shot и сам resend не запускает.
-- Safety: resend привязан к текущему `challenge_id`, concurrent submission блокируется, Telegram rejection не превращается в retry loop. Phone/OTP и TDLib error text не добавляются в protocol, logs или memory.
-- Evidence: явная инструкция владельца; [`crates/telegram-core/src/authorization.rs`](../../crates/telegram-core/src/authorization.rs), [`apps/telegramd/src/server.rs`](../../apps/telegramd/src/server.rs), [`apps/telegram-cli/src/main.rs`](../../apps/telegram-cli/src/main.rs); workspace tests, clippy `-D warnings`, regular macOS build и docs checks green.
-
 ## [2026-07-18] accepted | D-20260718-005 | Ready и login submission разделяют observed и verified outcomes
 
 - Context: supplied review показал три связанные trust-gap: response timeout очищал pending submission, numeric challenge generation повторялась после daemon restart, а re-auth `Ready` в основном serve loop не повторял `getMe`/identity proof.
@@ -110,3 +102,17 @@ Active append-only decision records. Изменение решения офор�
   [CHAT-006 live checkpoint](../raw/2026-07-21-p10-chat-open-close.md).
 - Consequences: success/error/timeout inspection paths имеют bounded paired cleanup; ошибка
   cleanup остаётся видимой caller и не маскируется потенциально опасным повтором.
+
+## [2026-09-19] accepted | D-20260919-001 | Сохранённый owner profile для lazy CLI
+
+- Context: пользователь выбрал доработку существующего CLI вместо нового каркаса; нужны one-time setup и agent reuse.
+- Decision: owner TTY создаёт private profile вне checkout; CLI запускает sibling daemon с whitelist settings из profile.json. Неявный env fallback удалён; import-env явный, расширенная policy подтверждается владельцем. Default read, approvals и singleton DB ownership сохраняются.
+- Evidence: [profile.rs](../../apps/telegram-cli/src/profile.rs), [agent CLI integration](../../scripts/test-agent-cli.py), [README](../../README.md).
+- Consequences: агенту не нужны env credentials или TTY; installer не изменяет аккаунт. Mixed-version upgrades и service activation остаются в P9. Supersedes: ручной dev startup остаётся поддержанным explicit flow.
+
+## [2026-09-19] accepted | D-20260919-002 | Bounded queues и явная потеря evidence
+
+- Context: unbounded events/unknown updates росли без consumer; блокирующий channel мог бы остановить response correlation.
+- Decision: bounded try-send event transport fail closed и завершается при overflow; retention eviction отмечает gap. Nonblocking IPC отделяет framing от serial workflows и исключает handler time из client I/O deadline. Потеря receipt после dispatch не считается доказанным failure операции.
+- Evidence: [transport](../../crates/telegram-core/src/transport.rs), [reducer](../../crates/telegram-core/src/reducer.rs), [IPC](../../apps/telegramd/src/ipc.rs), [review](../../docs/reviews/2026-09-19-agent-onboarding.md).
+- Consequences: transport overflow требует restart, retention gap — resync. Supersedes: unbounded lossless retention из D-20260715-041; остальные snapshot/terminal-proof contracts сохраняются.

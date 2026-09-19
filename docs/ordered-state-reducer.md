@@ -22,3 +22,10 @@ Unknown constructor получает тот же global sequence и сохран
 Queue не является durable journal и не заявляет backpressure policy: persistence/limits принадлежат runtime/reliability phases. Gap/resync/freshness также не подменяются обычным sequence.
 
 Behavior tests связывают ordered transport events с reducer sequence и проверяют все перечисленные core cache categories, exact unknown payload/order, chat base-entity gate и terminal message-send transition. Тесты не хранят список/хеш update constructors.
+
+## Ограничение retention (2026-09-19)
+
+Unknown updates, включая `updateNewMessage`, хранятся в VecDeque до 1024 записей
+и 8 MiB сериализованного JSON. Eviction ставит update gap; silent loss не считается
+полной chain. `drain_unknown_updates` освобождает retention byte accounting.
+Старое описание lossless unbounded retention ниже/выше superseded этим контрактом.

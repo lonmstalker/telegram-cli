@@ -191,8 +191,13 @@ impl RunnerError {
             ClientErrorCode::InvalidProfile => Self::InvalidProfile,
             ClientErrorCode::SocketUnavailable => Self::SocketUnavailable,
             ClientErrorCode::UnsafeSocket => Self::UnsafeSocket,
-            ClientErrorCode::InvalidResponse => Self::InvalidResponse,
-            ClientErrorCode::TransportFailed
+            ClientErrorCode::InvalidResponse | ClientErrorCode::ResponseLost => {
+                Self::InvalidResponse
+            }
+            ClientErrorCode::ProfileNotConfigured
+            | ClientErrorCode::InvalidConfiguration
+            | ClientErrorCode::DaemonStartFailed
+            | ClientErrorCode::TransportFailed
             | ClientErrorCode::InvalidArguments
             | ClientErrorCode::InvalidJson
             | ClientErrorCode::InvalidOutputFormat

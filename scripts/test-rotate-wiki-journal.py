@@ -640,8 +640,20 @@ def test_rotation_rejects_unsupported_inline_link_syntax(rotation) -> None:
                 raise AssertionError("failed rotation published an archive shard")
 
 
+def test_historical_source_links_do_not_rewrite_immutable_archives(rotation):
+    with tempfile.TemporaryDirectory(prefix="wiki-source-move-") as directory:
+        root = Path(directory)
+        source = root / ".memory/decisions/archive/test.md"
+        target = "../../../crates/old.rs"
+        assert not rotation.target_exists(root, source, target)
+        assert rotation.target_exists(root, source, target, historical_source=True)
+        assert not rotation.target_exists(root, source, "../../../.memory/raw/missing.md", historical_source=True)
+        assert not rotation.target_exists(root, source, "../../../../escape.rs", historical_source=True)
+
+
 def main() -> None:
     rotation = load_rotation_module()
+    test_historical_source_links_do_not_rewrite_immutable_archives(rotation)
     test_rotation_rebases_relative_links(rotation)
     test_rotation_rejects_broken_targets_before_publication(rotation)
     test_repair_is_limited_to_uncommitted_last_shard(rotation)

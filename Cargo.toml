@@ -22,7 +22,7 @@ default-members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.95"
 
 [workspace.dependencies]
 libc = "0.2.174"
@@ -50,3 +50,9 @@ incremental = false
 [profile.test]
 debug = 0
 incremental = false
+
+[profile.release]
+debug = 0
+strip = "symbols"
+lto = false
+codegen-units = 16

@@ -208,15 +208,14 @@ fn wait_file_terminal(
             .state()
             .file(file_id)
             .filter(|file| file.sequence.get() > baseline_sequence)
+            && file_complete(&file.value, direction)?
         {
-            if file_complete(&file.value, direction)? {
-                return file_receipt(
-                    file.value.clone(),
-                    Some(file.sequence.get()),
-                    TerminalSource::OrderedUpdate,
-                    direction,
-                );
-            }
+            return file_receipt(
+                file.value.clone(),
+                Some(file.sequence.get()),
+                TerminalSource::OrderedUpdate,
+                direction,
+            );
         }
         runtime
             .next_event_until(deadline)

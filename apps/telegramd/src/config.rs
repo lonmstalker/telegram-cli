@@ -162,6 +162,19 @@ fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
+pub fn check_native(path: &Path) -> Result<(), ConfigError> {
+    let provenance: Value =
+        serde_json::from_str(NATIVE_PROVENANCE).map_err(|_| ConfigError::InvalidNativePin)?;
+    let artifact = &provenance["artifact"];
+    verify_native_artifact(
+        path,
+        artifact["bytes"]
+            .as_u64()
+            .ok_or(ConfigError::InvalidNativePin)?,
+        required_json_string(artifact.get("sha256"))?,
+    )
+}
+
 fn verify_native_artifact(
     path: &Path,
     expected_bytes: u64,

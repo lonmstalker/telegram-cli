@@ -11,14 +11,37 @@ policy review запрещены по умолчанию. Опциональны
 
 ## Установка
 
-Поддерживаются **macOS arm64** и **Linux x86_64 GNU/glibc**. Rust-сборка не собирает TDLib.
-Нужен готовый pinned `libtdjson` из соответствующего native manifest. Случайная версия
-TDLib из Homebrew/системы не подойдёт: daemon проверяет размер и SHA-256.
-
-Из checkout (Rust 1.95.0 и Python 3):
+**Без сборки — macOS 11+ arm64 (Apple Silicon):**
 
 ```sh
-git clone https://github.com/lonmstalker/telegram-cli.git
+curl -fsSL https://github.com/lonmstalker/telegram-cli/releases/latest/download/install-release.sh | sh
+```
+
+Устанавливаются **CLI, daemon, готовая TDLib и глобальные скиллы Codex + Claude Code**.
+Rust, Cargo, Python, Git и Homebrew не нужны. Загрузчик проверяет SHA-256 архива до
+распаковки, затем bundled daemon проверяет закреплённую TDLib. Нужны только `curl`,
+`tar` и `shasum`/`sha256sum` — на macOS они уже есть. Проверяемые архивы и установщик
+доступны в [GitHub Releases](https://github.com/lonmstalker/telegram-cli/releases).
+
+Бинарники устанавливаются в `~/.local/bin`. Если этот каталог ещё не в `PATH`, добавьте
+`export PATH="$HOME/.local/bin:$PATH"` в `~/.zshrc` (или конфигурацию своего shell)
+и откройте новый терминал. Затем выполните `telegram-cli setup` один раз.
+Скрипт не меняет shell configuration и не запускает вход в аккаунт.
+
+Можно сначала скачать и прочитать установщик, затем выполнить
+`sh install-release.sh --version v0.1.0 --skill both`.
+`--prefix /absolute/path` меняет корень установки;
+`--skill codex|claude|both|none` выбирает скиллы, default — `both`.
+Для ручной/offline установки распакуйте bundle и выполните
+`./telegram-cli/install.sh --skill both`.
+
+Первый готовый bundle — **только macOS arm64**. Linux x86_64 GNU/glibc поддерживается
+исходниками; публикация и проверка готового Linux bundle остаются отдельным шагом.
+
+**Из исходников** (Rust 1.95.0 и Python 3):
+
+```sh
+git clone --branch v0.1.0 https://github.com/lonmstalker/telegram-cli.git
 cd telegram-cli
 ./install.sh --native /absolute/path/to/pinned/libtdjson --skill both
 ```
@@ -29,10 +52,9 @@ cd telegram-cli
 `~/.local/lib/telegram-cli`. `--prefix /absolute/path` меняет корень установки.
 Добавьте его `bin` в `PATH`, если команда не находится. Shell startup files не меняются.
 
-**Готовый bundle** не требует Rust/Python: распакуйте проверенный архив и выполните
-`./telegram-cli/install.sh --skill both`. Публикация GitHub releases пока не настроена;
-неподтверждённую `curl | sh` команду проект не предлагает. Для получения native artifact
-см. [native build script](scripts/build-tdlib-native.py), manifests в
+Rust-сборка не собирает TDLib. Нужен готовый pinned `libtdjson`; случайная версия
+из Homebrew/системы не подойдёт. Для получения native artifact см.
+[native build script](scripts/build-tdlib-native.py), manifests в
 [`vendor/tdlib/native-builds`](vendor/tdlib/native-builds). Native-сборка — отдельный
 дорогой шаг, выполняемый явно; Linux собирается на Linux build host.
 
@@ -116,7 +138,8 @@ Help, version, schema discovery, workflow list/describe и `td preview` рабо
 
 ## Skill
 
-Установщик поддерживает `--skill codex`, `claude`, `both` или `none` (default).
+Установщики поддерживают `--skill codex`, `claude`, `both` или `none`.
+У `install-release.sh` default — `both`; у локального `install.sh` — `none`.
 Отдельно, для текущего проекта или глобально:
 
 ```sh
@@ -136,12 +159,18 @@ python3 scripts/check.py fast        # boundaries, pin, fmt, cargo check
 python3 scripts/check.py verify      # + clippy, tests, fake-daemon agent flow
 python3 scripts/check.py release     # offline Rust release, jobs=2, без LTO/native build
 python3 scripts/test-install.py      # release + pinned native, изолированный HOME
-scripts/package-release.sh /absolute/path/telegram-cli-macos-arm64.tar.gz
+scripts/package-release.sh /absolute/path/telegram-cli-aarch64-apple-darwin.tar.gz
 ```
 
 Harness запускает проверки последовательно; второй harness в том же checkout
 завершается, не конкурируя за сборку. Native/live gates запускаются отдельно.
 MCP не входит в default build; его проверка: `cargo test --locked -p telegram-mcp`.
+
+Для release assets используйте имена `telegram-cli-<target>.tar.gz` и
+`telegram-cli-<target>.tar.gz.sha256` (sidecar создаётся упаковщиком автоматически).
+При публикации также приложите `scripts/install-release.sh` как `install-release.sh`.
+Checksum защищает от повреждения архива; доверие к релизу обеспечивается GitHub/HTTPS,
+отдельной криптографической подписи пока нет.
 
 Архитектура: CLI → `telegram-client` → Unix socket → `telegramd` → `telegram-core`
 → TDLib. У CLI нет зависимости от core/TDLib. Один daemon сериализует workflows
@@ -156,6 +185,6 @@ eviction отмечает gap; `resync_after_gap` восстанавливает
 
 `logOut`/`destroy` и удаление профиля сбрасывают доступ; обычное завершение — `close`.
 Причина неудачного старта остаётся в `daemon.log` профиля (`0600`, ограничение при открытии 64 KiB); `doctor` показывает путь, но не читает лог. Не передавайте raw log агенту. Перед переустановкой дождитесь idle `Closed`: смешанные версии активного daemon и CLI не являются поддержанным upgrade flow. Не удаляйте DB/ключ для исправления ошибки входа. Backup делайте после `Closed`;
-автоматические upgrades/rollback, systemd/launchd и публичные release downloads остаются
+автоматические upgrades/rollback, systemd/launchd и Linux release bundle остаются
 отдельной работой. Статусы: [plans.md](plans.md), [HARNESS.md](HARNESS.md),
 [live regression](docs/live-regression.md), [English guide](docs/user-guide.en.md).

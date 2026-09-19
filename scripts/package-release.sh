@@ -4,7 +4,7 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 output=${1:?Usage: scripts/package-release.sh /absolute/output.tar.gz [native-library]}
 case "$output" in /*.tar.gz) ;; *) echo 'Output must be an absolute .tar.gz path' >&2; exit 2;; esac
-[ ! -e "$output" ] || { echo 'Output already exists' >&2; exit 2; }
+[ ! -e "$output" ] && [ ! -e "$output.sha256" ] || { echo 'Output already exists' >&2; exit 2; }
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 trap 'exit 130' HUP INT TERM
@@ -38,5 +38,15 @@ Profiles and keys are outside the installation prefix and are not replaced by in
 
 Full source and documentation: https://github.com/lonmstalker/telegram-cli
 README
-COPYFILE_DISABLE=1 tar -czf "$output" -C "$stage" telegram-cli
-if command -v sha256sum >/dev/null 2>&1; then sha256sum "$output"; else shasum -a 256 "$output"; fi
+case "$(uname -s)" in
+    Darwin) COPYFILE_DISABLE=1 tar --uid 0 --gid 0 --uname root --gname root -czf "$output" -C "$stage" telegram-cli;;
+    *) tar --owner=0 --group=0 --numeric-owner -czf "$output" -C "$stage" telegram-cli;;
+esac
+(
+    cd "$(dirname -- "$output")"
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$(basename -- "$output")"
+    else shasum -a 256 "$(basename -- "$output")"
+    fi
+) > "$output.sha256"
+echo "Bundle: $output"
+echo "Checksum: $output.sha256"

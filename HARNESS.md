@@ -106,3 +106,7 @@ Bot-only, Premium/Business, admin-gated, financial и official-app-only мето
 или Rust-only сборку. `verify` включает `scripts/test-agent-cli.py`: fake daemon
 проверяет cold discovery, protected setup, session reuse/restart, no replay после
 потери ответа и lease cleanup; реальный Telegram не вызывается.
+
+`python3 scripts/test-install.py` отдельно проверяет source/bundle установку и release
+download через подменённый HTTPS transport: оба скилла, CLI discovery без аккаунта,
+ограниченный PATH без Cargo/Python, checksum mismatch, unsafe archive path и download failure.

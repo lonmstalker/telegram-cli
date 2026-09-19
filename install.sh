@@ -25,6 +25,7 @@ case "$prefix" in /*) ;; *) echo '--prefix must be absolute' >&2; exit 2;; esac
 case "$skill" in codex|claude|both|none) ;; *) echo 'invalid --skill' >&2; exit 2;; esac
 case "$(uname -s)-$(uname -m)" in
     Darwin-arm64) target=aarch64-apple-darwin; library=libtdjson.dylib;;
+    Darwin-x86_64) echo 'On Apple Silicon, use a native arm64 terminal (not Rosetta). Intel Macs are unsupported.' >&2; exit 2;;
     Linux-x86_64) target=x86_64-unknown-linux-gnu; library=libtdjson.so;;
     *) echo 'Supported: macOS arm64 and Linux x86_64' >&2; exit 2;;
 esac

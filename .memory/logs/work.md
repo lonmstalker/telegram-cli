@@ -2,21 +2,6 @@
 
 Active append-only checkpoints. Решения и проблемы хранятся отдельно и здесь только упоминаются по ID.
 
-## [2026-07-19] completed | W-20260719-009 | A1 resolve применяет response boundary
-
-- Goal: не маркировать reducer-derived supergroup fields как fresh server snapshot, пока updates,
-  доставленные до `getChat/searchPublicChat` response, не применены.
-- Sources: [`plans.md`](../../plans.md), [`chat-resolution-membership.md`](../../docs/chat-resolution-membership.md), runtime response-boundary contract и явное ТЗ пользователя.
-- Actions: `resolve` теперь требует resync, получает correlation boundary, применяет ordered updates
-  до него и только затем проецирует `ChatIdentity`; daemon caller обновлён через mutable runtime.
-  Deterministic backend доставляет `updateSupergroup` до response и доказывает, что reducer usernames
-  вошли в resolved identity.
-- Verification: targeted regression green; `cargo test --workspace --jobs 2 -q` — 164 passed,
-  0 failed, 3 ignored. Все `scripts/check-*.py` green под bundled Python 3.12.13; системный
-  Python 3.9.6 не поддерживает pinned native guard `dataclass(slots=True)`, поэтому не использован
-  для этой проверки. `cargo fmt`, `git diff --check` green.
-- Next: A2 — связать journal classification с единственным workflow catalog.
-
 ## [2026-07-19] completed | W-20260719-010 | A2 каталог workflow стал единственным источником journal policy
 
 - Goal: исключить silent loss idempotency journal при добавлении mutation в discoverable workflow list.
@@ -159,3 +144,20 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Verification: 181 default Rust tests + 6 MCP tests; 3 native/live cases ignored. Cold CLI integration, installer/bundle с isolated HOME, skill validator и fmt/clippy. Подробности и Fable usage — [review](../../docs/reviews/2026-09-19-agent-onboarding.md).
 - Related: D-20260919-001/002; P-20260919-001/002.
 - Next: owner setup в личном терминале; Linux clean-install/native acceptance и P9 upgrade/rollback отдельно. Секреты и реальный аккаунт не изменялись.
+
+## [2026-09-19] work | W-20260919-002 | Готовая установка CLI и skills без toolchain
+
+- Goal: другим пользователям нужна одна установка CLI, TDLib и skills без локальной сборки.
+- Sources: уточнение пользователя; P9; [installer](../../scripts/install-release.sh), [bundle packager](../../scripts/package-release.sh), [installation checks](../../scripts/test-install.py).
+- Actions: HTTPS downloader готового release, оба skills по умолчанию, SHA-256 до распаковки, проверка путей архива, version/prefix/skill options и portable checksum sidecar; README с полной установкой. macOS arm64 bundle включает только CLI/daemon/native и установщик, без account data.
+- Verification: scripts/check.py verify — 13 checks; scripts/test-install.py — source/bundle/download, custom prefix, both skills, PATH без Cargo/Python, checksum/path/download negative cases. CLI/daemon minimum macOS 11.0, TDLib native pin не менялся.
+- Boundary: Linux bundle отложен по явному выбору пользователя; конфигурация аккаунта и real Telegram не использовались. Download tests подменяют только HTTPS, выполняют настоящие установщик и бинарники.
+- Next: code-quality review, публикация macOS release и проверка скачивания с GitHub в isolated HOME; Linux и signing остаются отдельной работой.
+
+## [2026-09-19] work | W-20260919-003 | macOS release: public download acceptance
+
+- Goal: опубликовать готовую установку для других пользователей и проверить реальную ссылку.
+- Actions: release v0.1.0 из cf9050d, три assets (installer, bundle, SHA-256); first release только macOS arm64 по выбору пользователя.
+- Verification: anonymous GitHub download + запуск в isolated HOME с PATH без build tools; CLI doctor/discovery и оба global skills прошли. TDLib/CLI/daemon minimum macOS 11.0, native dependencies только system libraries.
+- Evidence: [public release install](../raw/2026-09-19-macos-release-install.md); Fable medium corrections и usage — [review](../../docs/reviews/2026-09-19-agent-onboarding.md).
+- Next: Linux bundle и platform acceptance отдельно; owner setup выполняет пользователь, существующие account files не менялись.

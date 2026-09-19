@@ -55,6 +55,8 @@
 
 ## Raw evidence
 
+- [macOS v0.1.0 public install](../raw/2026-09-19-macos-release-install.md) — CLI/daemon/TDLib + Codex/Claude skills без toolchain, проверено анонимное скачивание из GitHub.
+
 - [Bootstrap source digest](../raw/2026-07-15-project-bootstrap.md)
 - [TDLib 1.8.66 schema pin digest](../raw/2026-07-15-tdlib-1.8.66-schema-pin.md)
 - [TDLib macOS arm64 reviewed rebuild](../raw/2026-07-15-tdlib-1.8.66-native-macos-arm64-reviewed-rebuild.md) — current artifact truth

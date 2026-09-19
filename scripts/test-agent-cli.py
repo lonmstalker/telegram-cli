@@ -34,6 +34,7 @@ path = directory / (profile + ".sock")
 path.unlink(missing_ok=True)
 server = socket.socket(socket.AF_UNIX)
 server.bind(str(path)); path.chmod(0o600); server.listen(); server.settimeout(10)
+qr_prompts = 0
 try:
     while True:
         client, _ = server.accept()
@@ -43,7 +44,16 @@ try:
             request = json.loads(data)
             kind = request["type"]
             with (db / "requests").open("a") as log: log.write(kind + "\n")
-            if kind == "lease_acquire":
+            if (db / "qr-fixture").exists() and kind in ("login_status", "login_prompt"):
+                challenge = "auth-" + "0" * 32 + "-" + format(qr_prompts + 1, "016x")
+                if kind == "login_prompt":
+                    assert request["challenge_id"] == challenge
+                    response = {"type":"login_prompt", "challenge_id":challenge, "prompt":{"kind":"qr_code", "link":"tg://login?token=" + "A" * 42 + str(qr_prompts)}}
+                    qr_prompts += 1
+                elif qr_prompts < 2:
+                    response = {"type":"login_status", "state":"qr_code", "challenge_id":challenge, "next_action":"confirm_other_device"}
+                else: response = {"type":"login_status", "state":"ready", "challenge_id":None, "next_action":"ready"}
+            elif kind == "lease_acquire":
                 assert request["scopes"] == ["read"] and request["ttl_ms"] <= 60000
                 response = {"type":"lease_granted", "lease":{"lease_id":"test-lease", "principal":request["principal"], "scopes":["read"], "ttl_ms":60000, "expires_in_ms":60000}}
             elif kind == "lease_release": response = {"type":"lease_released", "lease_id":"test-lease"}
@@ -65,28 +75,34 @@ def run(binary, arguments, environment, code=0):
     return result
 
 
-def run_owner(binary, arguments, environment):
+def run_owner(binary, arguments, environment, streams=None):
     pid, master = pty.fork()
     if pid == 0:
+        if streams is not None:
+            for fd, path in zip((1, 2), streams):
+                with path.open("wb") as stream: os.dup2(stream.fileno(), fd)
         os.execve(str(binary), [str(binary), *arguments], environment)
     deadline = time.monotonic() + 15
     output = bytearray()
+    # Deliberately let the small macOS TTY output queue fill before reading a QR.
+    if streams is not None: time.sleep(0.2)
     try:
         while time.monotonic() < deadline:
             if select.select([master], [], [], 0.1)[0]:
-                try: chunk = os.read(master, 4096)
+                try: chunk = os.read(master, 65536)
                 except OSError: break
                 if not chunk: break
                 output.extend(chunk)
             ended, status = os.waitpid(pid, os.WNOHANG)
             if ended:
                 assert os.waitstatus_to_exitcode(status) == 0, output.decode(errors="replace")
-                return
+                return output.decode()
         ended, status = os.waitpid(pid, os.WNOHANG)
         if not ended:
             os.kill(pid, signal.SIGKILL); os.waitpid(pid, 0)
             raise AssertionError("owner fixture timed out")
         assert os.waitstatus_to_exitcode(status) == 0, output.decode(errors="replace")
+        return output.decode()
     finally:
         os.close(master)
 
@@ -161,12 +177,23 @@ def main():
             run(cli, ["setup", "--import-env"], fixture)
             assert saved.read_bytes() == original
             assert len((db / "starts").read_text().splitlines()) == 2
+            # QR login refreshes in the owner's TTY without exposing tokens to agents or pipes.
+            (db / "qr-fixture").touch()
+            result = run(cli, ["--agent", "login"], environment)
+            assert json.loads(result.stdout)["data"]["state"] == "qr_code"
+            streams = [root / "stdout", root / "stderr"]
+            terminal = run_owner(cli, ["login"], environment, streams)
+            assert terminal.count("Отсканируйте") == 2
+            assert terminal.count("\x1b[30;47m") == 2 and "█" in terminal
+            assert "tg://login" not in terminal
+            for output in (result.stdout + result.stderr, *(path.read_text() for path in streams)):
+                assert "tg://login" not in output and "█" not in output and "Отсканируйте" not in output
         finally:
             if (db / "pid").exists():
                 try: os.kill(int((db / "pid").read_text()), signal.SIGTERM)
                 except ProcessLookupError: pass
             Path(f"/tmp/telegramd-{os.geteuid()}/{profile}.sock").unlink(missing_ok=True)
-    print("agent CLI: offline discovery, protected setup, reuse/restart, lease cleanup and skills ok")
+    print("agent CLI: discovery, setup, reuse/restart, leases, skills and private QR refresh ok")
 
 
 if __name__ == "__main__":

@@ -2,22 +2,6 @@
 
 Active append-only checkpoints. Решения и проблемы хранятся отдельно и здесь только упоминаются по ID.
 
-## [2026-07-19] completed | W-20260719-010 | A2 каталог workflow стал единственным источником journal policy
-
-- Goal: исключить silent loss idempotency journal при добавлении mutation в discoverable workflow list.
-- Sources: [`plans.md`](../../plans.md), [`idempotency-journal.md`](../../docs/idempotency-journal.md),
-  `workflow_catalog.rs`, `server.rs` и явное ТЗ пользователя.
-- Actions: единая типизированная таблица хранит name, valid JSON input example и explicit
-  `journaled` boolean; server discover/list/run и input example читают её. `is_journaled_workflow`
-  делает только lookup в этой таблице. Комментарий фиксирует boundary: не-plan/apply mutations
-  journaled, plan/apply остаются под one-shot exact hash. Exhaustiveness test проверяет unique
-  catalog names, exact lookup/classification и невозможность journal для отсутствующего имени.
-- Verification: targeted catalog и input-contract tests green; `cargo test --workspace --jobs 2 -q`
-  — 164 passed, 0 failed, 3 ignored. Все `scripts/check-*.py` green под bundled Python 3.12.13;
-  `server.rs` ratchet снижен с 2679 до 2550 после фактического сокращения файла, `cargo fmt` и
-  `git diff --check` green.
-- Next: A3 — вернуть typed migration state для basic group, upgraded to supergroup.
-
 ## [2026-07-19] completed | W-20260719-011 | A3 migration basic group не выдаёт guessed membership
 
 - Goal: не оставлять membership workflow на старом basic-group cache после TDLib migration в
@@ -161,3 +145,12 @@ Active append-only checkpoints. Решения и проблемы хранят�
 - Verification: anonymous GitHub download + запуск в isolated HOME с PATH без build tools; CLI doctor/discovery и оба global skills прошли. TDLib/CLI/daemon minimum macOS 11.0, native dependencies только system libraries.
 - Evidence: [public release install](../raw/2026-09-19-macos-release-install.md); Fable medium corrections и usage — [review](../../docs/reviews/2026-09-19-agent-onboarding.md).
 - Next: Linux bundle и platform acceptance отдельно; owner setup выполняет пользователь, существующие account files не менялись.
+
+## [2026-09-19] work | W-20260919-004 | Исправление QR onboarding
+
+- Goal: дать владельцу завершить QR login без ожидания несуществующего OTP.
+- Sources: P9, пользовательский defect report, [Telegram QR contract](https://core.telegram.org/api/qr-login), [review](../../docs/reviews/2026-09-19-qr-login.md).
+- Actions: terminal QR вместо ссылки, исправление nonblocking TTY writes, понятная инструкция и RU/EN docs, patch version 0.1.1.
+- Verification: 13-check harness, PTY refresh/privacy regression, old-version negative check, Vision decode двух synthetic QR, release/installer checks. Fable medium замечания обработаны, usage записан в review.
+- Related: P-20260919-003. Auth state/DB/key не изменялись; native library переиспользована из установленного pinned bundle.
+- Next: публикация macOS patch и установка; владелец повторяет telegram-cli login и сканирует QR на телефоне.

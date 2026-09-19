@@ -7,7 +7,7 @@ use telegram_protocol::{
     ClientErrorCode, CommandErrorCode, DaemonRequest, DaemonResponse, LoginChallengeId, LoginInput,
     LoginNextAction, LoginState, OwnerLoginPrompt, ProtectedString,
 };
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::{
     CliError, RECEIVED_SIGNAL, WATCH_POLL_INTERVAL, exchange, read_cloud_password,
@@ -205,6 +205,9 @@ where
                 }))
             }
             LoginAction::Wait => {
+                self.prompt.notice(
+                    "Ожидаю подтверждения. QR обновляется автоматически; отмена — Ctrl+C.\n",
+                )?;
                 self.waiting_for = Some(challenge_id);
                 self.runtime.wait();
                 Ok(DriverStep::Continue)
@@ -516,10 +519,20 @@ fn registration_login_action(
 }
 
 fn qr_login_action(link: ProtectedString) -> Result<LoginAction, CliError> {
-    let link = link.into_inner();
-    write_tty_notice("Откройте эту ссылку на уже авторизованном устройстве Telegram:\n")?;
-    write_tty_notice(&link)?;
-    write_tty_notice("\n")?;
+    let link = Zeroizing::new(link.into_inner());
+    let code = qrcode::QrCode::new(link.as_bytes()).map_err(|_| invalid_response())?;
+    let image = Zeroizing::new(code.render::<qrcode::render::unicode::Dense1x2>().build());
+    write_tty_notice(
+        "\nВход по QR — одноразовый код из сообщения здесь не нужен.\n\
+         На телефоне: Telegram → Настройки → Устройства → Подключить устройство.\n\
+         Отсканируйте последний показанный QR и подтвердите вход.\n",
+    )?;
+    // Explicit black-on-white keeps the QR readable in both light and dark terminals.
+    write_tty_notice("\x1b[30;47m")?;
+    let drawn = write_tty_notice(&image);
+    let reset = write_tty_notice("\x1b[0m\n");
+    drawn?;
+    reset?;
     Ok(LoginAction::Wait)
 }
 

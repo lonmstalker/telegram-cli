@@ -111,9 +111,12 @@ The legacy `login tty` alias remains for compatibility. Use the interactive form
 ## 5. QR login
 
 In `phone_number`/`premium_purchase`, the CLI offers QR instead of a phone number and sends a
-typed `requestQrCodeAuthentication`. In `qr_code`, the owner-only link is printed only to
-`/dev/tty`, never machine output/MCP. Open it on an already authorized device and wait for
-`ready`.
+typed `requestQrCodeAuthentication`. In `qr_code`, the CLI renders a QR code only to `/dev/tty`;
+neither the QR nor its link appears in machine output/MCP. On a phone already signed in to
+Telegram, open **Settings → Devices → Link Desktop Device**, scan the latest QR, and confirm
+the login. No message code is needed for this step; the CLI then asks for a password if 2FA
+is enabled. The QR refreshes automatically when the challenge changes. If it does not fit,
+widen the terminal and run `telegram-cli login` again.
 
 ## 6. Confirm completion
 

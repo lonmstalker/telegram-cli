@@ -55,6 +55,8 @@
 
 ## Raw evidence
 
+- [QR login patch review](../../docs/reviews/2026-09-19-qr-login.md) — terminal QR, TTY backpressure, synthetic scan verification и Fable usage; P-20260919-003.
+
 - [macOS v0.1.0 public install](../raw/2026-09-19-macos-release-install.md) — CLI/daemon/TDLib + Codex/Claude skills без toolchain, проверено анонимное скачивание из GitHub.
 
 - [Bootstrap source digest](../raw/2026-07-15-project-bootstrap.md)

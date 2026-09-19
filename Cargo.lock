@@ -384,6 +384,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "qrcode"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68782463e408eb1e668cf6152704bd856c78c5b6417adaee3203d8f4c1fc9ec"
+
+[[package]]
 name = "quote"
 version = "1.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -581,7 +587,7 @@ dependencies = [
 
 [[package]]
 name = "tdlib-registry-gen"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -590,9 +596,10 @@ dependencies = [
 
 [[package]]
 name = "telegram-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "libc",
+ "qrcode",
  "serde_json",
  "telegram-client",
  "telegram-protocol",
@@ -601,7 +608,7 @@ dependencies = [
 
 [[package]]
 name = "telegram-client"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "libc",
  "serde_json",
@@ -611,7 +618,7 @@ dependencies = [
 
 [[package]]
 name = "telegram-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64",
  "ed25519-dalek",
@@ -624,7 +631,7 @@ dependencies = [
 
 [[package]]
 name = "telegram-mcp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rmcp",
  "serde",
@@ -636,7 +643,7 @@ dependencies = [
 
 [[package]]
 name = "telegram-protocol"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -645,7 +652,7 @@ dependencies = [
 
 [[package]]
 name = "telegram-webapp-runner"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -656,7 +663,7 @@ dependencies = [
 
 [[package]]
 name = "telegramd"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "libc",
  "serde",

@@ -56,7 +56,9 @@ update либо late-response reconciliation. Definitive input rejection (`400`)
 а сам resend требует `next_type`.
 
 В phone/premium state владелец выбирает phone или QR. QR link передаётся отдельным owner-only
-prompt через private socket и печатается только в `/dev/tty`; JSON/MCP status по-прежнему
+prompt через private socket и преобразуется в QR только в `/dev/tty`; ссылка не печатается.
+Владелец сканирует QR через Telegram → Настройки → Устройства → Подключить устройство;
+код из сообщения на этом шаге не нужен. Новый challenge обновляет QR. JSON/MCP status по-прежнему
 содержит только state/token/action. Email branches аналогично предлагают разрешённые TDLib
 Apple/Google token alternatives. Registration сначала показывает ToS, требует явного согласия,
 затем отдельно спрашивает notification choice; безопасный default даёт

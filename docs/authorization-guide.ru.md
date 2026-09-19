@@ -111,9 +111,12 @@ Legacy alias `login tty` сохраняется для совместимост�
 ## 5. QR login
 
 В `phone_number`/`premium_purchase` CLI предлагает QR вместо номера и отправляет typed
-`requestQrCodeAuthentication`. При состоянии `qr_code` owner-only link печатается только в
-`/dev/tty`; в machine output/MCP его нет. Откройте ссылку на уже авторизованном устройстве и
-ждите `ready`.
+`requestQrCodeAuthentication`. При состоянии `qr_code` CLI рисует QR только в `/dev/tty`;
+в machine output/MCP нет ни QR, ни ссылки. На телефоне с уже авторизованным Telegram откройте
+**Настройки → Устройства → Подключить устройство**, отсканируйте последний показанный QR
+и подтвердите вход. Код из сообщения при этом не нужен; если включена 2FA, CLI затем запросит
+пароль. QR обновляется автоматически при смене challenge. Если QR не помещается, расширьте
+окно терминала и повторите `telegram-cli login`.
 
 ## 6. Подтвердите завершение
 

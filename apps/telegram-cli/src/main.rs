@@ -405,9 +405,27 @@ fn read_secret_bytes(reader: &mut impl Read) -> Result<Zeroizing<Vec<u8>>, CliEr
 }
 
 fn write_tty_notice(message: &str) -> Result<(), CliError> {
-    open_tty()?
-        .write_all(message.as_bytes())
-        .map_err(|_| CliError::new(ClientErrorCode::SecureTtyFailed))
+    let mut tty = open_tty()?;
+    let mut bytes = message.as_bytes();
+    while !bytes.is_empty() {
+        match tty.write(bytes) {
+            Ok(0) => return Err(CliError::new(ClientErrorCode::SecureTtyFailed)),
+            Ok(written) => bytes = &bytes[written..],
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+                ) =>
+            {
+                if RECEIVED_SIGNAL.load(Ordering::Relaxed) != 0 {
+                    return Err(CliError::new(ClientErrorCode::Cancelled));
+                }
+                thread::sleep(TTY_READ_RETRY_INTERVAL);
+            }
+            Err(_) => return Err(CliError::new(ClientErrorCode::SecureTtyFailed)),
+        }
+    }
+    Ok(())
 }
 
 fn open_tty() -> Result<std::fs::File, CliError> {

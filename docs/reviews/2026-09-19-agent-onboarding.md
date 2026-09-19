@@ -48,3 +48,21 @@ CLI UX, безопасность, границы ресурсов, соотве�
 
 Полная реализация остаётся в существующем workspace: CLI не зависит от TDLib/core,
 политики, authorization state machine, identity binding, approvals и idempotency не заменены.
+
+## Дополнение: готовая установка CLI + skills
+
+Отдельный `claude -p --model fable --effort medium` проверил release downloader,
+локальный installer, packager, installation tests и README. Critical/High findings
+не сообщил. Medium observations — повторная установка skills и фактическая
+переносимость dylib — проверены: repeated install проходит, `otool` показывает
+только system dependencies и minimum macOS 11.0 у TDLib/CLI/daemon.
+
+Low findings исправлены: wrapper-function для interrupted `curl | sh`, сообщение
+для пустого checksum, ссылка download error, Rosetta diagnostic, обезличенные
+uid/gid/uname/gname в tar и defaults skills в README. Download timeout остаётся
+ограниченным 300 секундами; stderr curl сохраняет фактическую причину ошибки.
+
+Usage: `claude-fable-5-1`, medium; fresh input 2, cache creation 17,965,
+cache read 531, output 11,259 (thinking 9,159). Всего **29,757 tokens**.
+API duration 134.203 s, wall 135.5 s; CLI list-price estimate **$0.92240275**.
+Ревью читало source snapshot, без tools/MCP; исправления проверяет локальный harness.

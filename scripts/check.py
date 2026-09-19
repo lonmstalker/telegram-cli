@@ -30,6 +30,7 @@ def main():
                          [sys.executable, "scripts/test-agent-cli.py"],
                          [sys.executable, "scripts/test-rotate-wiki-journal.py"],
                          ["sh", "-n", "install.sh"], ["sh", "-n", "scripts/package-release.sh"],
+                         ["sh", "-n", "scripts/install-release.sh"],
                          [sys.executable, "scripts/rotate-wiki-journal.py", "--all", "--check"]]
         if mode in ("build", "release"):
             commands = [["cargo", "build", "--locked", "--offline", "-q", "-p", "telegram-cli", "-p", "telegramd"] + (["--release"] if mode == "release" else [])]

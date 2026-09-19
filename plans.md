@@ -294,6 +294,7 @@ Decision gate: начинать только после acceptance P0–P7.
 - [x] Reproducible pinned TDLib builds для обоих targets.
 - [x] Local source/bundle installer, owner-only saved profile/setup, lazy daemon start, agent run/call и portable skill install.
 - [x] Offline discovery, bounded IPC/update retention и serial fast/verify/release harness.
+- [x] Установка готовых CLI + daemon + TDLib + двух skills без сборки: GitHub release downloader, SHA-256 sidecar и macOS arm64 bundle.
 - [ ] Опубликовать подписанные/проверяемые release bundles и проверить установку на свежем Linux host.
 - [ ] launchd/systemd socket activation, persistent DB, keychain/file-secret integration.
 - [ ] Backup только после Closed; restore, schema upgrade, rollback на копии DB.
